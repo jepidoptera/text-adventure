@@ -9,7 +9,10 @@ class A2D_items {
             value: 1
         })
     }
-    sign(text?: string): Item {
+    sign(text?: string | string[]): Item {
+        if (Array.isArray(text)) {
+            text = text.join('\n')
+        }
         return new Item({
             name: 'sign',
             description: 'A Sign',
