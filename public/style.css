@@ -1,0 +1,47 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+@font-face {
+    font-family: "Perfect DOS VGA 437";
+    src: url('./PerfectDOSVGA437.ttf');
+         /* url('path/to/PerfectDOSVGA437.woff') format('woff'); */
+    font-weight: normal;
+    font-style: normal;
+}
+
+
+body {
+    font-family: "Perfect DOS VGA 437", "Fixedsys Excelsior", "IBM VGA 8x16", "Terminus", monospace;
+    background-color: black;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+#game-container {
+    width: 800px;
+    height: 600px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+#display {
+    display: grid;
+    grid-template-columns: repeat(80, 1fr);
+    grid-auto-rows: 1fr;
+    overflow: hidden;
+    height: 100%;
+    font-size: 14pt;
+}
+
+span {
+    overflow: hidden;
+    display: block;
+    caret-color: transparent;
+}

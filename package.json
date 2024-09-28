@@ -1,0 +1,26 @@
+{
+  "name": "a2-web",
+  "version": "1.0.0",
+  "description": "An updated web version of the classic adventure game",
+  "main": "server.ts",
+  "type": "module",
+  "scripts": {
+    "test": "test.js",
+    "start": "node --experimental-specifier-resolution=node --loader ts-node/esm server.ts",
+    "start:dev": "nodemon --exec ts-node server.ts"
+  },
+  "author": "Peter Allen (with Lars Johnson)",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.7.4",
+    "@types/ws": "^8.5.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.2"
+  }
+}
