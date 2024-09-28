@@ -53,7 +53,7 @@ class Container {
     }
 
     count(item_name: string): number {
-        return this.items.reduce((sum: number, item) => (item.name === item_name ? item.quantity : 0), 0);
+        return this.items.reduce((sum: number, item) => (sum + (item.name === item_name ? item.quantity : 0)), 0);
     }
 
     has(item_name: string, quantity?: number): boolean {
@@ -149,7 +149,7 @@ class Character {
     armor: Item[] = [];
     location: Location | undefined;
     abilities: { [key: string]: any };
-    actions: { [key: string] : (...args: any[]) => void};
+    actions: Map<string, (...args: any[]) => void>;
     flags: { [key: string]: any } = {};
     act: Function | null = null;
 
@@ -204,7 +204,7 @@ class Character {
         this.abilities = powers;
         this.weapons = weapons;
         this.armor = armor;
-        this.actions = {};
+        this.actions = new Map();
     }
 
     has = (item_name: string, quantity?: number) => this.inventory.has(item_name, quantity);
@@ -252,7 +252,7 @@ class Character {
     }
 
     removeAction(name: string) {
-        delete this.actions[name];
+        this.actions.delete(name);
     }
 
     encounter(character: Character) {

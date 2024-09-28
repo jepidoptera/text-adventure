@@ -119,8 +119,8 @@ class GameState {
         while (command != 'exit') {
             let player_input = await this.query('What do you want to do?');
             let [command, ...args] = player_input.split(' ');
-            if (command in player.actions) {
-                player.actions[command](args);
+            if (player.actions.has(command)) {
+                player.actions.get(command)?.(args);
             } else {
                 this.quote('I don\'t understand that command');
             }
