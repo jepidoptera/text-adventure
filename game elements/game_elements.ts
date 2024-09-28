@@ -266,6 +266,10 @@ class Character {
         this.actions.set(name, action.bind(this));
     }
 
+    removeAction(name: string) {
+        delete this.actions[name];
+    }
+
     encounter(character: Character) {
         if (this.enemies.includes(character)) {
             this.attack(character);
