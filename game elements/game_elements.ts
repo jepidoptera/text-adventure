@@ -97,14 +97,25 @@ class Location extends Container {
     constructor({
         name,
         description = "",
+        adjacent = {},
+        items = [],
+        characters = []
     }: {
         name: string;
         description?: string;
+        adjacent?: { [key: string]: string | number };
+        items?: Item[];
+        characters?: Character[];
     }) {
         super();
         this.name = name;
         this.description = description;
-        this.adjacent = new Map();
+        this._adjacent = adjacent;
+        this.items = items;
+        this.characters = characters;
+        characters.forEach(character => {
+            character.location = this;
+        });
     }
     addCharacter(character: Character) {
         this.characters.push(character);
@@ -115,32 +126,6 @@ class Location extends Container {
     exit(character: Character) {
         this.characters = this.characters.filter(c => c !== character);
     }
-}
-
-function newLocation({
-    name, 
-    description = "",
-    adjacent = {},
-    items = [],
-    characters = []
-}: {
-    name: string;
-    description?: string;
-    adjacent?: { [key: string]: string | number };
-    items?: Item[];
-    characters?: Character[];
-}): Location {
-    const area = new Location({ 
-        name: name, 
-        description: description
-    });
-    area._adjacent = adjacent;
-    area.items = items;
-    area.characters = characters;
-    characters.forEach(character => {
-        character.location = area;
-    });
-    return area;
 }
 
 class Character {
@@ -356,4 +341,4 @@ class Item {
     }
 }
 
-export { Character, Item, Location, Container, newLocation };
+export { Character, Item, Location, Container };
