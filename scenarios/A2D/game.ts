@@ -10,11 +10,149 @@ class Player extends Character {
     offHand: number = 0;
     healing: number = 0;
     archery: number = 0;
+    isPlayer: boolean = true;
+    constructor(characterName: string, className: string) {
+        super({name: characterName});
+        this.class_name = className.toLowerCase();
+        switch (this.class_name) {
+            case ('thief') :
+                this.max_hp = 35
+                this.max_sp = 50
+                this.max_mp = 20
+                this.strength = 9
+                this.agility = 4
+                this.coordination = 4
+                this.offHand = 0.8
+                this.healing = 4
+                this.magic_level = 1
+                this.abilities = {}
+                this.archery = 24
+                this.max_pets = 4
+                this.inventory.add(items.short_bow)
+                this.inventory.add(items.arrows(25))
+                this.inventory.add(items.gold(45))
+                break;
+
+            case ('fighter') :
+                this.max_hp = 50
+                this.max_sp = 45
+                this.max_mp = 5
+                this.strength = 10
+                this.agility = 2
+                this.coordination = 3
+                this.offHand = 0.6
+                this.healing = 3
+                this.magic_level = 0
+                this.abilities = {}
+                this.archery = 10
+                this.max_pets = 3
+                this.inventory.add(items.shortsword)
+                this.inventory.add(items.gold(30))
+                break;
+
+            case ('spellcaster') :
+                this.max_hp = 30
+                this.max_sp = 30
+                this.max_mp = 50
+                this.strength = 6
+                this.agility = 2
+                this.coordination = 2
+                this.offHand = 0.4
+                this.healing = 4
+                this.magic_level = 5
+                this.abilities = {
+                    'bolt': 2,
+                    'newbie': 4,
+                }
+                this.archery = 6
+                this.max_pets = 4
+                this.inventory.add(items.flask_of_wine)
+                this.inventory.add(items.gold(20))
+                break;
+
+            case ('cleric') :
+                this.max_hp = 35
+                this.max_sp = 35
+                this.max_mp = 40
+                this.strength = 8
+                this.agility = 3
+                this.coordination = 3
+                this.offHand = 0.65
+                this.healing = 5
+                this.magic_level = 2
+                this.abilities = {
+                    'newbie': 3,
+                }
+                this.archery = 22
+                this.max_pets = 5
+                this.inventory.add(items.gold(30))
+                this.inventory.add(items.healing_potion)
+                break;
+        }
+        this.addAction('n', () => this.go('north'));
+        this.addAction('s', () => this.go('south'));
+        this.addAction('e', () => this.go('east'));
+        this.addAction('w', () => this.go('west'));
+        this.addAction('go', this.go);
+        this.addAction('look', this.look);
+    }
+
+    look(target?: string) {
+        color(black)
+        print()
+        print(this.location?.name)
+        color(gray)
+        this.location?.items.filter(item => {
+            return item.immovable
+        }).forEach(item => {
+            print('    *' + item.description)
+        })
+        color(red)
+        this.location?.characters.forEach(character => {
+            if (character != this) {
+                print('    ' + character.name)
+            }
+        })
+        color(gray)
+        this.location?.items.filter(item => {
+            return !item.immovable
+        }).forEach(item => {
+            print('    ' + item.name)
+        })
+        color(black)
+        print()
+        print('You can go: ', 1)
+        print(Array.from(this.location?.adjacent?.keys() ?? []).join(', '))
+    }
+
+    go(direction: string) {
+        if (super.go(direction)) {
+            this.look();
+            return true;
+        }
+        else {
+            print('You can\'t go that way.')
+            return false
+        }
+    }
+
+    read(itemName: string) {
+        const item = this.location?.item(itemName) || this.inventory.item(itemName);
+        if (!item) {
+            print("You don't have that.")
+        }
+        else if (item.read) {
+            item.read();
+        }
+        else {
+            print("You can't read that.")
+        }
+    }
 }
 
 class A2D extends GameState {
     
-    player: Player = new Player({name: 'you'});
+    player!: Player;
 
     intro() {
         color(red, darkwhite);
@@ -53,166 +191,30 @@ class A2D extends GameState {
 
     async main() {
         let command = '';
-        this.look();
+        this.player.look();
         while (!(command in ['exit', 'quit'])) {
             color(blue)
             print(this.player.name, 1)
             color(black)
             command = await input('>')
-            // shortcuts
-            if (command == 'n') this.go('north');
-            else if (command == 's') this.go('south');
-            else if (command == 'e') this.go('east');
-            else if (command == 'w') this.go('west');
-            else {
-                const words = command.split(' ')
-                const verb = words[0]
-                switch (verb) {
-                    case 'look':
-                        this.look();
-                        break;
-                    case 'read':
-                        const item_name = words.slice(1).join(' ')
-                        const item = this.player.location?.item(item_name) || this.player.inventory.item(item_name)
-                        if (!item) {
-                            print("You don't have that.")
-                        }
-                        else if (item.read) {
-                            item.read()
-                        }
-                        else {
-                            print("You can't read that.")
-                        }
-                        break;
-                }
-            }
-        }
-    }
-
-    look() {
-        color(black)
-        print()
-        print(this.player.location?.name)
-        color(gray)
-        this.player.location?.items.filter(item => {
-            return item.immovable
-        }).forEach(item => {
-            print('    *' + item.description)
-        })
-        color(red)
-        this.player.location?.characters.forEach(character => {
-            if (character != this.player) {
-                print('    ' + character.name)
-            }
-        })
-        color(gray)
-        this.player.location?.items.filter(item => {
-            return !item.immovable
-        }).forEach(item => {
-            print('    ' + item.name)
-        })
-        color(black)
-        print()
-        print('You can go: ', 1)
-        print(Array.from(this.player.location?.adjacent?.keys() ?? []).join(', '))
-    }
-
-    go(direction: string) {
-        if (this.player.location?.adjacent?.has(direction)) {
-            this.player.go(direction);
-            this.look();
-        }
-        else {
-            print('You can\'t go that way.')
+            const words = command.split(' ')
+            const verb = words[0]
+            this.player.actions[verb](words.slice(1))
         }
     }
 
     newCharacter(): Promise<Player> {
         return new Promise(async (resolve, reject) => {
             this.clear();
-            const new_player = new Player({name: await input('\n\nType a name for yourself:')})
             const classes = ['Thief', 'Fighter', 'Spellcaster', 'Cleric']
-            const className = classes[await this.optionBox({
-                title: "     Choose One          ", 
-                options: classes, 
-                default_option: 1
-            })];
-            new_player.class_name = className.toLowerCase();
-            switch (new_player.class_name) {
-                case ('thief') :
-                    new_player.max_hp = 35
-                    new_player.max_sp = 50
-                    new_player.max_mp = 20
-                    new_player.strength = 9
-                    new_player.agility = 4
-                    new_player.coordination = 4
-                    new_player.offHand = 0.8
-                    new_player.healing = 4
-                    new_player.magic_level = 1
-                    new_player.abilities = {}
-                    new_player.archery = 24
-                    new_player.max_pets = 4
-                    new_player.inventory.add(items.short_bow)
-                    new_player.inventory.add(items.arrows(25))
-                    new_player.inventory.add(items.gold(45))
-                    break;
-    
-                case ('fighter') :
-                    new_player.max_hp = 50
-                    new_player.max_sp = 45
-                    new_player.max_mp = 5
-                    new_player.strength = 10
-                    new_player.agility = 2
-                    new_player.coordination = 3
-                    new_player.offHand = 0.6
-                    new_player.healing = 3
-                    new_player.magic_level = 0
-                    new_player.abilities = {}
-                    new_player.archery = 10
-                    new_player.max_pets = 3
-                    new_player.inventory.add(items.shortsword)
-                    new_player.inventory.add(items.gold(30))
-                    break;
-    
-                case ('spellcaster') :
-                    new_player.max_hp = 30
-                    new_player.max_sp = 30
-                    new_player.max_mp = 50
-                    new_player.strength = 6
-                    new_player.agility = 2
-                    new_player.coordination = 2
-                    new_player.offHand = 0.4
-                    new_player.healing = 4
-                    new_player.magic_level = 5
-                    new_player.abilities = {
-                        'bolt': 2,
-                        'newbie': 4,
-                    }
-                    new_player.archery = 6
-                    new_player.max_pets = 4
-                    new_player.inventory.add(items.flask_of_wine)
-                    new_player.inventory.add(items.gold(20))
-                    break;
-    
-                case ('cleric') :
-                    new_player.max_hp = 35
-                    new_player.max_sp = 35
-                    new_player.max_mp = 40
-                    new_player.strength = 8
-                    new_player.agility = 3
-                    new_player.coordination = 3
-                    new_player.offHand = 0.65
-                    new_player.healing = 5
-                    new_player.magic_level = 2
-                    new_player.abilities = {
-                        'newbie': 3,
-                    }
-                    new_player.archery = 22
-                    new_player.max_pets = 5
-                    new_player.inventory.add(items.gold(30))
-                    new_player.inventory.add(items.healing_potion)
-                    break;
-            }
+            const new_player = new Player(
+                await input('\n\nType a name for yourself:'),
+                classes[await this.optionBox({
+                    title: "     Choose One          ", 
+                    options: classes, 
+                    default_option: 1
+                })]
+            )
             new_player.location = this.find_location('Cottage of the Young');
 
             color('yellow')
@@ -220,7 +222,7 @@ class A2D extends GameState {
             color('red')
             print("You have declared ", 1)
             color('blue')
-            print(className, 1)
+            print(new_player.class_name, 1)
             color('red')
             print(" Status ", 1)
             color('yellow')
