@@ -95,6 +95,7 @@ class Player extends Character {
         this.addAction('w', () => this.go('west'));
         this.addAction('go', this.go);
         this.addAction('look', this.look);
+        this.addAction('read', this.read);
     }
 
     look(target?: string) {
@@ -199,7 +200,13 @@ class A2D extends GameState {
             command = await input('>')
             const words = command.split(' ')
             const verb = words[0]
-            this.player.actions[verb](words.slice(1))
+            const args = words.slice(1).join(' ')
+            if (this.player.actions.has(verb)) {
+                this.player.actions.get(verb)?.(args);
+            } else {
+                color(gray)
+                print('What?');
+            }
         }
     }
 
