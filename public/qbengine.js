@@ -8,7 +8,8 @@ let screenBuffer = Array.from({ length: rows }, () => Array(cols).fill({ char: '
 let continueLine = false;
 let commandMode = 'input';
 let socket;
-let playerId;
+let gameID;
+let keepAliveInterval;
 
 // Initialize the display with empty spans
 function initializeDisplay() {
@@ -52,14 +53,20 @@ function color(fg, bg) {
 // Function to move the cursor to a specific location
 function locate(x, y) {
     cursor.x = parseInt(x);
-    cursor.y = parseInt(y);
+    cursor.y = parseInt(y) || cursor.y;
     continueLine = true;
 }
 
 // Function to print text at the current cursor location with the current colors
 function quote(text = '', extend = false) {
+    function lineFeed() {
+        // Scroll the buffer up
+        screenBuffer.shift();
+        screenBuffer.push(Array(cols).fill(null).map(() => {return { char: ' ', fg: currentColor.fg, bg: currentColor.bg }}));
+        cursor.y = rows - 1;
+    }
+    if (extend) continueLine = true;
     for (let i = 0; i < text.length; i++) {
-        if (extend) continueLine = true;
         if (cursor.x >= cols) {
             cursor.x = 0;
             cursor.y++;
@@ -68,12 +75,7 @@ function quote(text = '', extend = false) {
             cursor.x = 0;
             cursor.y++;
         }
-        if (cursor.y >= rows) {
-            // Scroll the buffer up
-            screenBuffer.shift();
-            screenBuffer.push(Array(cols).fill(null).map(() => {return { char: ' ', fg: currentColor.fg, bg: currentColor.bg }}));
-            cursor.y = rows - 1;
-        }
+        if (cursor.y >= rows) lineFeed();
         if (text[i] === '\n') continue;
         screenBuffer[cursor.y][cursor.x] = { 
             char: text[i], 
@@ -82,7 +84,7 @@ function quote(text = '', extend = false) {
         };
         cursor.x++;
     }
-    
+    if (cursor.y >= rows) lineFeed();
     if (!continueLine) {
         // fill in the line with background color
         for (let i = cursor.x; i < cols; i++) {
@@ -98,7 +100,7 @@ function quote(text = '', extend = false) {
 
 
 // Synchronous input function with in-place updating
-function query(promptText) {
+function query(promptText = '') {
     quote(promptText, true); // Display prompt
     return new Promise(resolve => {
         let inputText = '';
@@ -113,7 +115,7 @@ function query(promptText) {
             } else if (event.key === 'Backspace') {
                 inputText = inputText.slice(0, -1);
                 locate(initialX, initialY);
-                quote(inputText + ' ', true); // Overwrite last character
+                quote(inputText + '  ', true); // Overwrite last character
             } else if (event.key.length === 1) {
                 inputText += event.key;
                 locate(initialX, initialY);
@@ -242,11 +244,20 @@ function initializeWebSocket() {
 
     socket.onopen = function(event) {
         console.log('Connected to WebSocket server');
+        clearInterval(keepAliveInterval);
+        keepAliveInterval = setInterval(() => {
+            sendCommand('keepalive');
+        }, 30000);
     };
 
     socket.onmessage = async function(event) {
         const response = JSON.parse(event.data);
-        await processResponse(response);
+        if (response.gameID) {
+            gameID = response.gameID;
+            console.log('Game ID:', gameID);
+        } else {
+            await processResponse(response);
+        }
     };
 
     socket.onclose = function(event) {
