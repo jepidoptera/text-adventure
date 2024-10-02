@@ -21,12 +21,32 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Store active game instances
+const activeGames = new Map();
+
 wss.on('connection', (ws) => {  
-  const gameState = new A2D(ws);
-  ws.on('message', (input) => {
-    gameState.process_input(input.toString());
-  });
-  gameState.start();
+    const gameState = new A2D(ws);
+    const gameId = Date.now().toString(); // Use a timestamp as a simple unique identifier
+    activeGames.set(gameId, gameState);
+
+    ws.on('message', (input) => {
+        const message = input.toString();
+        console.log(`Received message: ${message}`);
+        if (message === 'keepalive') {
+            console.log('keepalive');
+            return;
+        }
+        gameState.process_input(input.toString());
+    });
+
+    ws.on('close', () => {
+        // Clean up the game instance when the client disconnects
+        activeGames.delete(gameId);
+        console.log(`Client disconnected. Game ${gameId} removed.`);
+    });
+
+    gameState.start();
+    console.log(`New game started with ID: ${gameId}`);
 });
 
 server.listen(port, () => {
