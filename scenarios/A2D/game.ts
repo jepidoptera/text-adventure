@@ -1,164 +1,20 @@
-import { GameState } from '../../game.ts'
-import {Character, Item, Location} from '../../game elements/game_elements.ts'
+import { GameState } from '../../game/game.ts'
+import {Character, Item, Location} from '../../game/location.ts'
 import { items } from './items.ts'
-import { gameMap } from './map.ts'
-import { black, blue, green, cyan, red, magenta, darkyellow, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
-
-class Player extends Character {
-    class_name: string = '';
-    max_pets: number = 0;
-    offHand: number = 0;
-    healing: number = 0;
-    archery: number = 0;
-    isPlayer: boolean = true;
-    constructor(characterName: string, className: string) {
-        super({name: characterName});
-        this.class_name = className.toLowerCase();
-        switch (this.class_name) {
-            case ('thief') :
-                this.max_hp = 35
-                this.max_sp = 50
-                this.max_mp = 20
-                this.strength = 9
-                this.agility = 4
-                this.coordination = 4
-                this.offHand = 0.8
-                this.healing = 4
-                this.magic_level = 1
-                this.abilities = {}
-                this.archery = 24
-                this.max_pets = 4
-                this.inventory.add(items.short_bow)
-                this.inventory.add(items.arrows(25))
-                this.inventory.add(items.gold(45))
-                break;
-
-            case ('fighter') :
-                this.max_hp = 50
-                this.max_sp = 45
-                this.max_mp = 5
-                this.strength = 10
-                this.agility = 2
-                this.coordination = 3
-                this.offHand = 0.6
-                this.healing = 3
-                this.magic_level = 0
-                this.abilities = {}
-                this.archery = 10
-                this.max_pets = 3
-                this.inventory.add(items.shortsword)
-                this.inventory.add(items.gold(30))
-                break;
-
-            case ('spellcaster') :
-                this.max_hp = 30
-                this.max_sp = 30
-                this.max_mp = 50
-                this.strength = 6
-                this.agility = 2
-                this.coordination = 2
-                this.offHand = 0.4
-                this.healing = 4
-                this.magic_level = 5
-                this.abilities = {
-                    'bolt': 2,
-                    'newbie': 4,
-                }
-                this.archery = 6
-                this.max_pets = 4
-                this.inventory.add(items.flask_of_wine)
-                this.inventory.add(items.gold(20))
-                break;
-
-            case ('cleric') :
-                this.max_hp = 35
-                this.max_sp = 35
-                this.max_mp = 40
-                this.strength = 8
-                this.agility = 3
-                this.coordination = 3
-                this.offHand = 0.65
-                this.healing = 5
-                this.magic_level = 2
-                this.abilities = {
-                    'newbie': 3,
-                }
-                this.archery = 22
-                this.max_pets = 5
-                this.inventory.add(items.gold(30))
-                this.inventory.add(items.healing_potion)
-                break;
-        }
-        this.addAction('n', () => this.go('north'));
-        this.addAction('s', () => this.go('south'));
-        this.addAction('e', () => this.go('east'));
-        this.addAction('w', () => this.go('west'));
-        this.addAction('go', this.go);
-        this.addAction('look', this.look);
-        this.addAction('read', this.read);
-    }
-
-    look(target?: string) {
-        color(black)
-        print()
-        print(this.location?.name)
-        color(gray)
-        this.location?.items.filter(item => {
-            return item.immovable
-        }).forEach(item => {
-            print('    *' + item.description)
-        })
-        color(red)
-        this.location?.characters.forEach(character => {
-            if (character != this) {
-                print('    ' + character.name)
-            }
-        })
-        color(gray)
-        this.location?.items.filter(item => {
-            return !item.immovable
-        }).forEach(item => {
-            print('    ' + item.name)
-        })
-        color(black)
-        print()
-        print('You can go: ', 1)
-        print(Array.from(this.location?.adjacent?.keys() ?? []).join(', '))
-    }
-
-    go(direction: string) {
-        if (super.go(direction)) {
-            this.look();
-            return true;
-        }
-        else {
-            print('You can\'t go that way.')
-            return false
-        }
-    }
-
-    read(itemName: string) {
-        const item = this.location?.item(itemName) || this.inventory.item(itemName);
-        if (!item) {
-            print("You don't have that.")
-        }
-        else if (item.read) {
-            item.read();
-        }
-        else {
-            print("You can't read that.")
-        }
-    }
-}
+import { GameMap } from './map.ts'
+import { Player } from './player.ts'
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
 
 class A2D extends GameState {
     
     player!: Player;
 
     intro() {
-        color(red, darkwhite);
-        this.clear();
+        color(orange, darkwhite);
+        clear();
+        print()
         this.center("Redstaff Software Presents...")
+        print()
 
         for (let f = 0; f < 16; f++) {
             color(qbColors[f], darkwhite)
@@ -172,7 +28,7 @@ class A2D extends GameState {
     }
 
     async start() {
-        this.loadScenario(gameMap);
+        this.loadScenario(new GameMap().locations);
         this.intro();
         await getKey();
         this.clear();
@@ -181,32 +37,29 @@ class A2D extends GameState {
             options: ['Start New', 'Load Game', 'Exit']
         })
         this.clear();
+        console.log('chose', opt);
         if (opt === 0) {
             this.player = await this.newCharacter();
+            this.main();
         }
         else if (opt === 1) {
             // todo: load game
         }
-        this.main();
     }
 
     async main() {
         let command = '';
+        console.log('starting main loop');
         this.player.look();
+        this.player.hunger = this.player.max_sp / 2
         while (!(command in ['exit', 'quit'])) {
-            color(blue)
-            print(this.player.name, 1)
-            color(black)
-            command = await input('>')
-            const words = command.split(' ')
-            const verb = words[0]
-            const args = words.slice(1).join(' ')
-            if (this.player.actions.has(verb)) {
-                this.player.actions.get(verb)?.(args);
-            } else {
-                color(gray)
-                print('What?');
-            }
+            await this.player.getInput();
+            this.characters.forEach(character => {
+                if (character.act) {
+                    console.log(`${character.name} acting`)
+                    character.act(this);
+                }
+            });
         }
     }
 
@@ -249,6 +102,9 @@ class A2D extends GameState {
 
             await getKey();
             this.clear();
+            print("During-game assistant (recommended)? y/n")
+            new_player.assistant = await getKey(['y', 'n']) === 'y';
+            print("Type \"assistant off\" or \"assistant on\" to toggle assistant during game.")
 
             resolve(new_player);
         })
