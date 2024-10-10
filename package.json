@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "test.js",
-    "start": "node --experimental-specifier-resolution=node --trace-warnings --trace-uncaught --loader ts-node/esm server.ts",
+    "start": "nodemon",
     "start:dev": "nodemon --exec ts-node server.ts"
   },
   "author": "Peter Allen (with Lars Johnson)",
@@ -20,7 +20,8 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.7.4",
     "@types/ws": "^8.5.12",
+    "nodemon": "^3.1.7",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.3"
   }
 }
