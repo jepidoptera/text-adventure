@@ -1,4 +1,4 @@
-import { A2D } from './scenarios/A2D/game.ts';
+import { A2D } from './src/scenarios/A2D/game.ts';
 import { WebSocketServer } from 'ws';
 import http from 'http';
 import express from 'express';
