@@ -1,27 +1,33 @@
 {
-  "name": "a2-web",
-  "version": "1.0.0",
-  "description": "An updated web version of the classic adventure game",
-  "main": "server.ts",
-  "type": "module",
-  "scripts": {
-    "test": "test.js",
-    "start": "nodemon",
-    "start:dev": "nodemon --exec ts-node server.ts"
-  },
-  "author": "Peter Allen (with Lars Johnson)",
-  "license": "ISC",
-  "dependencies": {
-    "body-parser": "^1.20.3",
-    "express": "^4.21.0",
-    "ws": "^8.18.0"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.7.4",
-    "@types/ws": "^8.5.12",
-    "nodemon": "^3.1.7",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.6.3"
-  }
+    "name": "a2-web",
+    "version": "1.0.0",
+    "description": "An updated web version of the classic adventure game",
+    "main": "server.ts",
+    "type": "module",
+    "scripts": {
+        "test": "test.js",
+        "start": "node --experimental-specifier-resolution=node --trace-warnings --trace-uncaught --loader ts-node/esm server.ts",
+        "start:dev": "nodemon --exec ts-node server.ts"
+    },
+    "author": "Peter Allen (with Lars Johnson)",
+    "license": "ISC",
+    "dependencies": {
+        "body-parser": "^1.20.3",
+        "express": "^4.21.0",
+        "ws": "^8.18.0"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.0",
+        "@types/node": "^22.7.4",
+        "@types/ws": "^8.5.12",
+        "@typescript-eslint/eslint-plugin": "^8.8.1",
+        "@typescript-eslint/parser": "^8.8.1",
+        "dotenv": "^16.4.5",
+        "eslint": "^9.12.0",
+        "husky": "^9.1.6",
+        "lint-staged": "^15.2.10",
+        "mongodb": "^6.9.0",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.6.3"
+    }
 }
