@@ -8,9 +8,9 @@ class Item {
     value: number = 0;
     size: number = 1;
     quantity: number = 1;
-    weapon_stats: { 
-        blunt_damage?: number, 
-        sharp_damage?: number, 
+    weapon_stats: {
+        blunt_damage?: number,
+        sharp_damage?: number,
         magic_damage?: number,
         weapon_type: string,
         strength_required?: number,
@@ -23,6 +23,7 @@ class Item {
     acquire: ((character: Character) => void) | undefined = undefined;
     fungible: boolean = true;
     immovable: boolean = false;
+    _actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
 
     constructor({
         name,
@@ -75,6 +76,14 @@ class Item {
         if (acquire) this.acquire = acquire;
         this.fungible = fungible;
         this.immovable = immovable;
+    }
+
+    addAction(name: string, action: (this: Item, ...args: any[]) => Promise<void>) {
+        this._actions.set(name, action.bind(this));
+        return this;
+    }
+    getAction(name: string) {
+        return this._actions.get(name);
     }
 
     get is_weapon() {
@@ -137,7 +146,7 @@ class Container {
     remove(itemToRemove: Item | string, quantity?: number): void {
         const itemName = typeof itemToRemove === 'string' ? itemToRemove : itemToRemove.name;
         const item = this.item(itemName);
-        
+
         if (!item) return;
 
         console.log(`drop quantity: ${quantity}`)
@@ -152,7 +161,7 @@ class Container {
                 this.items = this.items.filter(i => i.name !== itemName);
             }
         } else {
-            this.items = this.items.filter((i, index) => 
+            this.items = this.items.filter((i, index) =>
                 i.name !== itemName || index >= this.items.findIndex(item => item.name === itemName) + removeQuantity
             );
         }
@@ -161,10 +170,10 @@ class Container {
     transfer(itemToTransfer: string | Item, container: Container, quantity: number = 1) {
         const itemName = typeof itemToTransfer === 'string' ? itemToTransfer : itemToTransfer.name;
         const item = this.item(itemName);
-        
+
         if (item) {
             const transferQuantity = quantity === 0 ? item.quantity : Math.min(quantity, item.quantity);
-            
+
             if (item.fungible) {
                 // For fungible items, we can just transfer the quantity
                 this.remove(item, transferQuantity);

@@ -1,53 +1,53 @@
 import { Item } from '../../game/location.ts';
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts';
 
-const items: {[key: string]: (...args: any) => Item} = {
-    gold(args: {[key: string]: any}) {
+const items: { [key: string]: (...args: any) => Item } = {
+    gold(quantity: number) {
         class Gold extends Item {
-            constructor(args: {[key: string]: any}) {
+            constructor(quantity: number) {
                 super({
                     name: 'gold',
                     value: 1,
                     size: 0.02,
-                    ...args
+                    quantity: quantity,
                 })
             }
             get display(): string {
                 return `${this.quantity} GP`
             }
         }
-        return new Gold(args)
+        return new Gold(quantity)
     },
-    pile_of_gold(args: {[key: string]: any}) {
+    pile_of_gold(args: { quantity: number, name?: string }) {
         class GoldBag extends Item {
-            constructor(args: {[key: string]: any}) {
+            constructor() {
                 super({
-                    name: args.name || 'pile of gold',
+                    name: args?.name || 'pile of gold',
                     value: 1,
                     size: 0.02,
+                    quantity: args.quantity,
                     acquire: (player) => {
-                        player.inventory.add(items.gold(args.quantity??0))
+                        player.inventory.add(items.gold(args.quantity))
                         player.inventory.remove(this)
                         color(black)
-                        print(`Got ${args.quantity??0} GP`)
+                        print(`Got ${args.quantity ?? 0} GP`)
                     },
-                    ...args
                 })
             }
             get display(): string {
                 return this.name
             }
         }
-        return new GoldBag(args)
+        return new GoldBag()
     },
-    arrows(args: {[key: string]: any}) {
+    arrows(quantity: number) {
         return new Item({
             name: 'arrows',
             value: 1,
-            ...args
+            quantity: quantity
         })
     },
-    shortsword(args: {[key: string]: any}) {
+    shortsword(quantity: number) {
         return new Item({
             name: 'shortsword',
             description: '',
@@ -58,12 +58,12 @@ const items: {[key: string]: (...args: any) => Item} = {
             },
             value: 13,
             size: 1.4,
-            ...args
+            quantity: quantity
         })
     },
 
     // Consumables
-    ear_of_corn(args: {[key: string]: any}) {
+    ear_of_corn(quantity: number) {
         return new Item({
             name: 'corn ear',
             description: 'an ear of corn',
@@ -72,10 +72,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 player.hunger -= 8.5
                 player.sp += 12
             },
-            ...args
+            quantity: quantity
         })
     },
-    satchel_of_peas(args: {[key: string]: any}) {
+    satchel_of_peas(quantity: number) {
         return new Item({
             name: 'satchel of peas',
             description: 'a satchel of peas',
@@ -84,10 +84,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 player.hunger -= 10
                 player.sp += 10
             },
-            ...args
+            quantity: quantity
         })
     },
-    banana(args: {[key: string]: any}) {
+    banana(quantity: number) {
         return new Item({
             name: 'banana',
             description: 'a banana',
@@ -96,10 +96,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 player.hunger -= 8
                 player.sp += 8
             },
-            ...args
+            quantity: quantity
         })
     },
-    side_of_meat(args: {[key: string]: any}) {
+    side_of_meat(quantity: number) {
         return new Item({
             name: 'side of meat',
             description: 'a side of meat',
@@ -108,20 +108,20 @@ const items: {[key: string]: (...args: any) => Item} = {
                 player.hunger -= 80
                 player.sp += 60
             },
-            ...args
+            quantity: quantity
         })
     },
-    flask_of_wine(args: {[key: string]: any}) {
+    flask_of_wine(quantity: number) {
         return new Item({
             name: 'flask of wine',
             value: 25,
             drink: (player) => {
                 player.mp += 10;
             },
-            ...args
+            quantity: quantity
         })
     },
-    healing_potion(args: {[key: string]: any}) {
+    healing_potion(quantity: number) {
         return new Item({
             name: 'healing potion',
             description: '',
@@ -130,10 +130,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 player.hp += 10;
             },
             size: 0.4,
-            ...args
+            quantity: quantity
         })
     },
-    clear_liquid(args: {[key: string]: any}) {
+    clear_liquid(quantity: number) {
         return new Item({
             name: 'clear liquid',
             description: 'a clear liquid',
@@ -142,10 +142,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 player.hp = 0;
             },
-            ...args
+            quantity: quantity
         })
     },
-    red_liquid(args: {[key: string]: any}) {
+    red_liquid(quantity: number) {
         return new Item({
             name: 'red liquid',
             description: 'a red liquid',
@@ -154,10 +154,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 player.hp = 0;
             },
-            ...args
+            quantity: quantity
         })
     },
-    blue_liquid(args: {[key: string]: any}) {
+    blue_liquid(quantity: number) {
         return new Item({
             name: 'blue liquid',
             description: 'a blue liquid',
@@ -166,10 +166,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 player.hp = 0;
             },
-            ...args
+            quantity: quantity
         })
     },
-    dark_sword(args: {[key: string]: any}) {
+    dark_sword(quantity: number) {
         return new Item({
             name: 'dark sword',
             size: 3.5,
@@ -179,10 +179,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 3.0,
                 sharp_damage: 3.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    battle_axe(args: {[key: string]: any}) {
+    battle_axe(quantity: number) {
         return new Item({
             name: 'battle axe',
             size: 1,
@@ -192,10 +192,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 2.0,
                 sharp_damage: 3.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    scythe(args: {[key: string]: any}) {
+    scythe(quantity: number) {
         return new Item({
             name: 'scythe',
             size: 2.0,
@@ -204,10 +204,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'axe',
                 sharp_damage: 4.5,
             },
-            ...args
+            quantity: quantity
         })
     },
-    hand_axe(args: {[key: string]: any}) {
+    hand_axe(quantity: number) {
         return new Item({
             name: 'hand axe',
             size: 1.0,
@@ -217,10 +217,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 1.5,
                 sharp_damage: 2.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    axe_of_the_cat(args: {[key: string]: any}) {
+    axe_of_the_cat(quantity: number) {
         return new Item({
             name: 'axe of the cat',
             size: 5.0,
@@ -231,10 +231,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 sharp_damage: 3.2,
                 magic_damage: 1.5,
             },
-            ...args
+            quantity: quantity
         })
     },
-    axe(args: {[key: string]: any}) {
+    axe(quantity: number) {
         return new Item({
             name: 'axe',
             size: 2.0,
@@ -244,10 +244,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 2.0,
                 sharp_damage: 2.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    lightning_staff(args: {[key: string]: any}) {
+    lightning_staff(quantity: number) {
         return new Item({
             name: 'lightning staff',
             size: 2.0,
@@ -257,10 +257,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 2.0,
                 magic_damage: 6.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    crossbow(args: {[key: string]: any}) {
+    crossbow(quantity: number) {
         return new Item({
             name: 'crossbow',
             size: 1.6,
@@ -270,10 +270,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 13.0,
                 sharp_damage: 50.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    hand_crossbow(args: {[key: string]: any}) {
+    hand_crossbow(quantity: number) {
         return new Item({
             name: 'hand crossbow',
             size: 1.0,
@@ -283,10 +283,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 8.0,
                 sharp_damage: 25.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    short_bow(args: {[key: string]: any}) {
+    short_bow(quantity: number) {
         return new Item({
             name: 'short bow',
             size: 0.8,
@@ -296,10 +296,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 6.0,
                 sharp_damage: 18.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    ballista(args: {[key: string]: any}) {
+    ballista(quantity: number) {
         return new Item({
             name: 'ballista',
             size: 4.5,
@@ -309,10 +309,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 140.0,
                 sharp_damage: 234.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    heavy_crossbow(args: {[key: string]: any}) {
+    heavy_crossbow(quantity: number) {
         return new Item({
             name: 'heavy crossbow',
             size: 2.0,
@@ -322,10 +322,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 24.0,
                 sharp_damage: 60.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    composite_bow(args: {[key: string]: any}) {
+    composite_bow(quantity: number) {
         return new Item({
             name: 'composite bow',
             size: 2.4,
@@ -335,10 +335,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 15.0,
                 sharp_damage: 58.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    long_bow(args: {[key: string]: any}) {
+    long_bow(quantity: number) {
         return new Item({
             name: 'long bow',
             size: 1.3,
@@ -348,10 +348,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 8.0,
                 sharp_damage: 44.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    mighty_warhammer(args: {[key: string]: any}) {
+    mighty_warhammer(quantity: number) {
         return new Item({
             name: 'mighty warhammer',
             size: 4.0,
@@ -360,10 +360,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'club',
                 blunt_damage: 5.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    club(args: {[key: string]: any}) {
+    club(quantity: number) {
         return new Item({
             name: 'club',
             size: 1,
@@ -372,10 +372,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'club',
                 blunt_damage: 2.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    hardened_club(args: {[key: string]: any}) {
+    hardened_club(quantity: number) {
         return new Item({
             name: 'hardened club',
             size: 2.0,
@@ -384,10 +384,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'club',
                 blunt_damage: 3.3,
             },
-            ...args
+            quantity: quantity
         })
     },
-    warhammer(args: {[key: string]: any}) {
+    warhammer(quantity: number) {
         return new Item({
             name: 'warhammer',
             size: 2.4,
@@ -396,10 +396,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'club',
                 blunt_damage: 4.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    flail(args: {[key: string]: any}) {
+    flail(quantity: number) {
         return new Item({
             name: 'flail',
             size: 1.4,
@@ -409,22 +409,22 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 3.0,
                 sharp_damage: 0.5,
             },
-            ...args
+            quantity: quantity
         })
     },
-    fist(args: {[key: string]: any}) {
+    fist(quantity: number) {
         return new Item({
-            name: 'fist',
+            name: 'fists',
             size: 1,
             value: 0,
             weapon_stats: {
                 weapon_type: 'club',
                 blunt_damage: 1.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    wooden_stick(args: {[key: string]: any}) {
+    wooden_stick(quantity: number) {
         return new Item({
             name: 'wooden stick',
             size: 1,
@@ -433,10 +433,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'club',
                 blunt_damage: 2.5,
             },
-            ...args
+            quantity: quantity
         })
     },
-    morning_star(args: {[key: string]: any}) {
+    morning_star(quantity: number) {
         return new Item({
             name: 'morning star',
             size: 1,
@@ -446,10 +446,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 2.0,
                 sharp_damage: 2.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    metal_bar(args: {[key: string]: any}) {
+    metal_bar(quantity: number) {
         return new Item({
             name: 'metal bar',
             size: 1.5,
@@ -458,10 +458,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'club',
                 blunt_damage: 3.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    megarian_club(args: {[key: string]: any}) {
+    megarian_club(quantity: number) {
         return new Item({
             name: 'megarian club',
             size: 1,
@@ -470,10 +470,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'club',
                 blunt_damage: 6.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    spiked_club(args: {[key: string]: any}) {
+    spiked_club(quantity: number) {
         return new Item({
             name: 'spiked club',
             size: 1.5,
@@ -483,10 +483,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 2.0,
                 sharp_damage: 1.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    long_rapier(args: {[key: string]: any}) {
+    long_rapier(quantity: number) {
         return new Item({
             name: 'long rapier',
             size: 1.5,
@@ -495,10 +495,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'spear',
                 sharp_damage: 3.5,
             },
-            ...args
+            quantity: quantity
         })
     },
-    dagger(args: {[key: string]: any}) {
+    dagger(quantity: number) {
         return new Item({
             name: 'dagger',
             size: 0.5,
@@ -507,10 +507,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'spear',
                 sharp_damage: 2.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    heavy_spear(args: {[key: string]: any}) {
+    heavy_spear(quantity: number) {
         return new Item({
             name: 'heavy spear',
             size: 1,
@@ -520,10 +520,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 1.0,
                 sharp_damage: 4.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    long_dagger(args: {[key: string]: any}) {
+    long_dagger(quantity: number) {
         return new Item({
             name: 'long dagger',
             size: 0.8,
@@ -532,10 +532,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'spear',
                 sharp_damage: 2.5,
             },
-            ...args
+            quantity: quantity
         })
     },
-    mighty_gigasarm(args: {[key: string]: any}) {
+    mighty_gigasarm(quantity: number) {
         return new Item({
             name: 'mighty gigasarm',
             size: 1,
@@ -546,10 +546,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 sharp_damage: 7.44,
                 magic_damage: 2.4,
             },
-            ...args
+            quantity: quantity
         })
     },
-    trident(args: {[key: string]: any}) {
+    trident(quantity: number) {
         return new Item({
             name: 'trident',
             size: 1,
@@ -558,10 +558,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'spear',
                 sharp_damage: 6.2,
             },
-            ...args
+            quantity: quantity
         })
     },
-    mighty_warfork(args: {[key: string]: any}) {
+    mighty_warfork(quantity: number) {
         return new Item({
             name: 'mighty warfork',
             size: 1,
@@ -572,10 +572,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 sharp_damage: 5.0,
                 magic_damage: 1.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    steel_polearm(args: {[key: string]: any}) {
+    steel_polearm(quantity: number) {
         return new Item({
             name: 'steel polearm',
             size: 2.5,
@@ -585,10 +585,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 1.0,
                 sharp_damage: 3.2,
             },
-            ...args
+            quantity: quantity
         })
     },
-    lance(args: {[key: string]: any}) {
+    lance(quantity: number) {
         return new Item({
             name: 'lance',
             size: 1,
@@ -597,10 +597,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'spear',
                 sharp_damage: 5.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    spear(args: {[key: string]: any}) {
+    spear(quantity: number) {
         return new Item({
             name: 'spear',
             size: 2.0,
@@ -609,10 +609,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'spear',
                 sharp_damage: 4.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    rapier(args: {[key: string]: any}) {
+    rapier(quantity: number) {
         return new Item({
             name: 'rapier',
             size: 1.0,
@@ -621,10 +621,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'spear',
                 sharp_damage: 3.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    jagged_polearm(args: {[key: string]: any}) {
+    jagged_polearm(quantity: number) {
         return new Item({
             name: 'jagged polearm',
             size: 3.0,
@@ -634,10 +634,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 1.5,
                 sharp_damage: 3.5,
             },
-            ...args
+            quantity: quantity
         })
     },
-    psionic_dagger(args: {[key: string]: any}) {
+    psionic_dagger(quantity: number) {
         return new Item({
             name: 'psionic dagger',
             size: 2.0,
@@ -647,10 +647,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 sharp_damage: 3.0,
                 magic_damage: 3.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    polearm(args: {[key: string]: any}) {
+    polearm(quantity: number) {
         return new Item({
             name: 'polearm',
             size: 2.0,
@@ -660,10 +660,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 0.9,
                 sharp_damage: 2.44,
             },
-            ...args
+            quantity: quantity
         })
     },
-    crystal_ultima_blade(args: {[key: string]: any}) {
+    crystal_ultima_blade(quantity: number) {
         return new Item({
             name: 'crystal ultima blade',
             size: 1,
@@ -672,10 +672,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 weapon_type: 'sword',
                 sharp_damage: 7.77,
             },
-            ...args
+            quantity: quantity
         })
     },
-    Glory_Blade(args: {[key: string]: any}) {
+    Glory_Blade(quantity: number) {
         return new Item({
             name: 'Glory Blade',
             size: 8.5,
@@ -686,10 +686,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 sharp_damage: 10.0,
                 magic_damage: 10.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    mighty_excalabor(args: {[key: string]: any}) {
+    mighty_excalabor(quantity: number) {
         return new Item({
             name: 'mighty excalabor',
             size: 6.5,
@@ -700,10 +700,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 sharp_damage: 6.5,
                 magic_damage: 2.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    scimitar(args: {[key: string]: any}) {
+    scimitar(quantity: number) {
         return new Item({
             name: 'scimitar',
             size: 1.4,
@@ -713,10 +713,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 0.2,
                 sharp_damage: 3.8,
             },
-            ...args
+            quantity: quantity
         })
     },
-    silver_sword(args: {[key: string]: any}) {
+    silver_sword(quantity: number) {
         return new Item({
             name: 'silver sword',
             size: 3.5,
@@ -726,10 +726,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 2.0,
                 sharp_damage: 4.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    broadsword(args: {[key: string]: any}) {
+    broadsword(quantity: number) {
         return new Item({
             name: 'broadsword',
             size: 2.0,
@@ -739,10 +739,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 0.5,
                 sharp_damage: 3.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    longsword(args: {[key: string]: any}) {
+    longsword(quantity: number) {
         return new Item({
             name: 'longsword',
             size: 3.0,
@@ -752,10 +752,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 1.0,
                 sharp_damage: 3.5,
             },
-            ...args
+            quantity: quantity
         })
     },
-    blade_of_time(args: {[key: string]: any}) {
+    blade_of_time(quantity: number) {
         return new Item({
             name: 'blade of time',
             size: 3.0,
@@ -766,10 +766,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 sharp_damage: 2.0,
                 magic_damage: 5.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    claymoore(args: {[key: string]: any}) {
+    claymoore(quantity: number) {
         return new Item({
             name: 'claymoore',
             size: 5.0,
@@ -779,10 +779,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 blunt_damage: 3.0,
                 sharp_damage: 2.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    channeled_blade(args: {[key: string]: any}) {
+    channeled_blade(quantity: number) {
         return new Item({
             name: 'channeled blade',
             size: 4.0,
@@ -792,10 +792,10 @@ const items: {[key: string]: (...args: any) => Item} = {
                 magic_damage: 1.5,
                 sharp_damage: 6.0,
             },
-            ...args
+            quantity: quantity
         })
     },
-    a_burger(args: {[key: string]: any}) {
+    a_burger(quantity: number) {
         return new Item({
             name: 'a burger',
             size: 0.2,
@@ -803,10 +803,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    chicken_leg(args: {[key: string]: any}) {
+    chicken_leg(quantity: number) {
         return new Item({
             name: 'chicken leg',
             size: 0.2,
@@ -814,10 +814,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    corn_ear(args: {[key: string]: any}) {
+    corn_ear(quantity: number) {
         return new Item({
             name: 'corn ear',
             size: 0.22,
@@ -825,10 +825,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    dog_steak(args: {[key: string]: any}) {
+    dog_steak(quantity: number) {
         return new Item({
             name: 'dog steak',
             size: 0.8,
@@ -836,10 +836,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    full_ration(args: {[key: string]: any}) {
+    full_ration(quantity: number) {
         return new Item({
             name: 'full ration',
             size: 0.8,
@@ -847,10 +847,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    giraffe_gizzard(args: {[key: string]: any}) {
+    giraffe_gizzard(quantity: number) {
         return new Item({
             name: 'giraffe gizzard',
             size: 1,
@@ -858,10 +858,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    hazelnut(args: {[key: string]: any}) {
+    hazelnut(quantity: number) {
         return new Item({
             name: 'hazelnut',
             size: 0.2,
@@ -869,10 +869,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    loaf_of_bread(args: {[key: string]: any}) {
+    loaf_of_bread(quantity: number) {
         return new Item({
             name: 'loaf of bread',
             size: 0.5,
@@ -880,10 +880,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    mushroom(args: {[key: string]: any}) {
+    mushroom(quantity: number) {
         return new Item({
             name: 'mushroom',
             size: 0.2,
@@ -891,10 +891,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    sandwich(args: {[key: string]: any}) {
+    sandwich(quantity: number) {
         return new Item({
             name: 'sandwich',
             size: 0.2,
@@ -902,10 +902,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             eat: (player) => {
                 print('TODO: eat this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    bug_repelent(args: {[key: string]: any}) {
+    bug_repelent(quantity: number) {
         return new Item({
             name: 'bug repelent',
             size: 0.1,
@@ -913,10 +913,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 print('TODO: drink this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    full_healing_potion(args: {[key: string]: any}) {
+    full_healing_potion(quantity: number) {
         return new Item({
             name: 'full healing potion',
             size: 0.4,
@@ -924,10 +924,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 print('TODO: drink this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    keg_of_wine(args: {[key: string]: any}) {
+    keg_of_wine(quantity: number) {
         return new Item({
             name: 'keg of wine',
             size: 1.5,
@@ -935,10 +935,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 print('TODO: drink this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    mostly_healing_potion(args: {[key: string]: any}) {
+    mostly_healing_potion(quantity: number) {
         return new Item({
             name: 'mostly healing potion',
             size: 0.4,
@@ -946,10 +946,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 print('TODO: drink this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    partial_healing_potion(args: {[key: string]: any}) {
+    partial_healing_potion(quantity: number) {
         return new Item({
             name: 'partial healing potion',
             size: 0.4,
@@ -957,10 +957,10 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 print('TODO: drink this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    poison(args: {[key: string]: any}) {
+    poison(quantity: number) {
         return new Item({
             name: 'poison',
             size: 0.4,
@@ -968,537 +968,616 @@ const items: {[key: string]: (...args: any) => Item} = {
             drink: (player) => {
                 print('TODO: drink this')
             },
-            ...args
+            quantity: quantity
         })
     },
-    acid(args: {[key: string]: any}) {
+    acid(quantity: number) {
         return new Item({
             name: 'acid',
             size: 1,
             value: 80,
-            ...args
+            quantity: quantity
         })
     },
-    adilons_colorful_history(args: {[key: string]: any}) {
+    adilons_colorful_history(quantity: number) {
         return new Item({
             name: 'adilon\'s colorful history',
             size: 1,
             value: 50,
-            ...args
+            quantity: quantity
         })
     },
-    amber_chunk(args: {[key: string]: any}) {
+    amber_chunk(quantity: number) {
         return new Item({
             name: 'amber chunk',
             size: 0.5,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    ballista_bolt(args: {[key: string]: any}) {
+    ballista_bolt(quantity: number) {
         return new Item({
             name: 'ballista bolt',
             size: 0.5,
             value: 16,
-            ...args
+            quantity: quantity
         })
     },
-    banded_mail(args: {[key: string]: any}) {
+    banded_mail(quantity: number) {
         return new Item({
             name: 'banded mail',
             size: 1,
             value: 210,
-            ...args
+            quantity: quantity
         })
     },
-    boar_tusk(args: {[key: string]: any}) {
+    boar_tusk(quantity: number) {
         return new Item({
             name: 'boar tusk',
             size: 1,
             value: 45,
-            ...args
+            quantity: quantity
         })
     },
-    camera(args: {[key: string]: any}) {
+    camera(quantity: number) {
         return new Item({
             name: 'camera',
             size: 1,
             value: 65,
-            ...args
+            quantity: quantity
         })
     },
-    chain_mail(args: {[key: string]: any}) {
+    chain_mail(quantity: number) {
         return new Item({
             name: 'chain mail',
             size: 1,
             value: 110,
-            ...args
+            quantity: quantity
         })
     },
-    citrus_jewel(args: {[key: string]: any}) {
+    citrus_jewel(quantity: number) {
         return new Item({
             name: 'citrus jewel',
             size: 1,
             value: 1000,
-            ...args
+            quantity: quantity
         })
     },
-    cure(args: {[key: string]: any}) {
+    cure(quantity: number) {
         return new Item({
             name: 'cure',
             size: 1,
             value: 110,
-            ...args
+            quantity: quantity
         })
     },
-    draught_of_visions(args: {[key: string]: any}) {
+    draught_of_visions(quantity: number) {
         return new Item({
             name: 'draught of visions',
             size: 1,
             value: 140,
-            ...args
+            quantity: quantity
         })
     },
-    ear_plugs(args: {[key: string]: any}) {
+    ear_plugs(quantity: number) {
         return new Item({
             name: 'ear plugs',
             size: 1,
             value: 20,
-            ...args
+            quantity: quantity
         })
     },
-    earth_potion(args: {[key: string]: any}) {
+    earth_potion(quantity: number) {
         return new Item({
             name: 'earth potion',
             size: 0.4,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    enhanced_club(args: {[key: string]: any}) {
+    enhanced_club(quantity: number) {
         return new Item({
             name: 'enhanced club',
             size: 1,
             value: 17,
-            ...args
+            quantity: quantity
         })
     },
-    flute(args: {[key: string]: any}) {
+    flute(quantity: number) {
         return new Item({
             name: 'flute',
             size: 1,
             value: 100,
-            ...args
+            quantity: quantity
         })
     },
-    full_plate(args: {[key: string]: any}) {
+    full_plate(quantity: number) {
         return new Item({
             name: 'full plate',
             size: 1,
             value: 1000,
-            ...args
+            quantity: quantity
         })
     },
-    glory_blade(args: {[key: string]: any}) {
+    glory_blade(quantity: number) {
         return new Item({
             name: 'glory blade',
             size: 1,
             value: 29661,
-            ...args
+            quantity: quantity
         })
     },
-    gold_potion(args: {[key: string]: any}) {
+    gold_potion(quantity: number) {
         return new Item({
             name: 'gold potion',
             size: 1,
             value: 500,
-            ...args
+            quantity: quantity
         })
     },
-    gold_sludge(args: {[key: string]: any}) {
+    gold_sludge(quantity: number) {
         return new Item({
             name: 'gold sludge',
             size: 1,
             value: 50,
-            ...args
+            quantity: quantity
         })
     },
-    gold_watch(args: {[key: string]: any}) {
+    gold_watch(quantity: number) {
         return new Item({
             name: 'gold watch',
             size: 1,
             value: 60,
-            ...args
+            quantity: quantity
         })
     },
-    golden_pitchfork(args: {[key: string]: any}) {
+    golden_pitchfork(quantity: number) {
         return new Item({
             name: 'golden pitchfork',
             size: 1,
             value: 48,
-            ...args
+            quantity: quantity
         })
     },
-    hang_glider(args: {[key: string]: any}) {
+    hang_glider(quantity: number) {
         return new Item({
             name: 'hang glider',
             size: 1,
             value: 350,
-            ...args
+            quantity: quantity
         })
     },
-    horn(args: {[key: string]: any}) {
+    horn(quantity: number) {
         return new Item({
             name: 'horn',
             size: 1,
             value: 200,
-            ...args
+            quantity: quantity
         })
     },
-    how_to_kill_things(args: {[key: string]: any}) {
+    how_to_kill_things(quantity: number) {
         return new Item({
             name: 'how to kill things',
             size: 1,
             value: 50,
-            ...args
+            quantity: quantity
         })
     },
-    jespridge_feather(args: {[key: string]: any}) {
+    jespridge_feather(quantity: number) {
         return new Item({
             name: 'jespridge feather',
             size: 1,
             value: 30,
-            ...args
+            quantity: quantity
         })
     },
-    jespridge_horn(args: {[key: string]: any}) {
+    jespridge_horn(quantity: number) {
         return new Item({
             name: 'jespridge horn',
             size: 1,
             value: 100,
-            ...args
+            quantity: quantity
         })
     },
-    leather_armor(args: {[key: string]: any}) {
+    leather_armor(quantity: number) {
         return new Item({
             name: 'leather armor',
             size: 1,
             value: 15,
-            ...args
+            quantity: quantity
         })
     },
-    light_chainmail(args: {[key: string]: any}) {
+    light_chainmail(quantity: number) {
         return new Item({
             name: 'light chainmail',
             size: 1,
             value: 50,
-            ...args
+            quantity: quantity
         })
     },
-    light_plate(args: {[key: string]: any}) {
+    light_plate(quantity: number) {
         return new Item({
             name: 'light plate',
             size: 1,
             value: 425,
-            ...args
+            quantity: quantity
         })
     },
-    list(args: {[key: string]: any}) {
+    list(quantity: number) {
         return new Item({
             name: 'list',
             size: 0.1,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    lute_de_lumonate(args: {[key: string]: any}) {
+    lute_de_lumonate(quantity: number) {
         return new Item({
             name: 'lute de lumonate',
             size: 0.3,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    mace(args: {[key: string]: any}) {
+    mace(quantity: number) {
         return new Item({
             name: 'mace',
             size: 1,
             value: 20,
-            ...args
+            quantity: quantity
         })
     },
-    magic_ring(args: {[key: string]: any}) {
+    magic_ring(quantity: number) {
         return new Item({
             name: 'magic ring',
             size: 0.05,
             value: 900,
-            ...args
+            quantity: quantity
         })
     },
-    mana_draught(args: {[key: string]: any}) {
+    mana_draught(quantity: number) {
         return new Item({
             name: 'mana draught',
             size: 1,
             value: 400,
-            ...args
+            quantity: quantity
         })
     },
-    maple_leaf(args: {[key: string]: any}) {
+    maple_leaf(quantity: number) {
         return new Item({
             name: 'maple leaf',
             size: 0.05,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    mighty_megaraclub(args: {[key: string]: any}) {
+    mighty_megaraclub(quantity: number) {
         return new Item({
             name: 'mighty megaraclub',
             size: 1,
             value: 500,
-            ...args
+            quantity: quantity
         })
     },
-    monogrammed_pen(args: {[key: string]: any}) {
+    monogrammed_pen(quantity: number) {
         return new Item({
             name: 'monogrammed pen',
             size: 1,
             value: 100,
-            ...args
+            quantity: quantity
         })
     },
-    music_box(args: {[key: string]: any}) {
+    music_box(quantity: number) {
         return new Item({
             name: 'music box',
             size: 0.3,
             value: 200,
-            ...args
+            quantity: quantity
         })
     },
-    ochre_stone(args: {[key: string]: any}) {
+    ochre_stone(quantity: number) {
         return new Item({
             name: 'ochre stone',
             size: 0.5,
             value: 110,
-            ...args
+            quantity: quantity
         })
     },
-    pitchfork(args: {[key: string]: any}) {
+    pitchfork(quantity: number) {
         return new Item({
             name: 'pitchfork',
             size: 1,
             value: 20,
-            ...args
+            quantity: quantity
         })
     },
-    portal_detector(args: {[key: string]: any}) {
+    portal_detector(quantity: number) {
         return new Item({
             name: 'portal detector',
             size: 1,
             value: 265,
-            ...args
+            quantity: quantity
         })
     },
-    potions_of_clout(args: {[key: string]: any}) {
+    potions_of_clout(quantity: number) {
         return new Item({
             name: 'potions of clout',
             size: 1,
             value: 8000,
-            ...args
+            quantity: quantity
         })
     },
-    quarterstaff(args: {[key: string]: any}) {
+    quarterstaff(quantity: number) {
         return new Item({
             name: 'quarterstaff',
             size: 1,
             value: 12,
-            ...args
+            quantity: quantity
         })
     },
-    rake(args: {[key: string]: any}) {
+    rake(quantity: number) {
         return new Item({
             name: 'rake',
             size: 1,
             value: 20,
-            ...args
+            quantity: quantity
         })
     },
-    recipe(args: {[key: string]: any}) {
+    recipe(quantity: number) {
         return new Item({
             name: 'recipe',
             size: 0.1,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    ring_of_dreams(args: {[key: string]: any}) {
+    ring_of_dreams(quantity: number) {
         return new Item({
             name: 'ring of dreams',
             size: 0.05,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    ring_of_life(args: {[key: string]: any}) {
+    ring_of_life(quantity: number) {
         return new Item({
             name: 'ring of life',
             size: 1,
             value: 800,
-            ...args
+            quantity: quantity
         })
     },
-    ring_of_nature(args: {[key: string]: any}) {
+    ring_of_nature(quantity: number) {
         return new Item({
             name: 'ring of nature',
             size: 0.05,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    ring_of_power(args: {[key: string]: any}) {
+    ring_of_power(quantity: number) {
         return new Item({
             name: 'ring of power',
             size: 1,
             value: 700,
-            ...args
+            quantity: quantity
         })
     },
-    ring_of_stone(args: {[key: string]: any}) {
+    ring_of_stone(quantity: number) {
         return new Item({
             name: 'ring of stone',
             size: 0.05,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    ring_of_strength(args: {[key: string]: any}) {
+    ring_of_strength(quantity: number) {
         return new Item({
             name: 'ring of strength',
             size: 1,
             value: 600,
-            ...args
+            quantity: quantity
         })
     },
-    ring_of_time(args: {[key: string]: any}) {
+    ring_of_time(quantity: number) {
         return new Item({
             name: 'ring of time',
             size: 0.05,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    ring_of_ultimate_power(args: {[key: string]: any}) {
+    ring_of_ultimate_power(quantity: number) {
         return new Item({
             name: 'ring of ultimate power',
             size: 0.05,
             value: 0,
-            ...args
+            quantity: quantity
         })
     },
-    shovel(args: {[key: string]: any}) {
+    shovel(quantity: number) {
         return new Item({
             name: 'shovel',
             size: 1,
             value: 20,
-            ...args
+            quantity: quantity
         })
     },
-    sickle(args: {[key: string]: any}) {
+    sickle(quantity: number) {
         return new Item({
             name: 'sickle',
             size: 2.0,
             value: 36,
-            ...args
+            quantity: quantity
         })
     },
-    soul(args: {[key: string]: any}) {
+    soul(quantity: number) {
         return new Item({
             name: 'soul',
             size: 1,
             value: 10000,
-            ...args
+            quantity: quantity
         })
     },
-    spell_book(args: {[key: string]: any}) {
+    spell_book(quantity: number) {
         return new Item({
             name: 'spell book',
             size: 1,
             value: 50,
-            ...args
+            quantity: quantity
         })
     },
-    spiked_flail(args: {[key: string]: any}) {
+    spiked_flail(quantity: number) {
         return new Item({
             name: 'spiked flail',
             size: 1,
             value: 17,
-            ...args
+            quantity: quantity
         })
     },
-    spritzer_hair(args: {[key: string]: any}) {
+    spritzer_hair(quantity: number) {
         return new Item({
             name: 'spritzer hair',
             size: 0.1,
             value: 30,
-            ...args
+            quantity: quantity
         })
     },
-    studded_leather(args: {[key: string]: any}) {
+    studded_leather(quantity: number) {
         return new Item({
             name: 'studded leather',
             size: 1,
             value: 30,
-            ...args
+            quantity: quantity
         })
     },
-    telescope(args: {[key: string]: any}) {
+    telescope(quantity: number) {
         return new Item({
             name: 'telescope',
             size: 1,
             value: 25,
-            ...args
+            quantity: quantity
         })
     },
-    the_colorful_history_of_adilon(args: {[key: string]: any}) {
+    the_colorful_history_of_adilon(quantity: number) {
         return new Item({
             name: 'the colorful history of adilon',
             size: 1,
             value: 50,
-            ...args
+            quantity: quantity
         })
     },
-    vanish_potion(args: {[key: string]: any}) {
+    vanish_potion(quantity: number) {
         return new Item({
             name: 'vanish potion',
             size: 1,
             value: 200,
-            ...args
+            quantity: quantity
         })
     },
-    wand(args: {[key: string]: any}) {
+    wand(quantity: number) {
         return new Item({
             name: 'wand',
             size: 1,
             value: 105,
-            ...args
+            quantity: quantity
         })
     },
-    whip(args: {[key: string]: any}) {
+    whip(quantity: number) {
         return new Item({
             name: 'whip',
             size: 0.5,
             value: 11,
-            ...args
+            quantity: quantity
         })
     },
-    wolf_fang(args: {[key: string]: any}) {
+    spy_o_scope(quantity: number) {
+        return new Item({
+            name: 'spy-o-scope',
+            size: 1,
+            value: 200,
+            quantity: quantity
+        })
+    },
+    gavel(quantity: number) {
+        return new Item({
+            name: 'gavel',
+            size: 1,
+            value: 20,
+            weapon_stats: {
+                weapon_type: 'club',
+                blunt_damage: 2.0,
+            },
+            quantity: quantity
+        })
+    },
+    wolf_fang(quantity: number) {
         return new Item({
             name: 'wolf fang',
             size: 1,
             value: 20,
-            ...args
+            quantity: quantity
         })
     },
-}   
-     
-export { items };
+    teeth(quantity: number) {
+        return new Item({
+            name: 'teeth',
+            weapon_stats: {
+                weapon_type: 'teeth',
+                sharp_damage: 1.0,
+            }
+        })
+    },
+    claws(quantity: number) {
+        return new Item({
+            name: 'claws',
+            weapon_stats: {
+                weapon_type: 'sword',
+                sharp_damage: 1.0,
+            }
+        })
+    },
+    beak(quantity: number) {
+        return new Item({
+            name: 'beak',
+            weapon_stats: {
+                weapon_type: 'spear',
+                sharp_damage: 1.0,
+            }
+        })
+    },
+    horns(quantity: number) {
+        return new Item({
+            name: 'horns',
+            weapon_stats: {
+                weapon_type: 'spear',
+                sharp_damage: 1.0,
+            }
+        })
+    },
+    fangs(quantity: number) {
+        return new Item({
+            name: 'fangs',
+            weapon_stats: {
+                weapon_type: 'spear',
+                sharp_damage: 1.0,
+            }
+        })
+    }
+}
+
+const potions = new Map(
+    [
+        [['giraffe gizzard', 'blue liquid', 'spritzer hair'], items.bug_repelent],
+    ]
+)
+
+// make sure the ingredients are sorted right
+let sorted_potions = new Map()
+potions.forEach(function (value, key) {
+    potions.delete(key)
+    sorted_potions.set(key.sort().join(', '), value)
+    console.log(key, value.name)
+})
+
+export { items, sorted_potions as potions };

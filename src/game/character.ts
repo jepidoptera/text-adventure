@@ -3,11 +3,13 @@ import { Location } from "./location.ts";
 import { GameState } from "./game.ts";
 
 const pronouns = {
-    'male': {subject: "he", object: "him", possessive: "his"},
-    'female': {subject: "she", object: "her", possessive: "her"},
-    'neutral': {subject: "they", object: "them", possessive: "their"},
-    'inhuman': {subject: "it", object: "it", possessive: "its"}
+    'male': { subject: "he", object: "him", possessive: "his" },
+    'female': { subject: "she", object: "her", possessive: "her" },
+    'neutral': { subject: "they", object: "them", possessive: "their" },
+    'inhuman': { subject: "it", object: "it", possessive: "its" }
 }
+
+type Action = (...args: any[]) => Promise<void>;
 
 interface CharacterParams {
     name: string;
@@ -38,7 +40,6 @@ interface CharacterParams {
     blunt_armor?: number;
     sharp_armor?: number;
     magic_armor?: number;
-    actions?: { [key: string]: (...args: any[]) => void };
     attackPlayer?: boolean;
     flags?: { [key: string]: any };
     respawn_time?: number;
@@ -51,7 +52,7 @@ class Character {
     description: string;
     aliases: string[] = [];
     alignment: string = "";
-    pronouns: { subject: string, object: string, possessive: string } = {subject: "they", object: "them", possessive: "their"};
+    pronouns: { subject: string, object: string, possessive: string } = { subject: "they", object: "them", possessive: "their" };
     isPlayer: boolean;
     dead: boolean = false;
     inventory: Container;
@@ -62,7 +63,7 @@ class Character {
     _sp: number;
     _max_sp: number;
     experience: number = 0;
-    exp_value: number = 1;
+    exp_value: number = 0;
     hunger: number = 0;
     strength: number;
     coordination: number;
@@ -73,8 +74,8 @@ class Character {
     drunk: number = 0;
     enemies: Character[] = [];
     friends: Character[] = [];
-    weapons: {[key: string]: Item} = {};
-    armor: {[key: string]: Item} = {};
+    weapons: { [key: string]: Item } = {};
+    armor: { [key: string]: Item } = {};
     _blunt_damage: number = 0;
     _sharp_damage: number = 0;
     _magic_damage: number = 0;
@@ -85,18 +86,18 @@ class Character {
     location: Location | undefined;
     respawnLocation: Location | undefined;
     abilities: { [key: string]: number };
-    actions: Map<string, (...args: any[]) => void>;
+    actions: Map<string, Action> = new Map();
     flags: { [key: string]: any } = {};
     attackTarget: Character | undefined;
-    _onEncounter: ((character: Character) => void) | undefined;
-    _onDeparture: ((character: Character, direction: string) => boolean) | undefined;
-    _onEnter: ((location: Location) => void) | undefined;
-    _onLeave: ((location: Location) => void) | undefined;
-    _onSlay: ((character: Character) => void) | undefined;
-    _onDeath: ((gameState?: GameState) => void) | undefined;
-    _onAttack: ((character: Character) => void) | undefined;
-    _onTurn: ((gameState: GameState) => void) | undefined;
-    _fightMove: (() => void) | undefined;
+    _onEncounter: ((character: Character) => Promise<void>) | undefined;
+    _onDeparture: ((character: Character, direction: string) => Promise<boolean>) | undefined;
+    _onEnter: ((location: Location) => Promise<void>) | undefined;
+    _onLeave: ((location: Location) => Promise<void>) | undefined;
+    _onSlay: ((character: Character) => Promise<void>) | undefined;
+    _onDeath: ((gameState?: GameState) => Promise<void>) | undefined;
+    _onAttack: ((character: Character) => Promise<void>) | undefined;
+    _onTurn: ((gameState: GameState) => Promise<void>) | undefined;
+    _fightMove: (() => Promise<void>) | undefined;
     attackPlayer: boolean = false;
 
     constructor({
@@ -104,9 +105,9 @@ class Character {
         description = "",
         aliases = [],
         alignment = "",
-        pronouns = {subject: "they", object: "them", possessive: "their"},
+        pronouns = { subject: "they", object: "them", possessive: "their" },
         items = [],
-        exp = 1,
+        exp = 0,
         hp = 1,
         mp = 1,
         sp = 1,
@@ -127,12 +128,11 @@ class Character {
         sharp_armor = 0,
         magic_armor = 0,
         armor = {},
-        actions = {},
         attackPlayer = false,
         flags = {}
     }: CharacterParams) {
         this.name = name;
-        console.log(`Creating ${this.name}`)
+        // console.log(`Creating ${this.name}`)
         this.description = description;
         this.aliases = aliases;
         this.alignment = alignment;
@@ -157,7 +157,7 @@ class Character {
         this.weapons = weapons;
         if (weapon) {
             this.weapons['main'] = weapon;
-            console.log(`Equipped ${this.weapons['main'].name} as main weapon.`)
+            // console.log(`Equipped ${this.weapons['main'].name} as main weapon.`)
         }
         this.armor = armor;
         this._blunt_armor = blunt_armor;
@@ -166,12 +166,8 @@ class Character {
         this._blunt_damage = blunt_damage;
         this._sharp_damage = sharp_damage;
         this._magic_damage = magic_damage;
-        this.actions = new Map();
         this.attackPlayer = attackPlayer;
         this.flags = flags;
-        for (let action in actions) {
-            this.addAction(action, actions[action]);
-        }
     }
 
     initialize(game: GameState) {
@@ -214,14 +210,14 @@ class Character {
     set sp(value: number) {
         this._sp = Math.min(value, this.max_sp);
     }
-    blunt_damage(weapon: Item) {
-        return this._blunt_damage || this.strength * (weapon.weapon_stats?.blunt_damage || 0);
+    blunt_damage(weapon: Item = this.weapons.main) {
+        return this._blunt_damage || this.strength * (weapon?.weapon_stats?.blunt_damage || 0);
     }
-    sharp_damage(weapon: Item) {
-        return this._sharp_damage || this.strength * (weapon.weapon_stats?.sharp_damage || 0);
+    sharp_damage(weapon: Item = this.weapons.main) {
+        return this._sharp_damage || this.strength * (weapon?.weapon_stats?.sharp_damage || 0);
     }
-    magic_damage(weapon: Item) {
-        return this._magic_damage || this.magic_level * (weapon.weapon_stats?.magic_damage || 0);
+    magic_damage(weapon: Item = this.weapons.main) {
+        return this._magic_damage || this.magic_level * (weapon?.weapon_stats?.magic_damage || 0);
     }
     get blunt_armor(): number {
         return this._blunt_armor;
@@ -242,9 +238,9 @@ class Character {
         this._magic_armor = value;
     }
 
-    slay(character: Character) {
+    async slay(character: Character) {
         // gloat or whatever
-        this._onSlay?.(character);
+        await this._onSlay?.(character);
         if (this.attackTarget == character) {
             this.attackTarget = undefined;
         }
@@ -252,26 +248,26 @@ class Character {
 
     has = (item_name: string, quantity?: number) => this.inventory.has(item_name, quantity);
 
-    getItem (item: Item, location?: Container, quantity?: number) {
+    async getItem(item: Item, location?: Container, quantity?: number) {
         if (!location) location = this.location;
         if (!location) return;
-        location.transfer(item, this.inventory, quantity??item.quantity);
+        location.transfer(item, this.inventory, quantity ?? item.quantity);
         if (item.acquire) item.acquire(this);
     }
 
-    dropItem(itemName: string) {
+    async dropItem(itemName: string) {
         const item = this.inventory.item(itemName);
         if (item) {
-            this.inventory.transfer(item, this.location??this.inventory);
+            this.inventory.transfer(item, this.location ?? this.inventory);
         }
     }
 
-    go(direction: string): boolean {
+    async go(direction: string): Promise<boolean> {
         if (!this.location?.adjacent?.has(direction)) {
             return false;
         }
         for (let character of this.location.characters) {
-            if (character._onDeparture && !character._onDeparture(this, direction)) {
+            if (character._onDeparture && !await character._onDeparture(this, direction)) {
                 return false;
             }
         }
@@ -285,7 +281,7 @@ class Character {
         }
     }
 
-    relocate(newLocation: Location, direction?: string) {
+    async relocate(newLocation: Location, direction?: string) {
         this.location?.exit(this, direction);
         if (this.location) this.exit(this.location);
         this.location = newLocation;
@@ -299,9 +295,9 @@ class Character {
         })
     }
 
-    die(cause?: any) {
+    async die(cause?: any) {
         this.dead = true;
-        this._onDeath?.(this.game);
+        await this._onDeath?.(this.game);
         if (!this.dead) return;
         if (this.location) this.inventory.transferAll(this.location);
         this.location?.removeCharacter(this);
@@ -318,65 +314,73 @@ class Character {
         }
     }
 
-    recoverStats({hp = 0, sp = 0, mp = 0}: {hp?: number, sp?: number, mp?: number}) {
+    recoverStats({ hp = 0, sp = 0, mp = 0 }: { hp?: number, sp?: number, mp?: number }) {
         this.hp = Math.min(this.max_hp, this.hp + hp);
         this.sp = Math.min(this.max_sp, this.sp + sp);
         this.mp = Math.min(this.max_mp, this.mp + mp);
     }
 
-    dialog(talk: (this: Character, ...args: any[]) => void) {
-        this.addAction('talk', talk.bind(this));
+    dialog(action: (this: Character, ...args: any[]) => Promise<void>) {
+        this.addAction('talk', action.bind(this));
         return this
     }
 
-    onAttack(action: (this: Character, character: Character) => void) {
+    onAttack(action: (this: Character, character: Character) => Promise<void>) {
         this._onAttack = action.bind(this);
         return this;
     }
 
-    onEncounter(action: (this: Character, character: Character) => void) {
+    onEncounter(action: (this: Character, character: Character) => Promise<void>) {
         this._onEncounter = action.bind(this);
         return this;
     }
 
-    onDeparture(action: (this: Character, character: Character, direction: string) => boolean) {
+    onDeparture(action: (this: Character, character: Character, direction: string) => Promise<boolean>) {
         this._onDeparture = action.bind(this);
         return this;
     }
 
-    onEnter(action: (this: Character, location: Location) => void) {
+    onEnter(action: (this: Character, location: Location) => Promise<void>) {
         this._onEnter = action.bind(this);
         return this;
     }
 
-    onLeave(action: (this: Character, location: Location) => void) {
+    onLeave(action: (this: Character, location: Location) => Promise<void>) {
         this._onLeave = action.bind(this);
         return this;
     }
 
-    onSlay(action: (this: Character, character: Character) => void) {
+    onSlay(action: (this: Character, character: Character) => Promise<void>) {
         this._onSlay = action.bind(this);
         return this;
     }
 
-    onDeath(action: (this: Character, gameState?: GameState) => void) {
+    onDeath(action: (this: Character, gameState?: GameState) => Promise<void>) {
         this._onDeath = action.bind(this);
         return this;
     }
 
-    onTurn(action: (this: Character, gameState: GameState) => void) {
+    onTurn(action: (this: Character, gameState: GameState) => Promise<void>) {
         this._onTurn = action.bind(this);
         return this;
     }
 
-    fightMove(action: (this: Character) => void) {
+    fightMove(action: (this: Character) => Promise<void>) {
         this._fightMove = action.bind(this);
         return this;
     }
 
-    addAction(name: string, action: (this: Character, ...args: any[]) => void) {
+    addAction(name: string, action: (...args: any[]) => Promise<any>) {
         this.actions.set(name, action.bind(this));
         return this;
+    }
+
+    getAction(name: string): Action {
+        const action = this.actions.get(name);
+        if (!action) {
+            throw new Error(`Action "${name}" not found.`);
+        }
+        return action;
     }
 
     removeAction(name: string) {
@@ -384,8 +388,8 @@ class Character {
         return this;
     }
 
-    encounter(character: Character) {
-        this._onEncounter?.(character);
+    async encounter(character: Character) {
+        await this._onEncounter?.(character);
         if (this.enemies.includes(character)) {
             if (this.location?.playerPresent) {
                 print(`${this.name} attacks ${character.name}!`);
@@ -397,12 +401,12 @@ class Character {
         }
     }
 
-    enter(location: Location) {
-        this._onEnter?.(location);
+    async enter(location: Location) {
+        await this._onEnter?.(location);
     }
 
-    exit(location: Location) {
-        this._onLeave?.(location);
+    async exit(location: Location) {
+        await this._onLeave?.(location);
     }
 
     get toHit() {
@@ -415,10 +419,10 @@ class Character {
         return this.coordination * Math.random()
     }
 
-    attack(target?: Character, weapon: Item = this.weapons.main) {
+    async attack(target?: Character, weapon: Item = this.weapons.main) {
         if (!target) target = this.attackTarget;
         this.attackTarget = target;
-        target?.defend(this)
+        await target?.defend(this)
         if (!target || !this.attackTarget) return;
 
         // hit or not
@@ -427,7 +431,7 @@ class Character {
             this.describeAttack(target, weapon, -1);
             return;
         }
-        
+
         //Normal damage
         let dam = Math.floor(Math.sqrt(Math.random()) * this.blunt_damage(weapon))
         console.log(`dam: ${dam}`)
@@ -449,16 +453,16 @@ class Character {
         let tdam = dam + pdam + mdam
 
         //Output screen
-        this.describeAttack(target, weapon, tdam)
-        
+        await this.describeAttack(target, weapon, tdam)
+
         target.hurt(tdam, weapon.weapon_stats?.weapon_type || 'blunt')
         if (target.hp <= 0) {
-            this.slay(target);
-            target.die(this);
+            await this.slay(target);
+            await target.die(this);
         }
-        else {    
+        else {
             //special moves
-            this._fightMove?.()
+            await this._fightMove?.()
         }
     }
 
@@ -467,14 +471,14 @@ class Character {
         return this;
     }
 
-    hurt(damage: number, type: string) {
+    async hurt(damage: number, type: string) {
         if (this._damage_modifier) {
             damage = this._damage_modifier(damage, type);
         }
         this.hp -= damage;
     }
 
-    describeAttack(target: Character, weapon: Item, damage: number) {
+    async describeAttack(target: Character, weapon: Item, damage: number) {
         if (damage < 0) {
             print(`${this.name} misses ${target.name}!`);
             return;
@@ -485,7 +489,7 @@ class Character {
         }
     }
 
-    defend(character: Character) {
+    async defend(character: Character) {
         if (!this.enemies.includes(character)) {
             this.enemies.push(character);
         }
@@ -493,19 +497,24 @@ class Character {
             this.attackTarget = character;
         }
         if (this._onAttack) {
-            this._onAttack(character);
+            await this._onAttack(character);
         }
     }
 
-    act(state: GameState) {
-        this._onTurn?.(state);
+    async act(state: GameState) {
+        await this._onTurn?.(state);
         if (this.attackTarget && this.attackTarget.location == this.location) {
             for (let weapon in this.weapons) {
                 console.log(`Attacking with ${weapon}: ${this.weapons[weapon].name}`)
-                this.attack(this.attackTarget, this.weapons[weapon]);
+                await this.attack(this.attackTarget, this.weapons[weapon]);
             }
         }
     }
 }
-
+const charles = new Character({
+    name: 'Charles',
+    description: 'A tall, handsome fellow'
+}).onTurn(async function (gameState) {
+    this.attack(this.attackTarget);
+});
 export { Character, CharacterParams, pronouns };

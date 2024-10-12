@@ -1,12 +1,15 @@
 import { GameState } from '../../game/game.ts'
-import {Character, Item, Location} from '../../game/location.ts'
+import { Character, Item, Location } from '../../game/location.ts'
 import { items } from './items.ts'
 import { GameMap } from './map.ts'
 import { Player } from './player.ts'
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
+// import { GameSaver, showenv } from './savegame.ts'
+
+// showenv()
 
 class A2D extends GameState {
-    
+
     player!: Player;
     flags: {
         ieadon: boolean,
@@ -21,18 +24,18 @@ class A2D extends GameState {
         orc_mission: boolean,
         sift: boolean
     } = {
-        ieadon: false,
-        soldiers_remaining: 0,
-        colonel_arach: false,
-        biadon: false,
-        ziatos: false,
-        turlin: false,
-        henge: false,
-        forest_pass: false,
-        cradel: false,
-        orc_mission: false,
-        sift: false,
-    }
+            ieadon: false,
+            soldiers_remaining: 0,
+            colonel_arach: false,
+            biadon: false,
+            ziatos: false,
+            turlin: false,
+            henge: false,
+            forest_pass: false,
+            cradel: false,
+            orc_mission: false,
+            sift: false,
+        }
 
     intro() {
         color(orange, darkwhite);
@@ -43,7 +46,7 @@ class A2D extends GameState {
 
         for (let f = 0; f < 16; f++) {
             color(qbColors[f], darkwhite)
-            this.center ("A  D  V  E  N  T  U  R  E   I I")
+            this.center("A  D  V  E  N  T  U  R  E   I I")
         }
         color('black')
         print()
@@ -58,7 +61,7 @@ class A2D extends GameState {
         await getKey();
         this.clear();
         const opt = await this.optionBox({
-            title: 'Adventure 2 Setup', 
+            title: 'Adventure 2 Setup',
             options: ['Start New', 'Load Game', 'Exit']
         })
         this.clear();
@@ -75,16 +78,16 @@ class A2D extends GameState {
     async main() {
         let command = '';
         console.log('starting main loop');
-        this.player.look();
+        await this.player.look();
         this.player.hunger = this.player.max_sp / 2
         while (!(command in ['exit', 'quit'])) {
             await this.player.getInput();
-            this.characters.forEach(character => {
+            for (let character of this.characters) {
                 if (character.act) {
-                    console.log(`${character.name} acting`)
-                    character.act(this);
+                    // console.log(`${character.name} acting`)
+                    await character.act(this);
                 }
-            });
+            }
         }
     }
 
@@ -95,8 +98,8 @@ class A2D extends GameState {
             const new_player = new Player(
                 await input('\n\nType a name for yourself:'),
                 classes[await this.optionBox({
-                    title: "     Choose One          ", 
-                    options: classes, 
+                    title: "     Choose One          ",
+                    options: classes,
                     default_option: 1
                 })]
             )
@@ -113,22 +116,13 @@ class A2D extends GameState {
             color('yellow')
             print("--")
             color('black')
-                 
-            print(`Archery: ${new_player.archery}`)
-            print(`Coordination: ${new_player.coordination}`)
-            print(`Agility: ${new_player.agility}`)
-            print(`Attack: ${new_player.strength}`)
-            print(`Max HP: ${new_player.max_hp}`)
-            print(`Max SP: ${new_player.max_sp}`)
-            print(`Max MP: ${new_player.max_mp}`)
-            print(`Healing: ${new_player.healing}`)
-            print(`OffHand: ${Math.floor(new_player.offHand * 100)}%`)
-            print(`Magic Level: ${new_player.magic_level}`)
+            // show stats
+            new_player.checkStats();
 
             await getKey();
             this.clear();
             print("During-game assistant (recommended)? y/n")
-            new_player.assistant = await getKey(['y', 'n']) === 'y';
+            new_player.flags.assistant = await getKey(['y', 'n']) === 'y';
             print("Type \"assistant off\" or \"assistant on\" to toggle assistant during game.")
 
             resolve(new_player);

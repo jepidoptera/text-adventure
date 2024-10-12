@@ -1,19 +1,25 @@
 import { Container, Item } from "./item.ts";
 import { Character } from "./character.ts";
+import { items } from "../scenarios/A2D/items.ts";
 
 class Landmark {
     name: string;
     description: string;
     location?: Location;
-    onAssign?: (location: Location) => void;
-    constructor({name, description, onAssign}: {name: string, description: string, onAssign?: (location: Location) => void}) {
+    contents: Container;
+    _onAssign?: (location: Location) => void;
+    constructor({
+        name, description, items = []
+    }: {
+        name: string, description: string, items?: Item[]
+    }) {
         this.name = name;
         this.description = description;
-        this.onAssign = onAssign;
+        this.contents = new Container(items);
     }
-    assign(location: Location) {
-        this.location = location
-        this.onAssign?.(location);
+    assign(action: (this: Landmark, location: Location) => void) {
+        this._onAssign = action.bind(this);
+        return this
     }
 }
 
@@ -24,8 +30,9 @@ class Location extends Container {
     _adjacent: { [key: string]: string | number } = {};
     description: string | undefined;
     characters: Character[] = [];
-    Landmarks: Landmark[] = [];
-    actions: Map<string, (...args: any[]) => void> = new Map();
+    landmarks: Landmark[] = [];
+    _onEnter?: (player: Character) => void;
+    actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
     constructor({
         name,
         description = "",
@@ -47,6 +54,10 @@ class Location extends Container {
             this.addCharacter(character);
         };
     }
+    addAction(name: string, action: (player: Character, ...args: any[]) => Promise<any>) {
+        this.actions.set(name, action.bind(this));
+        return this;
+    }
     addCharacter(character: Character) {
         this.characters.push(character);
         character.location = this;
@@ -55,10 +66,10 @@ class Location extends Container {
     removeCharacter(character: Character) {
         this.characters = this.characters.filter(c => c !== character);
         return this;
-    } 
+    }
     addLandmark(Landmark: Landmark) {
-        Landmark.assign(this);
-        this.Landmarks.push(Landmark);
+        Landmark._onAssign?.(this);
+        this.landmarks.push(Landmark);
         return this;
     }
     enter(character: Character) {
@@ -67,12 +78,16 @@ class Location extends Container {
     exit(character: Character, direction?: string) {
         this.characters = this.characters.filter(c => c !== character);
     }
-    character(name: string): Character | undefined {
+    character(name: string = ''): Character | undefined {
+        if (!name) return;
         const char = (
             this.characters.find(character => character.name === name)
             || this.characters.find(character => character.description === name)
+            || this.characters.find(character => character.name.toLowerCase() === name.toLowerCase())
+            || this.characters.find(character => character.description.toLowerCase() === name.toLowerCase())
+            || this.characters.find(character => character.aliases.includes(name))
         )
-        console.log(`found ${char?.name}`)
+        // console.log(`found ${char?.name}`)
         return char;
     }
     get playerPresent(): boolean {

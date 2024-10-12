@@ -17,7 +17,7 @@ class GameState {
         (global as any).optionBox = this.optionBox.bind(this);
         (global as any).clear = this.clear.bind(this);
     }
-    loadScenario(locations: {[key: string | number]: Location}) {
+    loadScenario(locations: { [key: string | number]: Location }) {
         this.locations = new Map(Object.entries(locations).map(([k, v]) => [isNaN(Number(k)) ? k : Number(k), v]));
         for (let location of this.locations.values()) {
             // since we have to link locations by id initially, we now link to the actual location object
@@ -38,17 +38,17 @@ class GameState {
     locate(x: number, y?: number) {
         this.send({ command: 'locate', x, y });
     }
-    color(fg: string, bg?: string ) {
+    color(fg: string, bg?: string) {
         this.send({ command: 'color', fg, bg });
     }
     optionBox({
-        title, 
-        options, 
+        title,
+        options,
         colors,
         default_option
     }: {
-        title: string, 
-        options: string[], 
+        title: string,
+        options: string[],
         colors?: { box: { fg: string, bg: string }, text: { fg: string, bg: string }, background: string },
         default_option?: number
     }) {
@@ -96,7 +96,7 @@ class GameState {
         await this.getKey();
         this.clear();
         const opt = await this.optionBox({
-            title: 'Adventure 2 Setup', 
+            title: 'Adventure 2 Setup',
             options: ['Start New', 'Load Game', 'Exit']
         })
         this.quote('You chose ' + opt);
@@ -111,17 +111,17 @@ class GameState {
         }
         const classOptions = ['Warrior', 'Mage', 'Rogue']
         const className = classOptions[await this.optionBox({
-            title: "choose your class:", 
+            title: "choose your class:",
             options: classOptions
         })];
-        let player = new Character({name: "you"});
+        let player = new Character({ name: "you" });
         switch (className) {
             case 'Warrior':
                 player.strength = 10;
                 player.max_hp = 50;
                 player.max_sp = 40;
                 player.max_mp = 5;
-                player.abilities = {'berserk': 5}
+                player.abilities = { 'berserk': 5 }
                 break;
             case 'Mage':
                 player.strength = 5;
@@ -129,21 +129,21 @@ class GameState {
                 player.max_sp = 20;
                 player.max_mp = 50;
                 player.magic_level = 10;
-                player.abilities = {'bolt': 5}
+                player.abilities = { 'bolt': 5 }
                 break;
             case 'Rogue':
                 player.strength = 8;
                 player.max_hp = 40;
                 player.max_sp = 40;
                 player.max_mp = 10;
-                player.abilities = {'sneak': 5}
+                player.abilities = { 'sneak': 5 }
                 break;
         }
-        player.addAction('', () => {});
-        player.addAction('n', () => player.go('north'));
-        player.addAction('s', () => player.go('south'));
-        player.addAction('e', () => player.go('east'));
-        player.addAction('w', () => player.go('west'));
+        player.addAction('', async () => { });
+        player.addAction('n', async () => await player.go('north'));
+        player.addAction('s', async () => player.go('south'));
+        player.addAction('e', async () => player.go('east'));
+        player.addAction('w', async () => player.go('west'));
         player.addAction('get', player.getItem)
         player.addAction('drop', player.dropItem)
         player.location = this.locations.values().next().value;
