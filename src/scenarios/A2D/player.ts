@@ -1,9 +1,11 @@
-import { Character, Item, Location } from '../../game/location.ts'
+import { Location } from '../../game/location.ts'
+import { Item } from '../../game/item.ts'
+import { Character } from '../../game/character.ts'
 import { A2dCharacter } from './characters.ts'
-import { items } from './items.ts'
+import { getItem } from './items.ts'
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
 import { GameState } from '../../game/game.ts';
-import { cap, plural, randomChoice } from '../../game/utils.ts';
+import { caps, plural, randomChoice } from '../../game/utils.ts';
 
 class Player extends A2dCharacter {
     class_name: string = '';
@@ -15,7 +17,10 @@ class Player extends A2dCharacter {
     archery: number = 0;
     isPlayer: boolean = true;
     pronouns = { subject: 'you', object: 'you', possessive: 'your' };
-    weapons: { [key: string]: Item } = { 'main': items.fist(), 'left': items.fist({ name: 'fist' }) }
+    weapons: { [key: string]: Item } = {
+        'main': getItem('fist', { name: 'fist' }),
+        'left': getItem('fist', { name: 'fist' })
+    }
     flags: {
         assistant: boolean,
         enemy_of_ierdale: boolean,
@@ -33,9 +38,9 @@ class Player extends A2dCharacter {
         }
     constructor(characterName: string, className: string) {
         super({ name: characterName });
-        this.inventory.add(items.banana())
-        this.inventory.add(items.side_of_meat())
-        this.inventory.add(items.club())
+        this.inventory.add(getItem("banana"))
+        this.inventory.add(getItem("side_of_meat"))
+        this.inventory.add(getItem("club"))
         this.class_name = className.toLowerCase();
         switch (this.class_name) {
             case ('thief'):
@@ -51,9 +56,9 @@ class Player extends A2dCharacter {
                 this.abilities = {}
                 this.archery = 24
                 this.max_pets = 4
-                this.inventory.add(items.short_bow())
-                this.inventory.add(items.arrows(25))
-                this.inventory.add(items.gold(45))
+                this.inventory.add(getItem("short_bow"))
+                this.inventory.add(getItem('arrows', 25))
+                this.inventory.add(getItem('gold', 45))
                 break;
 
             case ('fighter'):
@@ -69,8 +74,8 @@ class Player extends A2dCharacter {
                 this.abilities = {}
                 this.archery = 10
                 this.max_pets = 3
-                this.inventory.add(items.shortsword(1))
-                this.inventory.add(items.gold(30))
+                this.inventory.add(getItem('shortsword'))
+                this.inventory.add(getItem('gold', 30))
                 break;
 
             case ('spellcaster'):
@@ -89,8 +94,8 @@ class Player extends A2dCharacter {
                 }
                 this.archery = 6
                 this.max_pets = 4
-                this.inventory.add(items.flask_of_wine())
-                this.inventory.add(items.gold(20))
+                this.inventory.add(getItem("flask_of_wine"))
+                this.inventory.add(getItem('gold', 20))
                 break;
 
             case ('cleric'):
@@ -108,10 +113,11 @@ class Player extends A2dCharacter {
                 }
                 this.archery = 22
                 this.max_pets = 5
-                this.inventory.add(items.gold(30))
-                this.inventory.add(items.healing_potion())
+                this.inventory.add(getItem('gold', 30))
+                this.inventory.add(getItem("healing_potion"))
                 break;
         }
+        this.addAction('save', async () => { await this.game.save(this.name); print('Game saved.') });
         this.addAction('', async () => { });
         this.addAction('n', async () => this.go('north'));
         this.addAction('s', async () => this.go('south'));
@@ -138,13 +144,14 @@ class Player extends A2dCharacter {
         // start with full health
         this.recoverStats({ hp: 100, sp: 100, mp: 100 });
         this.autoheal();
-        this.onTurn(async () => { this._onSlay = this.checkHP });
+        this.onTurn(async () => { this.onSlay(this.checkHP) });
     }
 
     async getInput() {
         let fighting = this.attackTarget?.location === this.location;
         let command = '';
         color(black, darkwhite)
+        console.log('player input')
         if (!fighting) {
             color(blue)
             print(this.name, 1)
@@ -157,7 +164,7 @@ class Player extends A2dCharacter {
             }
         } else {
             this.checkHP();
-            this._onSlay = undefined;
+            this.onSlay(async () => { });
             color(black)
             print(")===|[>>>>>>>>>>>>>>>>>>")
             command = await input()
@@ -166,7 +173,7 @@ class Player extends A2dCharacter {
         if (this.location?.actions.has(command)) {
             await this.location?.actions.get(command)?.(this);
         } else if (this.actions.has(command)) {
-            await this.actions.get(command)?.();
+            await this.useAction(command);
         } else {
             for (let character of this.location?.characters ?? []) {
                 if (character.actions.has(command)) {
@@ -212,6 +219,10 @@ class Player extends A2dCharacter {
 
     set max_sp(value) {
         this._max_sp = value
+    }
+
+    get max_carry() {
+        return this.strength * 2
     }
 
     acquireTarget(target: Character | undefined) {
@@ -262,6 +273,7 @@ class Player extends A2dCharacter {
     }
 
     async heal() {
+        color(black)
         if (this._sp < 3 || this._sp < 5 && this.poison > 0) {
             print("You are too weak!");
             return;
@@ -271,11 +283,11 @@ class Player extends A2dCharacter {
     }
 
     async go(direction: string) {
+        color(black)
         if (await super.go(direction)) {
             return true;
         }
         else {
-            color(black)
             print('You can\'t go that way.')
             return false
         }
@@ -324,7 +336,7 @@ class Player extends A2dCharacter {
         })
         if (listItems.length % 2 == 1) print()
         color(gray)
-        print(`Total Object Weight: ${this.inventoryWeight}/${this._max_sp / 3}`)
+        print(`Total Object Weight: ${this.inventoryWeight}/${this.max_carry}`)
         color(green, white)
         print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
         color(black, darkwhite)
@@ -403,7 +415,7 @@ class Player extends A2dCharacter {
 
     wield(itemName: string, hand: string) {
         color(black)
-        const item = itemName == 'fist' ? items.fist({ name: 'fist' }) : this.inventory.item(itemName);
+        const item = itemName == 'fist' ? getItem('fist', { name: 'fist' }) : this.inventory.item(itemName);
         if (!item) {
             print("You don't have that.")
         }
@@ -440,7 +452,7 @@ class Player extends A2dCharacter {
                     const otherHand = hand === 'main' ? 'left' : 'main';
                     const numberRequired = this.weapons[otherHand]?.name === itemName ? 2 : 1;
                     if (!this.inventory.has(itemName, numberRequired)) {
-                        console.log(`wielding ${itemName}, other hand: ${otherHand} wielding ${this.weapons[otherHand]?.name}, {numberRequired} required`)
+                        console.log(`wielding ${itemName}, other hand: ${otherHand} wielding ${this.weapons[otherHand]?.name}, ${numberRequired} required`)
                         print("You only have one.")
                     } else {
                         this.weapons[hand] = item;
@@ -511,7 +523,7 @@ class Player extends A2dCharacter {
         print(`OffHand: ${Math.floor(this.offHand * 100)}%`)
         print(`Magic Level: ${this.magic_level}`)
         for (let ability in this.abilities) {
-            print(`--${cap(ability)} skill: ${abilityLevels[Math.floor(this.abilities[ability])]}`)
+            print(`--${caps(ability)} skill: ${abilityLevels[Math.floor(this.abilities[ability])]}`)
         }
     }
 
@@ -531,7 +543,6 @@ class Player extends A2dCharacter {
                 console.log(character.getAction('talk'));
                 await character.getAction('talk')?.(this);
             } else {
-                color(black)
                 print("They don't want to talk.")
             }
         }
@@ -552,7 +563,7 @@ class Player extends A2dCharacter {
     }
 
     async slay(character: Character) {
-        this._onSlay?.(character);
+        await this._onSlay?.(character);
         print()
         color(yellow)
         print(`You defeat ${character.name}!`)
@@ -574,14 +585,6 @@ class Player extends A2dCharacter {
             } else if (this.enemies[enemy].location === this.location) {
                 this.attackTarget = this.enemies[enemy];
             }
-        }
-    }
-
-    async act(game: GameState) {
-        console.log(`player action:`)
-        if (this.attackTarget?.location === this.location) {
-            console.log('target qcquired')
-            this.attack(this.attackTarget);
         }
     }
 }

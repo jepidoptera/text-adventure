@@ -1,12 +1,20 @@
 import { WebSocket } from 'ws';
-import { Character, Location, Item } from './location.ts';
+import { Location } from './location.ts';
+import { Item } from './item.ts'
+import { Character } from './character.ts'
 
 class GameState {
     flags: { [key: string]: any } = {};
     locations: Map<string | number, Location> = new Map();
     on_input: ((input: string) => void) | null = null;
     send: (output: object) => void;
-    constructor(wss: WebSocket) {
+    _save: (saveName: string, gameState: object) => Promise<void>;
+    _load: (saveName: string) => Promise<object | null>;
+    constructor(
+        wss: WebSocket,
+        save: (saveName: string, gameState: object) => Promise<void>,
+        load: (saveName: string) => Promise<object | null>
+    ) {
         this.send = (output: object) => wss.send(JSON.stringify(output));
         (global as any).print = this.quote.bind(this);
         (global as any).input = this.query.bind(this);
@@ -16,6 +24,8 @@ class GameState {
         (global as any).locate = this.locate.bind(this);
         (global as any).optionBox = this.optionBox.bind(this);
         (global as any).clear = this.clear.bind(this);
+        this._save = save;
+        this._load = load;
     }
     loadScenario(locations: { [key: string | number]: Location }) {
         this.locations = new Map(Object.entries(locations).map(([k, v]) => [isNaN(Number(k)) ? k : Number(k), v]));
@@ -140,10 +150,10 @@ class GameState {
                 break;
         }
         player.addAction('', async () => { });
-        player.addAction('n', async () => await player.go('north'));
-        player.addAction('s', async () => player.go('south'));
-        player.addAction('e', async () => player.go('east'));
-        player.addAction('w', async () => player.go('west'));
+        player.addAction('n', async function () { await player.go('north') });
+        player.addAction('s', async function () { await player.go('south') });
+        player.addAction('e', async function () { await player.go('east') });
+        player.addAction('w', async function () { await player.go('west') });
         player.addAction('get', player.getItem)
         player.addAction('drop', player.dropItem)
         player.location = this.locations.values().next().value;
@@ -152,8 +162,13 @@ class GameState {
             let player_input = await this.query('What do you want to do?');
             let [command, ...args] = player_input.split(' ');
             if (player.actions.has(command)) {
-                player.actions.get(command)?.(args.join(' '));
+                player.getAction(command)?.(args.join(' '));
             } else {
+                for (let item of player.inventory) {
+                    if (item.name === command) {
+                        item.getAction(command)?.(args.join(' '));
+                    }
+                }
                 this.quote('I don\'t understand that command');
             }
         }
@@ -179,8 +194,12 @@ class GameState {
         name = name.toLowerCase();
         return Array.from(this.locations.values()).find(location => location.name.toLowerCase() === name);
     }
+    find_all_locations(name: string) {
+        name = name.toLowerCase();
+        return Array.from(this.locations.values()).filter(location => location.name.toLowerCase() === name);
+    }
     get characters() {
-        return Array.from(this.locations.values()).flatMap(location => location.characters);
+        return Array.from(this.locations.values()).flatMap(location => [...location.characters]);
     }
 }
 

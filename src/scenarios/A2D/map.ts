@@ -1,14 +1,20 @@
-import { Character, Item, Location, Landmark } from '../../game/location.ts'
-import { items } from './items.ts'
-import { landmarks } from './landmarks.ts'
-import { characters, actions } from './characters.ts'
+import { Location, Landmark } from '../../game/location.ts'
+import { Item } from '../../game/item.ts'
+import { Character } from '../../game/character.ts'
+import { getItem } from './items.ts'
+import { getLandmark } from './landmarks.ts'
+import { getCharacter, actions } from './characters.ts'
 
 class GameMap {
     locations: { [key: string | number]: Location } = {
+        0: new Location({
+            name: "limbo",
+            adjacent: {}
+        }),
         1: new Location({
             name: "Cottage of the Young",
             adjacent: { 'north': 6, 'east': 14, 'west': 15 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "--------------------------------------------",
             "|      Welcome to the world of A2D.        |",
             "| You are currently in the town of Ierdale |",
@@ -22,8 +28,8 @@ class GameMap {
         2: new Location({
             name: "North Road",
             adjacent: { 'north': 3, 'east': 21, 'south': 12 },
-            items: [items.shortsword(2), items.pile_of_gold({ quantity: 50, name: 'bag of loot' })]
-        }).addLandmark(landmarks.sign([
+            items: [getItem("shortsword", 2), getItem("pile_of_gold", { quantity: 50, name: 'bag of loot' })]
+        }).addLandmark(getLandmark('sign', [
             "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&",
             "@  Ierdale Merchant Settlement  @",
             "@                               @",
@@ -40,7 +46,7 @@ class GameMap {
         3: new Location({
             name: "North Road",
             adjacent: { 'north': 4, 'east': 20, 'south': 2, 'west': 19 },
-            items: [items.shortsword(), items.pile_of_gold({ quantity: 32 })]
+            items: [getItem("shortsword"), getItem("pile_of_gold", 32)]
         }),
         4: new Location({
             name: "North Road",
@@ -53,13 +59,13 @@ class GameMap {
         6: new Location({
             name: "South Road",
             adjacent: { 'north': 5, 'south': 1, 'west': 137 },
-            characters: [characters.peasant_worker(), characters.dog(), characters.dog()]
+            characters: [getCharacter('peasant_worker'), getCharacter('dog'), getCharacter('dog')]
         }),
         7: new Location({
             name: "West Road",
             adjacent: { 'north': 91, 'east': 11, 'south': 279, 'west': 13 },
-            characters: [characters.peddler()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('peddler')]
+        }).addLandmark(getLandmark('sign', [
             "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&",
             "&                                      &",
             "&   CLUBMEN HOUSES    /|\\        |     &",
@@ -72,12 +78,12 @@ class GameMap {
         8: new Location({
             name: "East Road",
             adjacent: { 'east': 9, 'south': 87, 'west': 12 },
-            characters: [characters.peasant_man()]
+            characters: [getCharacter('peasant_man')]
         }),
         9: new Location({
             name: "East Road",
             adjacent: { 'north': 24, 'east': 10, 'south': 132, 'west': 8 },
-            characters: [characters.peddler()]
+            characters: [getCharacter('peddler')]
         }),
         10: new Location({
             name: "East Road",
@@ -86,8 +92,8 @@ class GameMap {
         11: new Location({
             name: "West Road",
             adjacent: { 'north': 280, 'east': 12, 'south': 23, 'west': 7 },
-            characters: [characters.peasant_woman(), characters.peasant_man()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('peasant_woman'), getCharacter('peasant_man')]
+        }).addLandmark(getLandmark('sign', [
             "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&",
             "&                                      &",
             "&   CLUBMEN HOUSES    /|\\        |     &",
@@ -100,8 +106,8 @@ class GameMap {
         12: new Location({
             name: "Center of Town",
             adjacent: { 'north': 2, 'east': 8, 'south': 5, 'west': 11 },
-            characters: [characters.clubman().onTurn(actions.wander), characters.clubman().onTurn(actions.wander), characters.colonel_arach(), characters.guard_captain()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('clubman').onTurn(actions.wander), getCharacter('clubman').onTurn(actions.wander), getCharacter('colonel_arach'), getCharacter('guard_captain')]
+        }).addLandmark(getLandmark('sign', [
             "/\\\\------------------------\\   ",
             "\\// The Town of Ierdale    /   ",
             " /                         |   ",
@@ -121,13 +127,13 @@ class GameMap {
         14: new Location({
             name: "Bedroom",
             adjacent: { 'west': 1 },
-            characters: [characters.sick_old_cleric()]
+            characters: [getCharacter('sick_old_cleric')]
         }),
         15: new Location({
             name: "Vegtable Garden",
             adjacent: { 'east': 1, 'south': 18, 'west': 16 },
-            items: [items.ear_of_corn()]
-        }).addLandmark(landmarks.sign([
+            items: [getItem("ear_of_corn")]
+        }).addLandmark(getLandmark('sign', [
             " ________________________________",
             "|                                |",
             "|     BEWARE OF SCARECROWS       |",
@@ -140,8 +146,8 @@ class GameMap {
         17: new Location({
             name: "Vegtable Garden",
             adjacent: { 'north': 16, 'east': 18 },
-            items: [items.satchel_of_peas()]
-        }).addLandmark(landmarks.scarecrow()),
+            items: [getItem("satchel_of_peas")]
+        }).addLandmark(getLandmark('scarecrow')),
         18: new Location({
             name: "Vegtable Garden",
             adjacent: { 'north': 15, 'west': 17 }
@@ -149,8 +155,8 @@ class GameMap {
         19: new Location({
             name: "Pawn Shop",
             adjacent: { 'east': 3 },
-            characters: [characters.toothless_man()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('toothless_man')]
+        }).addLandmark(getLandmark('sign', [
             "=======================================",
             "=   PoN shOp                          =",
             "=   we lyk to by stuf U dunt want     =",
@@ -165,8 +171,8 @@ class GameMap {
         20: new Location({
             name: "Grocer",
             adjacent: { 'west': 3 },
-            characters: [characters.grocer(), characters.bag_boy()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('grocer'), getCharacter('bag_boy')]
+        }).addLandmark(getLandmark('sign', [
             "ooooooooooooooooooooooooooooooooooooooooooooooooooo",
             "o                                                 o",
             "o    Food market of Ierdale                       o",
@@ -187,8 +193,8 @@ class GameMap {
         21: new Location({
             name: "Blacksmith's Shop",
             adjacent: { 'west': 2 },
-            characters: [characters.armor_merchant(), characters.blacksmith()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('armor_merchant'), getCharacter('blacksmith')]
+        }).addLandmark(getLandmark('sign', [
             "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             "x                                         x",
             "x    THE FINE ARMORY OF IERDALE           x",
@@ -209,8 +215,8 @@ class GameMap {
         22: new Location({
             name: "Pet Store",
             adjacent: { 'west': 4 },
-            characters: [characters.orkin_the_animal_trainer()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('orkin_the_animal_trainer')]
+        }).addLandmark(getLandmark('sign', [
             "/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\",
             "!                                          !",
             "!    Welcome.                              !",
@@ -226,13 +232,13 @@ class GameMap {
         23: new Location({
             name: "House",
             adjacent: { 'north': 11 },
-            characters: [characters.clubman()]
-        }).addLandmark(landmarks.mixing_pot()),
+            characters: [getCharacter('clubman')]
+        }).addLandmark(getLandmark('mixing_pot')),
         24: new Location({
             name: "Ieadon's House",
             adjacent: { 'south': 9 },
-            characters: [characters.ieadon()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('ieadon')]
+        }).addLandmark(getLandmark('sign', [
             " )~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~(",
             "( Welcome to the Hearty Domain of the )",
             "(  fighters of Ierdale.  To see what  )",
@@ -244,8 +250,8 @@ class GameMap {
         25: new Location({
             name: "Meat Market",
             adjacent: { 'west': 88 },
-            characters: [characters.butcher()],
-            items: [items.side_of_meat(), items.giraffe_gizzard()]
+            characters: [getCharacter('butcher')],
+            items: [getItem("side_of_meat"), getItem("giraffe_gizzard")]
         }),
         26: new Location({
             name: "North Road",
@@ -258,8 +264,8 @@ class GameMap {
         28: new Location({
             name: "Northern Gatehouse",
             adjacent: { 'north': 44, 'south': 27 },
-            characters: [characters.security_guard(), characters.security_guard()]
-        }).addLandmark(landmarks.locked_gate()),
+            characters: [getCharacter('security_guard'), getCharacter('security_guard')]
+        }).addLandmark(getLandmark('locked_gate')),
         29: new Location({
             name: "Dirth Track",
             adjacent: { 'east': 30, 'west': 27 }
@@ -283,17 +289,17 @@ class GameMap {
         34: new Location({
             name: "Corn Field",
             adjacent: { 'north': 35, 'east': 33 },
-            characters: [characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_captain()]
+            characters: [getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_captain')]
         }),
         35: new Location({
             name: "Corn Field",
             adjacent: { 'south': 34 },
-            characters: [characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_captain()]
+            characters: [getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_captain')]
         }),
         36: new Location({
             name: "Corn Field",
             adjacent: { 'south': 33 },
-            characters: [characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_captain()]
+            characters: [getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_captain')]
         }),
         37: new Location({
             name: "Corn Field",
@@ -302,38 +308,38 @@ class GameMap {
         38: new Location({
             name: "Farmhouse",
             adjacent: { 'west': 32 },
-            characters: [characters.farm_wife()]
+            characters: [getCharacter('farm_wife')]
         }),
         39: new Location({
             name: "Barnyard",
             adjacent: { 'north': 40, 'south': 32 },
-            characters: [characters.hen(), characters.hen(), characters.hen(), characters.hen(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_captain()]
+            characters: [getCharacter('hen'), getCharacter('hen'), getCharacter('hen'), getCharacter('hen'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_captain')]
         }),
         40: new Location({
             name: "Barn",
             adjacent: { 'south': 39 },
-            characters: [characters.large_rooster()]
+            characters: [getCharacter('large_rooster')]
         }),
         41: new Location({
             name: "Pasture",
             adjacent: { 'north': 32, 'south': 42, 'west': 43 },
-            characters: [characters.cow(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_solider(), characters.goblin_captain()]
+            characters: [getCharacter('cow'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_solider'), getCharacter('goblin_captain')]
         }),
         42: new Location({
             name: "Pasture",
             adjacent: { 'north': 41 },
-            characters: [characters.cow()]
+            characters: [getCharacter('cow')]
         }),
         43: new Location({
             name: "Pasture",
             adjacent: { 'east': 41 },
-            characters: [characters.bull()]
+            characters: [getCharacter('bull')]
         }),
         44: new Location({
             name: "Entrance to the Forest of Thieves",
             adjacent: { 'north': 46, 'south': 28 },
-            characters: [characters.ierdale_forester(), characters.ierdale_forester()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('ierdale_forester'), getCharacter('ierdale_forester')]
+        }).addLandmark(getLandmark('sign', [
             "/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\",
             "\\                                        /",
             "/  Welcome to the Forests of Thieves...  \\",
@@ -350,8 +356,8 @@ class GameMap {
         45: new Location({
             name: "Headquarters of the Ierdale Guard",
             adjacent: { 'north': 321, 'east': 26 },
-            characters: [characters.police_chief()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('police_chief')]
+        }).addLandmark(getLandmark('sign', [
             "#############################################",
             "#   Welcome to the Ierdale Security Dept.   #",
             "#                                           #",
@@ -365,72 +371,72 @@ class GameMap {
         47: new Location({
             name: "Path of Thieves",
             adjacent: { 'north': 48, 'east': 52, 'south': 46, 'west': 84 },
-            characters: [characters.fine_gentleman(), characters.ierdale_forester()]
+            characters: [getCharacter('fine_gentleman'), getCharacter('ierdale_forester')]
         }),
         48: new Location({
             name: "Path of Thieves",
             adjacent: { 'north': 49, 'south': 47, 'west': 72 },
-            characters: [characters.dirty_thief()]
+            characters: [getCharacter('dirty_thief')]
         }),
         49: new Location({
             name: "Path of Thieves",
             adjacent: { 'north': 50, 'south': 48, 'west': 71 },
-            characters: [characters.dirty_thief()]
+            characters: [getCharacter('dirty_thief')]
         }),
         50: new Location({
             name: "Path of Thieves",
             adjacent: { 'north': 51, 'east': 65, 'south': 49 },
-            characters: [characters.fat_merchant_thief(), characters.dryad(), characters.ierdale_forester()]
+            characters: [getCharacter('fat_merchant_thief'), getCharacter('dryad'), getCharacter('ierdale_forester')]
         }),
         51: new Location({
             name: "End of the Path",
             adjacent: { 'east': 66, 'south': 50 },
-            characters: [characters.fat_merchant_thief(), characters.fine_gentleman()]
+            characters: [getCharacter('fat_merchant_thief'), getCharacter('fine_gentleman')]
         }),
         52: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 58, 'east': 54, 'south': 53, 'west': 47 },
-            characters: [characters.dirty_thief(), characters.ierdale_forester()]
+            characters: [getCharacter('dirty_thief'), getCharacter('ierdale_forester')]
         }),
         53: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 52, 'west': 46 },
-            characters: [characters.fat_merchant_thief()]
+            characters: [getCharacter('fat_merchant_thief')]
         }),
         54: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 59, 'east': 57, 'south': 55, 'west': 52 },
-            characters: [characters.fine_gentleman()]
+            characters: [getCharacter('fine_gentleman')]
         }),
         55: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 54, 'east': 56 },
-            characters: [characters.swordsman()]
+            characters: [getCharacter('swordsman')]
         }),
         56: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 57, 'west': 55 },
-            characters: [characters.swordsman()]
+            characters: [getCharacter('swordsman')]
         }),
         57: new Location({
             name: "Forest of Thieves",
             adjacent: { 'south': 56, 'west': 54 },
-            characters: [characters.little_goblin_thief()]
+            characters: [getCharacter('little_goblin_thief')]
         }),
         58: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 60, 'east': 59, 'south': 52 },
-            characters: [characters.evil_forester()]
+            characters: [getCharacter('evil_forester')]
         }),
         59: new Location({
             name: "Forest of Thieves",
             adjacent: { 'south': 54, 'west': 58 },
-            characters: [characters.swordsman()]
+            characters: [getCharacter('swordsman')]
         }),
         60: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 65, 'east': 61, 'south': 58 },
-            characters: [characters.dryad()]
+            characters: [getCharacter('dryad')]
         }),
         61: new Location({
             name: "Forest of Thieves",
@@ -443,13 +449,13 @@ class GameMap {
         63: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 85, 'west': 62 },
-            characters: [characters.swordsman()]
+            characters: [getCharacter('swordsman')]
         }),
         64: new Location({
             name: "Forest of Thieves",
             adjacent: { 'west': 61 }
         }).addLandmark(
-            landmarks.towering_tree()
+            getLandmark('towering_tree')
         ),
         65: new Location({
             name: "Forest of Thieves",
@@ -458,42 +464,43 @@ class GameMap {
         66: new Location({
             name: "Forest of Thieves",
             adjacent: { 'east': 334, 'south': 65, 'west': 51 },
-            characters: [characters.snarling_thief()]
+            characters: [getCharacter('snarling_thief')]
         }),
         67: new Location({
             name: "Forest of Thieves",
             adjacent: { 'east': 85, 'south': 62 },
-            characters: [characters.snarling_thief(), characters.little_goblin_thief()]
+            characters: [getCharacter('snarling_thief'), getCharacter('little_goblin_thief')],
+            items: [getItem("ochre_stone")]
         }),
         68: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 75, 'east': 69, 'south': 79, 'west': 77 },
-            characters: [characters.evil_forester(), characters.snarling_thief()]
+            characters: [getCharacter('evil_forester'), getCharacter('snarling_thief')]
         }),
         69: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 74, 'west': 68 },
-            characters: [characters.dirty_thief()]
+            characters: [getCharacter('dirty_thief')]
         }),
         70: new Location({
             name: "Forest of Thieves",
             adjacent: { 'east': 71, 'south': 82 },
-            characters: [characters.dirty_thief(), characters.dryad()]
+            characters: [getCharacter('dirty_thief'), getCharacter('dryad')]
         }),
         71: new Location({
             name: "Forest of Thieves",
             adjacent: { 'east': 49, 'south': 72, 'west': 70 },
-            characters: [characters.swordsman()]
+            characters: [getCharacter('swordsman')]
         }),
         72: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 71, 'east': 48, 'south': 84, 'west': 82 },
-            characters: [characters.swordsman()]
+            characters: [getCharacter('swordsman')]
         }),
         73: new Location({
             name: "Forest of Thieves",
             adjacent: { 'east': 83, 'south': 81 },
-            characters: [characters.fine_gentleman()]
+            characters: [getCharacter('fine_gentleman')]
         }),
         74: new Location({
             name: "Forest of Thieves",
@@ -502,7 +509,7 @@ class GameMap {
         75: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 80, 'east': 74, 'south': 68, 'west': 76 },
-            characters: [characters.dark_rider()]
+            characters: [getCharacter('dark_rider')]
         }),
         76: new Location({
             name: "Forest of Thieves",
@@ -513,13 +520,13 @@ class GameMap {
         77: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 76, 'east': 68, 'south': 78 },
-            characters: [characters.evil_forester()]
+            characters: [getCharacter('evil_forester')]
         }),
         78: new Location({
             name: "Hideout of Mythin the Forester",
             adjacent: { 'north': 77, 'east': 79 },
-            characters: [characters.biadon(), characters.mythin()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('biadon'), getCharacter('mythin')]
+        }).addLandmark(getLandmark('sign', [
             "(____)-----(----------)---^--------/\\",
             "/                                    =",
             "\\    Mythins Thief Stronghold        '",
@@ -542,7 +549,7 @@ class GameMap {
         80: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 83, 'south': 75, 'west': 81 },
-            characters: [characters.little_goblin_thief(), characters.dryad()]
+            characters: [getCharacter('little_goblin_thief'), getCharacter('dryad')]
         }),
         81: new Location({
             name: "Forest of Thieves",
@@ -555,28 +562,28 @@ class GameMap {
         83: new Location({
             name: "Forest of Thieves",
             adjacent: { 'east': 82, 'south': 80, 'west': 73 },
-            characters: [characters.dark_rider()]
+            characters: [getCharacter('dark_rider')]
         }),
         84: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 72, 'east': 47, 'south': 86 },
-            characters: [characters.dark_rider()]
+            characters: [getCharacter('dark_rider')]
         }),
         85: new Location({
             name: "Forest of Thieves",
             adjacent: { 'south': 63, 'west': 67 },
-            characters: [characters.little_goblin_thief()]
+            characters: [getCharacter('little_goblin_thief')]
         }),
         86: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 84, 'east': 46, 'west': 74 },
-            characters: [characters.ierdale_forester()]
+            characters: [getCharacter('ierdale_forester')]
         }),
         87: new Location({
             name: "Mythin's Office",
             adjacent: { 'north': 8 },
-            characters: [characters.mythins_employee()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('mythins_employee')]
+        }).addLandmark(getLandmark('sign', [
             "^!^!^!^!^!^!^!^!^!^!^!^!^!^!^",
             "! Mythin is out now, please !",
             "! ask employee for details  !",
@@ -589,7 +596,7 @@ class GameMap {
         89: new Location({
             name: "Oak Street",
             adjacent: { 'north': 88, 'east': 137, 'south': 90, 'west': 136 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%",
             "% RANDOM USEFUL THINGS - SIGN 1:    %",
             "%                                   %",
@@ -616,24 +623,21 @@ class GameMap {
         91: new Location({
             name: "House",
             adjacent: { 'south': 7 },
-            characters: [
-                characters.clubman({ attackPlayer: true }),
-                characters.clubman({ attackPlayer: true })
-                , characters.clubman()]
+            characters: [getCharacter('clubman')]
         }),
         92: new Location({
             name: "Western Gatehouse",
             adjacent: { 'east': 13, 'west': 94 },
-            characters: [characters.security_guard(), characters.security_guard()]
+            characters: [getCharacter('security_guard'), getCharacter('security_guard')]
         }).addLandmark(
-            landmarks.locked_gate()
+            getLandmark('locked_gate')
         ),
         93: new Location({
             name: "Eastern Gatehouse",
             adjacent: { 'east': 95, 'west': 10 },
-            characters: [characters.security_guard(), characters.security_guard()]
+            characters: [getCharacter('security_guard'), getCharacter('security_guard')]
         }).addLandmark(
-            landmarks.locked_gate()
+            getLandmark('locked_gate')
         ),
         94: new Location({
             name: "West Road",
@@ -646,7 +650,7 @@ class GameMap {
         96: new Location({
             name: "East Road, Fork of Nod",
             adjacent: { 'east': 283, 'south': 142, 'west': 97 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "|/\\|/\\|/\\|/\\|/\\|/\\|/\\|/\\|/\\|/\\|/\\|/\\|",
             "|    Fork of Nod                    |",
             "| Travel along this path for aprox. |",
@@ -674,7 +678,7 @@ class GameMap {
         97: new Location({
             name: "East Road",
             adjacent: { 'east': 96, 'west': 95 }
-        }).addLandmark(landmarks.slash_in_the_earth()),
+        }).addLandmark(getLandmark('slash_in_the_earth')),
         98: new Location({
             name: "West Road, Forks South",
             adjacent: { 'east': 94, 'south': 99, 'west': 130 }
@@ -682,7 +686,7 @@ class GameMap {
         99: new Location({
             name: "Path",
             adjacent: { 'north': 98, 'south': 100 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "-\\  /---\\/------------------------",
             "| \\/  Beware of water to the west|",
             "|        and east of the river   |",
@@ -695,17 +699,17 @@ class GameMap {
         101: new Location({
             name: "Stony Bridge",
             adjacent: { 'north': 100, 'south': 102 },
-            characters: [characters.bridge_troll()]
+            characters: [getCharacter('bridge_troll')]
         }),
         102: new Location({
             name: "Stony Bridge",
             adjacent: { 'north': 101, 'south': 103 },
-            characters: [characters.bridge_troll()]
+            characters: [getCharacter('bridge_troll')]
         }),
         103: new Location({
             name: "Stony Bridge",
             adjacent: { 'north': 102, 'south': 104 },
-            characters: [characters.bridge_troll()]
+            characters: [getCharacter('bridge_troll')]
         }),
         104: new Location({
             name: "Path, Sloping Steeply",
@@ -722,18 +726,18 @@ class GameMap {
         107: new Location({
             name: "Mountain Pass",
             adjacent: { 'north': 106, 'east': 108 },
-            characters: [characters.stone_ogre()]
+            characters: [getCharacter('stone_ogre')]
         }),
         108: new Location({
             name: "Lush Valley",
             adjacent: { 'east': 109, 'west': 107 },
-            characters: [characters.stone_ogre()]
+            characters: [getCharacter('stone_ogre')]
         }),
         109: new Location({
             name: "Eldin's Mountain Cottage",
             adjacent: { 'west': 108 },
-            characters: [characters.eldin()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('eldin')]
+        }).addLandmark(getLandmark('sign', [
             "+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+",
             "+  Welcome to My Cottage!                 +",
             "+    Please make yourself at home, to see +",
@@ -755,27 +759,27 @@ class GameMap {
         111: new Location({
             name: "Mountain Valley",
             adjacent: { 'east': 110, 'south': 112 },
-            characters: [characters.stone_ogre()]
+            characters: [getCharacter('stone_ogre')]
         }),
         112: new Location({
             name: "Mountain Valey",
             adjacent: { 'north': 111 },
-            characters: [characters.stone_ogre()]
+            characters: [getCharacter('stone_ogre')]
         }),
         113: new Location({
             name: "Mountain Valley",
             adjacent: { 'south': 114, 'west': 105 },
-            characters: [characters.stone_ogre()]
+            characters: [getCharacter('stone_ogre')]
         }),
         114: new Location({
             name: "Mountain Valley",
             adjacent: { 'north': 113 },
-            characters: [characters.henge()]
+            characters: [getCharacter('henge')]
         }),
         115: new Location({
             name: "Mountain Valley",
             adjacent: { 'south': 110 },
-            characters: [characters.stone_ogre()]
+            characters: [getCharacter('stone_ogre')]
         }),
         116: new Location({
             name: "Mucky Path",
@@ -800,12 +804,12 @@ class GameMap {
         121: new Location({
             name: "Swamp",
             adjacent: { 'north': 120 },
-            characters: [characters.rush_lurker()]
+            characters: [getCharacter('rush_lurker')]
         }),
         122: new Location({
             name: "Swamp",
             adjacent: { 'north': 123 },
-            characters: [characters.rush_lurker(), characters.adder()]
+            characters: [getCharacter('rush_lurker'), getCharacter('adder')]
         }),
         123: new Location({
             name: "Swamp",
@@ -818,7 +822,7 @@ class GameMap {
         125: new Location({
             name: "Swamp",
             adjacent: { 'south': 119, 'west': 124 },
-            characters: [characters.adder()]
+            characters: [getCharacter('adder')]
         }),
         126: new Location({
             name: "Swamp",
@@ -831,12 +835,12 @@ class GameMap {
         128: new Location({
             name: "Swamp",
             adjacent: { 'south': 123, 'west': 127 },
-            characters: [characters.adder()]
+            characters: [getCharacter('adder')]
         }),
         129: new Location({
             name: "Swamp",
             adjacent: { 'south': 124 },
-            characters: [characters.rush_lurker()]
+            characters: [getCharacter('rush_lurker')]
         }),
         130: new Location({
             name: "West Road",
@@ -849,7 +853,7 @@ class GameMap {
         132: new Location({
             name: "Courthouse Lobby",
             adjacent: { 'north': 9, 'south': 133 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "(------------)",
             "|  Ierdale   |",
             "| Courthouse |",
@@ -866,7 +870,7 @@ class GameMap {
         133: new Location({
             name: "Courtroom",
             adjacent: { 'north': 132 },
-            characters: [characters.chief_judge(), characters.jury_member(), characters.jury_member(), characters.jury_member(), characters.jury_member()]
+            characters: [getCharacter('chief_judge'), getCharacter('jury_member'), getCharacter('jury_member'), getCharacter('jury_member'), getCharacter('jury_member')]
         }),
         134: new Location({
             name: "House",
@@ -875,31 +879,32 @@ class GameMap {
         135: new Location({
             name: "Spritzer Hut",
             adjacent: { 'south': 10 },
-            characters: [characters.baby_spritzer(), characters.baby_spritzer()]
+            characters: [getCharacter('baby_spritzer'), getCharacter('baby_spritzer')]
         }),
         136: new Location({
             name: "House",
             adjacent: { 'east': 89 },
-            characters: [characters.peasant_child()]
+            characters: [getCharacter('peasant_child')]
         }),
         137: new Location({
             name: "Alleyway",
-            adjacent: { 'east': 6, 'west': 89 }
+            adjacent: { 'east': 6, 'west': 89 },
+            items: [getItem("recipe")]
         }),
         138: new Location({
             name: "Water's Edge",
             adjacent: { 'north': 141, 'east': 127, 'south': 139 },
-            characters: [characters.swamp_thing()]
+            characters: [getCharacter('swamp_thing')]
         }),
         139: new Location({
             name: "Water's Edge",
             adjacent: { 'north': 138, 'east': 126 },
-            characters: [characters.swamp_thing()]
+            characters: [getCharacter('swamp_thing')]
         }),
         140: new Location({
             name: "Water's Edge",
             adjacent: { 'south': 127, 'west': 141 },
-            characters: [characters.swamp_thing()]
+            characters: [getCharacter('swamp_thing')]
         }),
         141: new Location({
             name: "Water's Edge",
@@ -1104,9 +1109,9 @@ class GameMap {
         191: new Location({
             name: "Path of Nod",
             adjacent: { 'north': 190 },
-            characters: [characters.cradel()]
+            characters: [getCharacter('cradel')]
         }).addLandmark(
-            landmarks.locked_gate()
+            getLandmark('locked_gate')
         ),
         192: new Location({
             name: "Path of Nod",
@@ -1131,7 +1136,7 @@ class GameMap {
         197: new Location({
             name: "Path of Nod",
             adjacent: { 'north': 196, 'east': 318, 'south': 198 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             " ______________ ",
             "|          \\   |",
             "| tHiS way tO\\ |",
@@ -1170,7 +1175,7 @@ class GameMap {
         205: new Location({
             name: "Meadow",
             adjacent: { 'north': 210, 'east': 216 },
-            characters: [characters.lion()]
+            characters: [getCharacter('lion')]
         }),
         206: new Location({
             name: "Meadow",
@@ -1179,7 +1184,7 @@ class GameMap {
         207: new Location({
             name: "Meadow",
             adjacent: { 'north': 206, 'east': 204, 'south': 216, 'west': 210 },
-            characters: [characters.lion()]
+            characters: [getCharacter('lion')]
         }),
         208: new Location({
             name: "Meadow",
@@ -1188,7 +1193,7 @@ class GameMap {
         209: new Location({
             name: "Meadow",
             adjacent: { 'north': 208, 'east': 206, 'south': 210, 'west': 215 },
-            characters: [characters.lion()]
+            characters: [getCharacter('lion')]
         }),
         210: new Location({
             name: "Meadow",
@@ -1201,7 +1206,7 @@ class GameMap {
         212: new Location({
             name: "Meadow",
             adjacent: { 'east': 213, 'south': 221 },
-            characters: [characters.lion()]
+            characters: [getCharacter('lion')]
         }),
         213: new Location({
             name: "Meadow",
@@ -1222,7 +1227,7 @@ class GameMap {
         217: new Location({
             name: "Meadow",
             adjacent: { 'east': 218, 'south': 222 },
-            characters: [characters.lion()]
+            characters: [getCharacter('lion')]
         }),
         218: new Location({
             name: "Meadow",
@@ -1247,7 +1252,7 @@ class GameMap {
         223: new Location({
             name: "Boulder Field",
             adjacent: { 'east': 228, 'south': 224 },
-            characters: [characters.kobalt_captain()]
+            characters: [getCharacter('kobalt_captain')]
         }),
         224: new Location({
             name: "Boulder Field",
@@ -1256,7 +1261,7 @@ class GameMap {
         225: new Location({
             name: "Boulder Field",
             adjacent: { 'north': 224, 'east': 226, 'west': 383 },
-            characters: [characters.kobalt_captain()]
+            characters: [getCharacter('kobalt_captain')]
         }),
         226: new Location({
             name: "Boulder Field",
@@ -1265,7 +1270,7 @@ class GameMap {
         227: new Location({
             name: "Boulder Field",
             adjacent: { 'north': 228, 'south': 226, 'west': 224 },
-            characters: [characters.kobalt_captain()]
+            characters: [getCharacter('kobalt_captain')]
         }),
         228: new Location({
             name: "Boulder Field",
@@ -1290,12 +1295,12 @@ class GameMap {
         233: new Location({
             name: "Bog",
             adjacent: { 'south': 232 },
-            characters: [characters.dreaugar_dwarf()]
+            characters: [getCharacter('dreaugar_dwarf')]
         }),
         234: new Location({
             name: "Bog",
             adjacent: { 'east': 235, 'south': 247 },
-            characters: [characters.mogrim()]
+            characters: [getCharacter('mogrim')]
         }),
         235: new Location({
             name: "Bog",
@@ -1304,12 +1309,12 @@ class GameMap {
         236: new Location({
             name: "Bog",
             adjacent: { 'east': 232, 'west': 235 },
-            characters: [characters.dreaugar_dwarf()]
+            characters: [getCharacter('dreaugar_dwarf')]
         }),
         237: new Location({
             name: "Bog",
             adjacent: { 'north': 239 },
-            characters: [characters.dreaugar_dwarf()]
+            characters: [getCharacter('dreaugar_dwarf')]
         }),
         238: new Location({
             name: "Bog",
@@ -1330,47 +1335,47 @@ class GameMap {
         242: new Location({
             name: "Bog",
             adjacent: { 'west': 241 },
-            characters: [characters.mogrim()]
+            characters: [getCharacter('mogrim')]
         }),
         243: new Location({
             name: "Bog",
             adjacent: { 'north': 241 },
-            characters: [characters.mogrim()]
+            characters: [getCharacter('mogrim')]
         }),
         244: new Location({
             name: "Bog",
             adjacent: { 'north': 238, 'south': 230 },
-            characters: [characters.mogrim()]
+            characters: [getCharacter('mogrim')]
         }),
         245: new Location({
             name: "Bog",
             adjacent: { 'east': 238 },
-            characters: [characters.dreaugar_dwarf()]
+            characters: [getCharacter('dreaugar_dwarf')]
         }),
         246: new Location({
             name: "Bog",
             adjacent: { 'north': 235, 'west': 247 },
-            characters: [characters.dreaugar_dwarf()]
+            characters: [getCharacter('dreaugar_dwarf')]
         }),
         247: new Location({
             name: "Bog",
             adjacent: { 'north': 234, 'east': 246, 'south': 248 },
-            characters: [characters.dreaugar_dwarf()]
+            characters: [getCharacter('dreaugar_dwarf')]
         }),
         248: new Location({
             name: "Bog",
             adjacent: { 'north': 247 },
-            characters: [characters.nightmare()]
+            characters: [getCharacter('nightmare')]
         }),
         249: new Location({
             name: "Bog",
             adjacent: { 'west': 232 },
-            characters: [characters.nightmare()]
+            characters: [getCharacter('nightmare')]
         }),
         250: new Location({
             name: "Corroded Gate",
             adjacent: { 'north': 201, 'south': 262 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "  ______          |",
             " //  \\ \\ \\         ---------------------------|",
             "|  / \\ / _|    THE FOREST OF ETERNAL DARKNESS |",
@@ -1389,7 +1394,7 @@ class GameMap {
         252: new Location({
             name: "Dark Forest",
             adjacent: { 'south': 251 },
-            characters: [characters.goblin_hero(), characters.wisp()]
+            characters: [getCharacter('goblin_hero'), getCharacter('wisp')]
         }),
         253: new Location({
             name: "Dark Forest",
@@ -1410,7 +1415,7 @@ class GameMap {
         257: new Location({
             name: "Dark Forest",
             adjacent: { 'east': 256, 'west': 255 },
-            characters: [characters.goblin_hero()]
+            characters: [getCharacter('goblin_hero')]
         }),
         258: new Location({
             name: "Dark Forest",
@@ -1419,7 +1424,7 @@ class GameMap {
         259: new Location({
             name: "Dark Forest",
             adjacent: { 'east': 258, 'south': 267, 'west': 277 },
-            characters: [characters.reaper()]
+            characters: [getCharacter('reaper')]
         }),
         260: new Location({
             name: "Dark Forest",
@@ -1428,7 +1433,7 @@ class GameMap {
         261: new Location({
             name: "Dark Forest",
             adjacent: { 'north': 253, 'east': 251, 'south': 255, 'west': 254 },
-            characters: [characters.goblin_hero()]
+            characters: [getCharacter('goblin_hero')]
         }),
         262: new Location({
             name: "Dark Forest",
@@ -1441,7 +1446,7 @@ class GameMap {
         264: new Location({
             name: "Dark Forest",
             adjacent: { 'north': 266, 'east': 273, 'west': 265 },
-            characters: [characters.reaper()]
+            characters: [getCharacter('reaper')]
         }),
         265: new Location({
             name: "Dark Forest",
@@ -1458,7 +1463,7 @@ class GameMap {
         268: new Location({
             name: "Dark Forest",
             adjacent: { 'east': 269, 'south': 263, 'west': 262 },
-            characters: [characters.reaper()]
+            characters: [getCharacter('reaper')]
         }),
         269: new Location({
             name: "Dark Forest",
@@ -1471,12 +1476,12 @@ class GameMap {
         271: new Location({
             name: "Dark Forest",
             adjacent: { 'east': 267, 'south': 253 },
-            characters: [characters.goblin_hero()]
+            characters: [getCharacter('goblin_hero')]
         }),
         272: new Location({
             name: "Dark Forest",
             adjacent: { 'east': 274, 'south': 273, 'west': 266 },
-            characters: [characters.wisp()]
+            characters: [getCharacter('wisp')]
         }),
         273: new Location({
             name: "Dark Forest",
@@ -1493,7 +1498,7 @@ class GameMap {
         276: new Location({
             name: "Dark Forest",
             adjacent: { 'south': 269 },
-            characters: [characters.ziatos()]
+            characters: [getCharacter('ziatos')]
         }),
         277: new Location({
             name: "Dark Forest",
@@ -1502,22 +1507,22 @@ class GameMap {
         278: new Location({
             name: "Dark Forest",
             adjacent: { 'south': 274 },
-            characters: [characters.megara()]
+            characters: [getCharacter('megara')]
         }),
         279: new Location({
             name: "House",
             adjacent: { 'north': 7 },
-            characters: [characters.clubman(), characters.clubman()]
+            characters: [getCharacter('clubman'), getCharacter('clubman')]
         }),
         280: new Location({
             name: "House",
             adjacent: { 'south': 11 },
-            characters: [characters.clubman(), characters.clubman()]
+            characters: [getCharacter('clubman'), getCharacter('clubman')]
         }),
         281: new Location({
             name: "Beet Street",
             adjacent: { 'north': 308, 'east': 314 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%",
             "% RANDOM USEFUL THINGS - SIGN 2:    %",
             "%                                   %",
@@ -1539,13 +1544,13 @@ class GameMap {
         282: new Location({
             name: "The Top of the Tree",
             adjacent: {},
-            characters: [characters.turlin()]
+            characters: [getCharacter('turlin')]
         }),
         283: new Location({
             name: "Gatehouse",
             adjacent: { 'north': 286, 'east': 284, 'west': 96 },
-            characters: [characters.elite_guard(), characters.elite_guard(), characters.elite_guard()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('elite_guard'), getCharacter('elite_guard'), getCharacter('elite_guard')]
+        }).addLandmark(getLandmark('sign', [
             "=--=--=--=--=--=--=--=--=--=",
             "=  Dear Citzens of Ierdale,=",
             "= and all others passing   =",
@@ -1573,7 +1578,7 @@ class GameMap {
         285: new Location({
             name: "Sandy Desert",
             adjacent: { 'north': 288, 'west': 286 },
-            characters: [characters.sand_scout()]
+            characters: [getCharacter('sand_scout')]
         }),
         286: new Location({
             name: "Sandy Desert",
@@ -1582,7 +1587,7 @@ class GameMap {
         287: new Location({
             name: "Sandy Desert",
             adjacent: { 'north': 289, 'east': 288, 'south': 286 },
-            characters: [characters.sand_scout()]
+            characters: [getCharacter('sand_scout')]
         }),
         288: new Location({
             name: "Sandy Desert",
@@ -1591,7 +1596,7 @@ class GameMap {
         289: new Location({
             name: "Sandy Desert",
             adjacent: { 'east': 290, 'south': 287, 'west': 297 },
-            characters: [characters.sand_scout()]
+            characters: [getCharacter('sand_scout')]
         }),
         290: new Location({
             name: "Sandy Desert",
@@ -1600,7 +1605,7 @@ class GameMap {
         291: new Location({
             name: "Sandy Desert",
             adjacent: { 'east': 296, 'south': 292, 'west': 290 },
-            characters: [characters.sand_scout()]
+            characters: [getCharacter('sand_scout')]
         }).addLandmark(
             new Landmark({ name: 'spire', description: "A Towering Sandstone Spire" })
         ),
@@ -1623,22 +1628,22 @@ class GameMap {
         296: new Location({
             name: "Sandy Desert",
             adjacent: { 'north': 295, 'east': 302, 'west': 291 },
-            characters: [characters.stone_golem()]
+            characters: [getCharacter('stone_golem')]
         }),
         297: new Location({
             name: "Sandy Desert",
             adjacent: { 'east': 289, 'south': 298 },
-            characters: [characters.stone_golem()]
+            characters: [getCharacter('stone_golem')]
         }),
         298: new Location({
             name: "Sandy Desert",
             adjacent: { 'north': 297 },
-            characters: [characters.sandworm()]
+            characters: [getCharacter('sandworm')]
         }),
         299: new Location({
             name: "Sandy Desert",
             adjacent: { 'south': 294 },
-            characters: [characters.rock_hydra()]
+            characters: [getCharacter('rock_hydra')]
         }),
         300: new Location({
             name: "Sandy Desert",
@@ -1647,7 +1652,7 @@ class GameMap {
         301: new Location({
             name: "Sandy Desert",
             adjacent: { 'north': 302, 'south': 303, 'west': 300 },
-            characters: [characters.sand_scout()]
+            characters: [getCharacter('sand_scout')]
         }),
         302: new Location({
             name: "Sandy Desert",
@@ -1656,17 +1661,17 @@ class GameMap {
         303: new Location({
             name: "Sandy Desert",
             adjacent: { 'north': 301 },
-            characters: [characters.sandworm()]
+            characters: [getCharacter('sandworm')]
         }),
         304: new Location({
             name: "Sandy Desert",
             adjacent: { 'north': 300 },
-            characters: [characters.sandworm()]
+            characters: [getCharacter('sandworm')]
         }),
         305: new Location({
             name: "Beet Street",
             adjacent: { 'north': 10, 'east': 312, 'south': 306 },
-            characters: [characters.beggar()]
+            characters: [getCharacter('beggar')]
         }),
         306: new Location({
             name: "Beet Street",
@@ -1682,13 +1687,14 @@ class GameMap {
         }),
         309: new Location({
             name: "Music Store",
-            adjacent: { 'east': 306 }
+            adjacent: { 'east': 306 },
+            items: [getItem("music_box")]
         }),
         310: new Location({
             name: "Cleric Shop",
             adjacent: { 'south': 311 },
-            characters: [characters.snotty_page()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('snotty_page')]
+        }).addLandmark(getLandmark('sign', [
             "<---------------------------------->",
             "[] Welcome to The Shop of Eldfarl []",
             "[]                                []",
@@ -1704,8 +1710,8 @@ class GameMap {
         311: new Location({
             name: "Eldfarl's Office",
             adjacent: { 'north': 310, 'east': 308, 'south': 316 },
-            characters: [characters.cleric_tendant(), characters.eldfarl()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('cleric_tendant'), getCharacter('eldfarl')]
+        }).addLandmark(getLandmark('sign', [
             "+=+=+=+=+=+=+=+=+=+=+=+=+=+=+",
             "|                           |",
             "| /|\\ NORTH - Potion Shop   |",
@@ -1717,7 +1723,7 @@ class GameMap {
         312: new Location({
             name: "Eldin's House",
             adjacent: { 'west': 305 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "{{{{{{{{{{{{{{{{{{{}}}}}}}}}}}}}}}}}}}",
             "{ Fellow citysins of Ierdale,        }",
             "{    I regret to inform you that I   }",
@@ -1735,8 +1741,8 @@ class GameMap {
         313: new Location({
             name: "Archery Workshop",
             adjacent: { 'west': 307 },
-            characters: [characters.bow_maker()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('bow_maker')]
+        }).addLandmark(getLandmark('sign', [
             "******************************",
             "|    Our Bows...             |",
             "|Our bows come with a quality|",
@@ -1760,7 +1766,7 @@ class GameMap {
             name: "Apothecary",
             adjacent: { 'west': 281 }
         }).addLandmark(
-            landmarks.mixing_pot()
+            getLandmark('mixing_pot')
         ),
         315: new Location({
             name: "The RIver",
@@ -1769,8 +1775,8 @@ class GameMap {
         316: new Location({
             name: "Clerical Training Facilities",
             adjacent: { 'north': 311 },
-            characters: [characters.cleric_tendant()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('cleric_tendant')]
+        }).addLandmark(getLandmark('sign', [
             " (-)-(-)-(-)-(-)-(-)-(-)-(-)-(-)-(-) ",
             "/ The Training Facitiys of Eldfarl  \\",
             "|                                   |",
@@ -1792,7 +1798,7 @@ class GameMap {
         317: new Location({
             name: "House",
             adjacent: { 'west': 306 },
-            characters: [characters.peasant_woman(), characters.peasant_elder()]
+            characters: [getCharacter('peasant_woman'), getCharacter('peasant_elder')]
         }),
         318: new Location({
             name: "Cobblestone Road",
@@ -1809,12 +1815,12 @@ class GameMap {
         321: new Location({
             name: "Information Desk",
             adjacent: { 'south': 45 },
-            characters: [characters.security_page()]
+            characters: [getCharacter('security_page')]
         }),
         322: new Location({
             name: "Hermit Hut",
             adjacent: { 'south': 328 },
-            characters: [characters.blind_hermit()]
+            characters: [getCharacter('blind_hermit')]
         }),
         323: new Location({
             name: "Dry Grass",
@@ -1827,7 +1833,7 @@ class GameMap {
         325: new Location({
             name: "Dry Grass",
             adjacent: { 'east': 324, 'south': 327, 'west': 328 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "<%%%%%%%%%%%%%%%%%%%%%%%%%%%%>",
             " |  Hi, I sell doo-dads     |",
             " |    Here they are:        |",
@@ -1862,7 +1868,7 @@ class GameMap {
         331: new Location({
             name: "Ierdale Barracks",
             adjacent: { 'east': 332, 'west': 26 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "0========(--------------------------------",
             "|     Welcome to the Ierdale Barracks    |",
             "|                                        |",
@@ -1877,12 +1883,12 @@ class GameMap {
             name: "Book Store",
             adjacent: { 'east': 4 }
         }).addLandmark(
-            landmarks.sign()
+            getLandmark('sign')
         ),
         334: new Location({
             name: "Hidden Track",
             adjacent: { 'east': 335, 'west': 66 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
             "~    Secret Passage to the Path of Nod      ~",
             "~                ~~~~~~~~~                  ~",
@@ -1924,7 +1930,7 @@ class GameMap {
         342: new Location({
             name: "Path",
             adjacent: { 'north': 341, 'south': 142 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "/\\\\-------------------\\   ",
             "\\// Hear Ye, Hear Ye: /   ",
             " /  Outlawed in town? |   ",
@@ -1938,13 +1944,13 @@ class GameMap {
         343: new Location({
             name: "Grobin Gates",
             adjacent: { 'east': 344, 'west': 320 },
-            characters: [characters.official()]
+            characters: [getCharacter('official')]
         }),
         344: new Location({
             name: "Grobin Square",
             adjacent: { 'north': 355, 'east': 345, 'south': 350, 'west': 343 },
-            characters: [characters.dark_angel(), characters.dark_angel()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('dark_angel'), getCharacter('dark_angel')]
+        }).addLandmark(getLandmark('sign', [
             "{[(@)]}{[(@)]}{[(@)]}{[(@)]}",
             "{    WELCOME TO GROBIN     }",
             "{ The town of Orcish beauty}",
@@ -1978,12 +1984,12 @@ class GameMap {
         349: new Location({
             name: "Main Street",
             adjacent: { 'north': 360, 'east': 377, 'south': 348, 'west': 376 },
-            characters: [characters.peon()]
+            characters: [getCharacter('peon')]
         }),
         350: new Location({
             name: "Blobin Street",
             adjacent: { 'north': 344, 'east': 362, 'south': 351, 'west': 367 },
-            characters: [characters.peon()]
+            characters: [getCharacter('peon')]
         }),
         351: new Location({
             name: "Blobin Street",
@@ -2020,17 +2026,17 @@ class GameMap {
         359: new Location({
             name: "End of Grogren Street",
             adjacent: { 'south': 381, 'west': 358 },
-            characters: [characters.peon()]
+            characters: [getCharacter('peon')]
         }),
         360: new Location({
             name: "Main Street - Barracks East",
             adjacent: { 'east': 361, 'south': 349, 'west': 375 },
-            characters: [characters.peon()]
+            characters: [getCharacter('peon')]
         }),
         361: new Location({
             name: "Barracks Gate",
             adjacent: { 'east': 363, 'west': 360 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "{[(@)]}{[(@)]}{[(@)]}{[(@)]}",
             "{                          }",
             "{   ORC BARRACKS - GROBIN  }",
@@ -2040,12 +2046,12 @@ class GameMap {
         362: new Location({
             name: "Doo-Dad Shop",
             adjacent: { 'west': 350 },
-            characters: [characters.doo_dad_man()]
+            characters: [getCharacter('doo_dad_man')]
         }),
         363: new Location({
             name: "Orcish Stronghold",
             adjacent: { 'north': 365, 'east': 366, 'south': 364, 'west': 361 },
-            characters: [characters.grogren(), characters.blobin()]
+            characters: [getCharacter('grogren'), getCharacter('blobin')]
         }),
         364: new Location({
             name: "Barracks",
@@ -2062,8 +2068,8 @@ class GameMap {
         367: new Location({
             name: "Gerard's General Store",
             adjacent: { 'east': 350 },
-            characters: [characters.gerard()]
-        }).addLandmark(landmarks.sign([
+            characters: [getCharacter('gerard')]
+        }).addLandmark(getLandmark('sign', [
             " -----------------------------",
             "|I am Gerard                  |",
             "|I am know world-round for my |",
@@ -2091,7 +2097,7 @@ class GameMap {
             name: "Orckish Armory",
             adjacent: { 'south': 354 }
         }).addLandmark(
-            landmarks.sign()
+            getLandmark('sign')
         ),
         371: new Location({
             name: "House",
@@ -2136,7 +2142,7 @@ class GameMap {
         381: new Location({
             name: "Prokon's Pet Store",
             adjacent: { 'north': 359 },
-        }).addLandmark(landmarks.sign([
+        }).addLandmark(getLandmark('sign', [
             "/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\!/\\",
             "!                                          !",
             "!    Welcome.                              !",
@@ -2188,7 +2194,7 @@ class GameMap {
         391: new Location({
             name: "Cave",
             adjacent: { 'west': 393 },
-            characters: [characters.sift()]
+            characters: [getCharacter('sift')]
         }),
         392: new Location({
             name: "Cave",
@@ -2225,8 +2231,12 @@ class GameMap {
         400: new Location({
             name: "Cave",
             adjacent: { 'north': 398 },
-            characters: [characters.mino()]
-        })
+            characters: [getCharacter('mino')]
+        }),
+        401: new Location({
+            name: "land of the lost",
+            adjacent: {}
+        }),
     }
 }
 

@@ -2,27 +2,35 @@ import { Location } from '../../game/location.ts';
 import { Character, CharacterParams, pronouns } from '../../game/character.ts';
 import { Item } from '../../game/item.ts';
 import { Player } from './player.ts';
-import { plural, cap, randomChoice } from '../../game/utils.ts';
-import { items } from './items.ts';
-import { landmarks } from './landmarks.ts';
+import { plural, caps, randomChoice } from '../../game/utils.ts';
+import { getItem } from './items.ts';
+import { getLandmark } from './landmarks.ts';
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
 import { GameState } from '../../game/game.ts';
 import { A2D } from './game.ts';
 
 interface A2dCharacterParams extends CharacterParams {
     spellChance?: ((this: A2dCharacter) => boolean) | undefined
+    respawnTime?: number,
+    action?: keyof typeof actions
 }
 
 class A2dCharacter extends Character {
+    key: string = ''
     class_name: string = ''
     _spellChance: ((this: A2dCharacter) => boolean) | undefined
+    tripping: number = 0;
+    drunk: number = 0;
+    _action: string | undefined;
     declare game: A2D
 
-    constructor({ spellChance, ...baseParams }: A2dCharacterParams) {
+    constructor({ spellChance, respawnTime, action, ...baseParams }: A2dCharacterParams) {
         super(baseParams)
-        if (!this.weapons['main']) this.weapons.main = items.fist()
+        if (!this.weapons['main']) this.weapons.main = getItem('fist')
         this._spellChance = spellChance?.bind(this)
-        if (cap(this.alignment) == 'Ierdale') {
+        this.respawnTime = respawnTime || this.respawnTime
+        if (action == "wander") this.onTurn(actions[action])
+        if (caps(this.alignment) == 'Ierdale') {
             this.onEncounter(
                 async function (character: Character) {
                     if (character.flags.enemy_of_ierdale) {
@@ -47,6 +55,14 @@ class A2dCharacter extends Character {
         method: T
     ): (this: Character, ...args: Parameters<T>) => ReturnType<T> {
         return method.bind(this as A2dCharacter) as any;
+    }
+
+    async die(cause?: any) {
+        await super.die(cause);
+        // go to limbo
+        await this.relocate(this.game.locations.get(0))
+        this.respawnCountdown = this.respawnTime;
+        console.log(`${this.name} respawning in ${this.respawnCountdown} seconds from ${this.location?.name}`);
     }
 
     async encounter(character: Character) {
@@ -90,6 +106,12 @@ class A2dCharacter extends Character {
         }
     }
 
+    get toHit() {
+        let toHit = this.agility * Math.random();
+        if (this.drunk) toHit = toHit * (1 - this.drunk / (this.max_sp / 2 + 50))
+        return toHit
+    }
+
     dialog(talk: (this: A2dCharacter, player: Character) => Promise<void>) {
         return this.addAction('talk', this.bindMethod(talk));
     }
@@ -126,7 +148,7 @@ class A2dCharacter extends Character {
         return super.fightMove(this.bindMethod(action))
     }
 
-    addAction(name: string, action: (...args: any[]) => Promise<any>) {
+    addAction(name: string, action: (this: A2dCharacter, ...args: any[]) => Promise<any>) {
         this.actions.set(name, this.bindMethod(action));
         return this;
     }
@@ -151,107 +173,107 @@ class A2dCharacter extends Character {
             }
         }
 
-        let does = `${cap(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weapon.name}, doing little to no damage.`;
+        let does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weapon.name}, doing little to no damage.`;
         let weaponType = weapon.weapon_stats?.weapon_type
         if (weaponType === 'sword') weaponType = Math.random() > 0.5 ? 'spear' : 'axe'
         switch (weaponType) {
             case ("club"):
-                if (DT >= 5) { does = `${cap(this.pronouns.subject)} ${s('knock')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${cap(this.pronouns.subject)} ${s('whack')} ${target.pronouns.object} with ${weapon.name}, making a jagged cut.` };
-                if (DT >= 25) { does = `${cap(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, knocking ${target.pronouns.object} backwards.` };
-                if (DT >= 40) { does = `${cap(this.pronouns.subject)} ${s('smash')} ${target.pronouns.object} with ${weapon.name}, and you hear a bone break.` };
-                if (DT >= 60) { does = `${cap(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weapon.name}, damaging organs.` };
-                if (DT >= 100) { does = `${cap(this.pronouns.subject)} ${s('pulverise')} ${target.pronouns.object} with ${weapon.name}, splintering bones.` };
-                if (DT >= 500) { does = `${cap(this.pronouns.subject)} ${s('send')} ${target.pronouns.object} FLYING backwards with ${weapon.name}, and severed body parts fly in all directions!` };
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('knock')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
+                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('whack')} ${target.pronouns.object} with ${weapon.name}, making a jagged cut.` };
+                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, knocking ${target.pronouns.object} backwards.` };
+                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('smash')} ${target.pronouns.object} with ${weapon.name}, and you hear a bone break.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weapon.name}, damaging organs.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('pulverise')} ${target.pronouns.object} with ${weapon.name}, splintering bones.` };
+                if (DT >= 500) { does = `${caps(this.pronouns.subject)} ${s('send')} ${target.pronouns.object} FLYING backwards with ${weapon.name}, and severed body parts fly in all directions!` };
                 break;
             case ("axe"):
-                if (DT >= 5) { does = `${cap(this.pronouns.subject)} ${s('scratch')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${cap(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, making a deep gash.` };
-                if (DT >= 25) { does = `${cap(this.pronouns.subject)} ${s('slash')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
-                if (DT >= 40) { does = `${cap(this.pronouns.subject)} ${s('hack')} ${target.pronouns.object} with ${weapon.name}, and you hear a bone break.` };
-                if (DT >= 60) { does = `${cap(this.pronouns.subject)} ${s('lacerate')} ${target.pronouns.object} with ${weapon.name}, inflicting a mortal wound.` };
-                if (DT >= 100) { does = `${cap(this.pronouns.subject)} ${s('hew')} ${target.pronouns.object} with ${weapon.name}, severing limbs.` };
-                if (DT >= 200) { does = `${cap(this.pronouns.subject)} ${s('cleave')} ${target.pronouns.object} with ${weapon.name}, slicing ${target.pronouns.object} in half.` };
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('scratch')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
+                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, making a deep gash.` };
+                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('slash')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
+                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('hack')} ${target.pronouns.object} with ${weapon.name}, and you hear a bone break.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('lacerate')} ${target.pronouns.object} with ${weapon.name}, inflicting a mortal wound.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('hew')} ${target.pronouns.object} with ${weapon.name}, severing limbs.` };
+                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('cleave')} ${target.pronouns.object} with ${weapon.name}, slicing ${target.pronouns.object} in half.` };
                 break;
             case ("spear"):
-                if (DT >= 8) { does = `${cap(this.pronouns.subject)} ${s('nick')} ${target.pronouns.object} with ${weapon.name}, drawing blood.` };
-                if (DT >= 17) { does = `${cap(this.pronouns.subject)} ${s('jab')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
-                if (DT >= 35) { does = `${cap(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
-                if (DT >= 55) { does = `${cap(this.pronouns.subject)} ${s('stab')} ${target.pronouns.object} with ${weapon.name}, damaging organs.` };
-                if (DT >= 100) { does = `${cap(this.pronouns.subject)} ${s('impale')} ${target.pronouns.object} with ${weapon.name}, making vital fluids gush.` };
-                if (DT >= 200) { does = `${cap(this.pronouns.subject)} ${s('eviscerate')} ${target.pronouns.object} with ${weapon.name}, and blood splatters everywhere.` };
+                if (DT >= 8) { does = `${caps(this.pronouns.subject)} ${s('nick')} ${target.pronouns.object} with ${weapon.name}, drawing blood.` };
+                if (DT >= 17) { does = `${caps(this.pronouns.subject)} ${s('jab')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
+                if (DT >= 35) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
+                if (DT >= 55) { does = `${caps(this.pronouns.subject)} ${s('stab')} ${target.pronouns.object} with ${weapon.name}, damaging organs.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('impale')} ${target.pronouns.object} with ${weapon.name}, making vital fluids gush.` };
+                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('eviscerate')} ${target.pronouns.object} with ${weapon.name}, and blood splatters everywhere.` };
                 break;
             case ("burn"):
-                if (DT >= 5) { does = `${cap(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weapon.name}, singeing ${target.pronouns.possessive} hair.` };
-                if (DT >= 12) { does = `${cap(this.pronouns.subject)} ${s('scorch')} ${target.pronouns.object} with ${weapon.name}, inflicting first-degree burns.` };
-                if (DT >= 25) { does = `${cap(this.pronouns.subject)} ${s('scald')} ${target.pronouns.object} with ${weapon.name}, inflicting second-degree burns.` };
-                if (DT >= 40) { does = `${cap(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weapon.name}, instantly blistering skin.` };
-                if (DT >= 60) { does = `${cap(this.pronouns.subject)} ${s('roast')} ${target.pronouns.object} with ${weapon.name}, making charred flesh sizzle.` };
-                if (DT >= 100) { does = `${cap(this.pronouns.subject)} ${s('torch')} ${target.pronouns.object} with ${weapon.name}, boiling the blood inside ${target.pronouns.possessive} veins.` };
-                if (DT >= 200) { does = `${cap(this.pronouns.subject)} ${s('incinerate')} ${target.pronouns.object} with ${weapon.name}, setting fire to ${target.pronouns.possessive} skeleton.` };
-                if (DT >= 500) { does = `${cap(this.pronouns.subject)} ${s('cremate')} ${target.pronouns.object} with ${weapon.name}, burning ${target.pronouns.object} to ash.` };
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weapon.name}, singeing ${target.pronouns.possessive} hair.` };
+                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('scorch')} ${target.pronouns.object} with ${weapon.name}, inflicting first-degree burns.` };
+                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('scald')} ${target.pronouns.object} with ${weapon.name}, inflicting second-degree burns.` };
+                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weapon.name}, instantly blistering skin.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('roast')} ${target.pronouns.object} with ${weapon.name}, making charred flesh sizzle.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('torch')} ${target.pronouns.object} with ${weapon.name}, boiling the blood inside ${target.pronouns.possessive} veins.` };
+                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('incinerate')} ${target.pronouns.object} with ${weapon.name}, setting fire to ${target.pronouns.possessive} skeleton.` };
+                if (DT >= 500) { does = `${caps(this.pronouns.subject)} ${s('cremate')} ${target.pronouns.object} with ${weapon.name}, burning ${target.pronouns.object} to ash.` };
                 break;
             case ("arrow"):
                 does = `${target.name} barely ${t_s('notices')} ${this.pronouns.possessive} arrow striking ${target.pronouns.object}.`;
-                if (DT >= 5) { does = `${cap(target.pronouns.subject)} ${s('take')} minimal damage.` };
-                if (DT >= 12) { does = `${cap(target.pronouns.subject)} ${t_be} minorly wounded.` };
-                if (DT >= 25) { does = `${cap(target.pronouns.subject)} ${s('sustain')} a major injury.` };
-                if (DT >= 50) { does = `${cap(target.pronouns.subject)} ${s('suffer')} damage to vital organs.` };
-                if (DT >= 100) { does = `${cap(target.pronouns.subject)} ${t_be} slain instantly.` };
-                if (DT >= 400) { does = `${cap(target.pronouns.subject)} ${t_be} ripped messily in half.` };
-                if (DT >= 1000) { does = `Tiny pieces of ${cap(target.pronouns.subject)} fly in all directions.` };
-                if (DT >= 2500) { does = `${cap(target.pronouns.subject)} ${t_be} VAPORIZED.` };
+                if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${s('take')} minimal damage.` };
+                if (DT >= 12) { does = `${caps(target.pronouns.subject)} ${t_be} minorly wounded.` };
+                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${s('sustain')} a major injury.` };
+                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${s('suffer')} damage to vital organs.` };
+                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} slain instantly.` };
+                if (DT >= 400) { does = `${caps(target.pronouns.subject)} ${t_be} ripped messily in half.` };
+                if (DT >= 1000) { does = `Tiny pieces of ${caps(target.pronouns.subject)} fly in all directions.` };
+                if (DT >= 2500) { does = `${caps(target.pronouns.subject)} ${t_be} VAPORIZED.` };
                 break;
             case ("magic"):
-                does = `${cap(target.pronouns.subject)} ${s('wince')} slightly, perhaps at ${this.pronouns.possessive} incompetence.`;
-                if (DT >= 10) { does = `${cap(target.pronouns.subject)} ${t_be} knocked back a step.` };
-                if (DT >= 25) { does = `${cap(target.pronouns.subject)} ${s('stagger')} under the force.` };
-                if (DT >= 50) { does = `${cap(target.pronouns.subject)} ${s('reel')} backwards, almost knocked off ${target.pronouns.possessive} feet.` };
-                if (DT >= 100) { does = `${cap(target.pronouns.subject)} ${t_be} snuffed out like a candle.` };
-                if (DT >= 500) { does = `${cap(target.pronouns.subject)} ${t_be} swept off ${target.pronouns.possessive} feet and out of the time/space continuum!` };
+                does = `${caps(target.pronouns.subject)} ${s('wince')} slightly, perhaps at ${this.pronouns.possessive} incompetence.`;
+                if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_be} knocked back a step.` };
+                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${s('stagger')} under the force.` };
+                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${s('reel')} backwards, almost knocked off ${target.pronouns.possessive} feet.` };
+                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} snuffed out like a candle.` };
+                if (DT >= 500) { does = `${caps(target.pronouns.subject)} ${t_be} swept off ${target.pronouns.possessive} feet and out of the time/space continuum!` };
                 break;
             case ("electric"):
-                does = `${cap(target.pronouns.subject)} ${t_s('twitch')} irritably as the bolt strikes.`;
-                if (DT >= 10) { does = `${cap(target.pronouns.subject)} ${t_be} struck with a sizzle.` };
-                if (DT >= 25) { does = `${cap(target.pronouns.subject)} ${t_be} badly zapped.` };
-                if (DT >= 50) { does = `${cap(target.pronouns.subject)} ${t_s('howl')}, and ${t_be} rendered briefly transparent.` };
-                if (DT >= 100) { does = `${cap(target.pronouns.subject)} ${t_s('fall')}, smoking, to the ground and ${t_s('twitch')} a couple of times.` };
-                if (DT >= 200) { does = `${cap(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weapon.name}, and electrical flames shoot from ${target.pronouns.possessive} blistered\neye sockets.` };
-                if (DT >= 500) { does = `${cap(target.pronouns.subject)} ${t_s('explode')} like a knot of pine sap.` };
+                does = `${caps(target.pronouns.subject)} ${t_s('twitch')} irritably as the bolt strikes.`;
+                if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_be} struck with a sizzle.` };
+                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${t_be} badly zapped.` };
+                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${t_s('howl')}, and ${t_be} rendered briefly transparent.` };
+                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_s('fall')}, smoking, to the ground and ${t_s('twitch')} a couple of times.` };
+                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weapon.name}, and electrical flames shoot from ${target.pronouns.possessive} blistered\neye sockets.` };
+                if (DT >= 500) { does = `${caps(target.pronouns.subject)} ${t_s('explode')} like a knot of pine sap.` };
                 break;
             case ("fire"):
-                does = `${cap(target.pronouns.subject)} ${t_be} burned slightly.`;
-                if (DT >= 10) { does = `${cap(target.pronouns.subject)} stops, drops, and rolls.` };
-                if (DT >= 25) { does = `${cap(target.pronouns.subject)} ${t_be} scorched blisteringly.` };
-                if (DT >= 50) { does = `${cap(target.pronouns.subject)} ${t_be} very seriously torched.` };
-                if (DT >= 100) { does = `${cap(target.pronouns.subject)} ${t_be} blasted off ${target.pronouns.possessive} feet and ${t_s('land')} in a smoking heap.` };
-                if (DT >= 500) { does = `${cap(target.pronouns.possessive)} family is saved the cost of a cremation as ${target.pronouns.possessive} ashes scatter in a puff.` };
+                does = `${caps(target.pronouns.subject)} ${t_be} burned slightly.`;
+                if (DT >= 10) { does = `${caps(target.pronouns.subject)} stops, drops, and rolls.` };
+                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${t_be} scorched blisteringly.` };
+                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${t_be} very seriously torched.` };
+                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} blasted off ${target.pronouns.possessive} feet and ${t_s('land')} in a smoking heap.` };
+                if (DT >= 500) { does = `${caps(target.pronouns.possessive)} family is saved the cost of a cremation as ${target.pronouns.possessive} ashes scatter in a puff.` };
                 break;
             case ("blades"):
-                does = `${cap(target.pronouns.subject)} ${t_be} only scratched.`;
-                if (DT >= 10) { does = `${cap(target.pronouns.subject)} ${t_s('suffer')} some nicks and cuts.` };
-                if (DT >= 25) { does = `${cap(target.pronouns.subject)} ${t_be} slashed rather badly.` };
-                if (DT >= 50) { does = `${cap(target.pronouns.subject)} ${t_s('scream')} as magical knives stab through ${target.pronouns.object}.` };
-                if (DT >= 100) { does = `${cap(target.pronouns.subject)} ${t_be} sliced to ribbons.` };
+                does = `${caps(target.pronouns.subject)} ${t_be} only scratched.`;
+                if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_s('suffer')} some nicks and cuts.` };
+                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${t_be} slashed rather badly.` };
+                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${t_s('scream')} as magical knives stab through ${target.pronouns.object}.` };
+                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} sliced to ribbons.` };
                 break;
             case ("sonic"):
-                if (DT >= 5) { does = `${cap(this.pronouns.possessive)} ${weapon.name} stings ${target.pronouns.object}, making ${target.pronouns.object} grit ${target.pronouns.possessive} teeth.` };
-                if (DT >= 10) { does = `${cap(this.pronouns.possessive)} ${weapon.name} stabs at ${target.pronouns.possessive} ears, and ${target.pronouns.subject} ${t_s('feel')} momentarily faint.` };
-                if (DT >= 20) { does = `${cap(this.pronouns.possessive)} ${weapon.name} hits ${target.pronouns.object} full in the face, making ${target.pronouns.possessive} ears ring.` };
-                if (DT >= 35) { does = `${cap(this.pronouns.possessive)} ${weapon.name} strikes ${target.pronouns.object} in the gut, sucking the breath from ${target.pronouns.possessive} lungs.` };
-                if (DT >= 60) { does = `${cap(this.pronouns.possessive)} ${weapon.name} rolls through ${target.pronouns.object}, siezing in ${target.pronouns.possessive} chest, and blackness\ncreeps into the corners of ${target.pronouns.possessive} vision.` };
-                if (DT >= 100) { does = `${cap(this.pronouns.possessive)} ${weapon.name} sweeps ${target.pronouns.possessive} feet from under ${target.pronouns.object}, etching cold lines of\nfrost over ${target.pronouns.possessive} stilled heart.` };
-                if (DT >= 200) { does = `${cap(this.pronouns.possessive)} ${weapon.name} pierces ${target.pronouns.object} like a sword, freezing the blood in ${target.pronouns.possessive} veins.` };
-                if (DT >= 500) { does = `${cap(this.pronouns.possessive)} ${weapon.name} whips through ${target.pronouns.possessive} body, and ${target.pronouns.possessive} frozen limbs shatter like\nfine crystal."   ` };
+                if (DT >= 5) { does = `${caps(this.pronouns.possessive)} ${weapon.name} stings ${target.pronouns.object}, making ${target.pronouns.object} grit ${target.pronouns.possessive} teeth.` };
+                if (DT >= 10) { does = `${caps(this.pronouns.possessive)} ${weapon.name} stabs at ${target.pronouns.possessive} ears, and ${target.pronouns.subject} ${t_s('feel')} momentarily faint.` };
+                if (DT >= 20) { does = `${caps(this.pronouns.possessive)} ${weapon.name} hits ${target.pronouns.object} full in the face, making ${target.pronouns.possessive} ears ring.` };
+                if (DT >= 35) { does = `${caps(this.pronouns.possessive)} ${weapon.name} strikes ${target.pronouns.object} in the gut, sucking the breath from ${target.pronouns.possessive} lungs.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.possessive)} ${weapon.name} rolls through ${target.pronouns.object}, siezing in ${target.pronouns.possessive} chest, and blackness\ncreeps into the corners of ${target.pronouns.possessive} vision.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.possessive)} ${weapon.name} sweeps ${target.pronouns.possessive} feet from under ${target.pronouns.object}, etching cold lines of\nfrost over ${target.pronouns.possessive} stilled heart.` };
+                if (DT >= 200) { does = `${caps(this.pronouns.possessive)} ${weapon.name} pierces ${target.pronouns.object} like a sword, freezing the blood in ${target.pronouns.possessive} veins.` };
+                if (DT >= 500) { does = `${caps(this.pronouns.possessive)} ${weapon.name} whips through ${target.pronouns.possessive} body, and ${target.pronouns.possessive} frozen limbs shatter like\nfine crystal."   ` };
                 break;
             case ("teeth"):
-                if (DT >= 5) { does = `${cap(this.pronouns.subject)} ${s('nip')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${cap(this.pronouns.subject)} ${s('rake')} ${target.pronouns.object} with ${weapon.name}, leaving a trail of scratches.` };
-                if (DT >= 25) { does = `${cap(this.pronouns.subject)} ${s('bite')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
-                if (DT >= 40) { does = `${cap(this.pronouns.subject)} ${s('chomp')} ${target.pronouns.object} with ${weapon.name}, taking a chunk from ${target.pronouns.possessive} side.` };
-                if (DT >= 60) { does = `${cap(this.pronouns.subject)} ${s('rip')} ${target.pronouns.object} with ${weapon.name}, making vital fluids gush.` };
-                if (DT >= 100) { does = `${cap(this.pronouns.subject)} ${s('shred')} ${target.pronouns.object} with ${weapon.name}, severing limbs.` };
-                if (DT >= 200) { does = `${cap(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weapon.name}, snapping ${target.pronouns.possessive} bones like matchsticks.` };
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('nip')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
+                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('rake')} ${target.pronouns.object} with ${weapon.name}, leaving a trail of scratches.` };
+                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('bite')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
+                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('chomp')} ${target.pronouns.object} with ${weapon.name}, taking a chunk from ${target.pronouns.possessive} side.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('rip')} ${target.pronouns.object} with ${weapon.name}, making vital fluids gush.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('shred')} ${target.pronouns.object} with ${weapon.name}, severing limbs.` };
+                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weapon.name}, snapping ${target.pronouns.possessive} bones like matchsticks.` };
                 break;
         }
         if (this.location?.playerPresent) {
@@ -266,6 +288,7 @@ class A2dCharacter extends Character {
 
 const actions = {
     wander: async function (this: A2dCharacter) {
+        this._action = 'wander' // this is a kind of hacky way to make sure this information is saved as a string. come up with something better later?
         if (this.attackTarget) return;
         if (randomChoice([true, false])) { this.go(randomChoice(Array.from(this.location?.adjacent?.keys() || []))) }
     },
@@ -277,13 +300,13 @@ const actions = {
     heal: async function (this: A2dCharacter) {
         if (this.spellChance) {
             this.recoverStats({ hp: this.magic_level });
-            if (this.location?.playerPresent) print(`${cap(this.name)} heals ${this.pronouns.object}self.`);
+            if (this.location?.playerPresent) print(`${caps(this.name)} heals ${this.pronouns.object}self.`);
         }
     },
     max_heal: async function (this: A2dCharacter) {
         if (this.spellChance) {
             this.recoverStats({ hp: this.max_hp });
-            if (this.location?.playerPresent) print(`${cap(this.name)} heals ${this.pronouns.object}self fully.`);
+            if (this.location?.playerPresent) print(`${caps(this.name)} heals ${this.pronouns.object}self fully.`);
         }
     },
     sleep: async function (this: A2dCharacter, length: number = 1) {
@@ -360,7 +383,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             name: 'A sick old cleric, lying in bed',
             aliases: ['cleric', 'old cleric', 'sick cleric', 'sick old cleric'],
             description: 'A sick old cleric, lying in bed',
-            items: [items.clear_liquid(), items.blue_liquid(), items.red_liquid()],
+            items: [getItem('clear_liquid'), getItem('blue_liquid'), getItem('red_liquid')],
         }).dialog(async function (player: Character) {
             print("A young fresh piece of meat... how nice.  I am leaving this world, I can feal")
             print("it.  Please, I have something to ask of you.  My father's father was alive in")
@@ -379,7 +402,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print("<recieved clear liquid>")
             print("Good lu -----")
             this.location?.removeCharacter(this)
-            this.location?.addLandmark(landmarks.dead_cleric())
+            this.location?.addLandmark(getLandmark('dead_cleric'))
             this.inventory.transferAll(player.inventory)
         })
     },
@@ -387,20 +410,20 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     ierdale_forester(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'ierdale forester',
-            items: [items.long_dagger(), items.gold(12)],
+            items: [getItem('long_dagger'), getItem('gold', 12)],
             hp: 54,
             blunt_damage: 6,
             sharp_damage: 20,
-            weapon: items.long_dagger(),
+            weapon: getItem('long_dagger'),
             description: 'forester',
             blunt_armor: 0,
             agility: 4,
             coordination: 2,
-            pronouns: { "subject": "she", "object": "her", "possessive": "her" },
+            pronouns: randomChoice([pronouns.male, pronouns.female]),
             aliases: ['forester'],
             ...args
         }).dialog(async function (player: Character) {
-            if (!this.game?.flags.forest_pass) {
+            if (!player.flags.forest_pass) {
                 print("You need a pass to get in to this forest.");
                 print("You can buy one at the police station.  South");
                 print("three times, west once, north once.");
@@ -415,8 +438,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 this.game.player.flags.enemy_of_ierdale = true;
             }
         }).onDeparture(async function (character, direction) {
-            if (direction == 'north' && !this.game.flags.forest_pass) {
-                print("Sorry you shal have no admitance.  You need a pass.");
+            if (direction == 'north' && character.isPlayer && character.flags.forest_pass) {
+                print("Cautiously you pull back your sleve to reveal your tatoo...")
+                await pause(3)
+                print("Yup you're fine, proceed.")
+            } else if (direction == 'north' && !character.flags.forest_pass) {
+                if (character.isPlayer) print("Sorry you shal have no admitance.  You need a pass.");
                 return false;
             }
             return true
@@ -426,11 +453,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     guard_captain(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'guard captain',
-            items: [items.gold(25), items.longsword()],
+            items: [getItem('gold', 25), getItem('longsword')],
             hp: 100,
             blunt_damage: 40,
             sharp_damage: 10,
-            weapon: items.shortsword(),
+            weapon: getItem('shortsword'),
             description: 'guard captain',
             coordination: 7,
             agility: 2,
@@ -450,11 +477,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     ogre(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'ogre',
-            items: [items.club()],
+            pronouns: pronouns.male,
+            items: [getItem('club')],
             hp: 120,
             blunt_damage: 20,
             sharp_damage: 0,
-            weapon: items.club(),
+            weapon: getItem('club'),
             description: 'giant ogre',
             coordination: 2,
             agility: 1,
@@ -466,11 +494,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     minotaur(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'minotaur',
-            items: [items.spiked_club()],
+            pronouns: pronouns.male,
+            items: [getItem('spiked_club')],
             hp: 760,
             blunt_damage: 280,
             sharp_damage: 13,
-            weapon: items.spiked_club(),
+            weapon: getItem('spiked_club'),
             description: 'labyrinth minotaur',
             coordination: 15,
             agility: 2,
@@ -482,11 +511,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     stone_ogre(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'stone ogre',
-            items: [items.gold(5), items.spiked_club()],
+            pronouns: pronouns.inhuman,
+            items: [getItem('gold', 5), getItem('spiked_club')],
             hp: 100,
             blunt_damage: 20,
             sharp_damage: 5,
-            weapon: items.spiked_club(),
+            weapon: getItem('spiked_club'),
             description: 'stone ogre',
             blunt_armor: 2,
             coordination: 3,
@@ -499,11 +529,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     ierdale_soldier(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'ierdale soldier',
-            items: [items.gold(50), items.claymoore()],
+            pronouns: pronouns.male,
+            items: [getItem('gold', 50), getItem('claymoore')],
             hp: 300,
             blunt_damage: 90,
             sharp_damage: 10,
-            weapon: items.claymoore(),
+            weapon: getItem('claymoore'),
             description: 'ierdale soldier',
             coordination: 14,
             agility: 3,
@@ -535,11 +566,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     ierdale_general(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'ierdale general',
-            items: [items.gold(200), items.silver_sword()],
+            pronouns: pronouns.male,
+            items: [getItem('gold', 200), getItem('silver_sword')],
             hp: 700,
             blunt_damage: 120,
             sharp_damage: 50,
-            weapon: items.silver_sword(),
+            weapon: getItem('silver_sword'),
             description: 'ierdale general',
             coordination: 16,
             agility: 8,
@@ -563,13 +595,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     security_page(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'security page',
-            items: [items.dagger(), items.gold(Math.random() * 300 + 500)],
+            items: [getItem('dagger'), getItem('gold', Math.random() * 300 + 500)],
             hp: 21,
             blunt_damage: 5,
             sharp_damage: 3,
-            weapon: items.dagger(),
+            weapon: getItem('dagger'),
             description: 'Ierdale page',
-            pronouns: { "subject": "she", "object": "her", "possessive": "her" },
+            pronouns: pronouns.female,
             aliases: ['page'],
             alignment: 'ierdale',
             ...args
@@ -594,17 +626,49 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 print();
                 chief.location = this.location;
             }
+        }).addAction('pass', async function (player) {
+            if (player.flags.forest_pass) {
+                if (player.isPlayer) print("You already have a pass.")
+                return;
+            }
+            if (player.flags.assistant) {
+                color(magenta)
+                print("   -ASSISTANT-  It is a good idea to eventually get a pass to the forest.")
+                print("   -ASSISTANT-  I recomend that before getting a pass, you are able to")
+                print("   -ASSISTANT-  travel the Mucky Swamp without worry.")
+            }
+            color(black)
+            if (player.experience < 500 || !player.inventory.has('gold', 30)) {
+                if (player.isPlayer) print("Sorry sir, you are not aplicable.")
+                return;
+            }
+            player.inventory.remove('gold', 30)
+            if (player.isPlayer) {
+                print("The Page takes out a hot iron and sets it in the fire.")
+                print("One moment please!  *beams*")
+                print()
+                await pause(3)
+                print("The page removes the iron and ", 1)
+                color(red)
+                print("BURNS", 1)
+                color(black)
+                print(" something on your shoulder.")
+                print("There you go, the foresters at the gate will admit")
+                print("you now.  Thankyou for your business!")
+            }
+            player.flags.forest_pass = true
         })
     },
 
     toothless_man(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'toothless man',
-            items: [items.battle_axe(), items.gold(1000)],
+            pronouns: pronouns.male,
+            items: [getItem('battle_axe'), getItem('gold', 1000)],
             hp: 70,
             blunt_damage: 0,
             sharp_damage: 40,
-            weapon: items.battle_axe(),
+            weapon: getItem('battle_axe'),
             coordination: 10,
             agility: 6,
             blunt_armor: 50,
@@ -620,11 +684,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     armor_merchant(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'armor merchant',
-            items: [items.gold(100)],
+            pronouns: pronouns.male,
+            items: [getItem('gold', 100)],
             hp: 130,
             blunt_damage: 30,
             sharp_damage: 0,
-            weapon: items.fist(),
+            weapon: getItem('fist'),
             coordination: 2,
             agility: 1,
             blunt_armor: 30,
@@ -649,11 +714,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     blacksmith(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'blacksmith',
-            items: [items.gold(50), items.battle_axe()],
+            items: [getItem('gold', 50), getItem('battle_axe')],
             hp: 500,
             blunt_damage: 100,
             sharp_damage: 40,
-            weapon: items.battle_axe(),
+            weapon: getItem('battle_axe'),
             coordination: 10,
             agility: 6,
             blunt_armor: 50,
@@ -669,10 +734,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     bag_boy(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'bag boy',
-            items: [items.gold(4), items.dagger()],
+            pronouns: pronouns.male,
+            items: [getItem('gold', 4), getItem('dagger')],
             description: 'worthless little bag boy',
             hp: 70,
-            weapon: items.dagger(),
+            weapon: getItem('dagger'),
             blunt_damage: 0,
             sharp_damage: 10,
             blunt_armor: 2,
@@ -705,7 +771,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     baby_spritzer(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'baby spritzer',
-            items: [items.gold(6), items.spritzer_hair()],
+            pronouns: randomChoice([pronouns.male, pronouns.female]),
+            items: [getItem('gold', 6), getItem('spritzer_hair')],
             description: 'potent baby spritzer',
             hp: 25,
             blunt_damage: 8,
@@ -719,18 +786,19 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print("Wanna play?");
         }).onDeath(async function () {
             color(brightblue);
-            print("Baby spritzer vanishes to be with his parents, he is done playing.");
+            print(`Baby spritzer vanishes to be with ${this.pronouns.possessive} parents, ${this.pronouns.subject} is done playing.`);
         }).fightMove(actions.sleep);
     },
 
     colonel_arach(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'colonel arach',
-            items: [items.gold(500), items.longsword()],
+            pronouns: pronouns.male,
+            items: [getItem('gold', 500), getItem('longsword')],
             description: 'Arach the Terrible',
             hp: 1500,
             sharp_damage: 500,
-            weapon: items.longsword(),
+            weapon: getItem('longsword'),
             blunt_armor: 60,
             coordination: 20,
             agility: 20,
@@ -770,7 +838,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                         this.game.find_location('Northern Gatehouse'),
                     ]
                     gates.forEach(gate => {
-                        if (gate) gate.landmarks = [landmarks.open_gate()]
+                        if (gate) gate.landmarks = [getLandmark('open_gate')]
                         else console.log('gate not found.')
                     })
                 } else {
@@ -829,7 +897,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 if (await getKey(['y', 'n']) == "y") {
                     print();
                     color(red);
-                    print(`${cap(player.name)}: I am headed out of town in search of adventure.`);
+                    print(`${caps(player.name)}: I am headed out of town in search of adventure.`);
                     color(black);
                     print();
                     print("So you want to leave huh?  Well I sure won't have you going out there.  I let");
@@ -845,11 +913,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     sift(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'sift',
-            items: [items.gold(200), items.ring_of_dreams()],
+            pronouns: pronouns.inhuman,
+            items: [getItem('gold', 200), getItem('ring_of_dreams')],
             hp: 580,
             blunt_damage: 10,
             sharp_damage: 50,
-            weapon: items.claws(),
+            weapon: getItem('claws'),
             description: 'Sift',
             coordination: 25,
             agility: 15,
@@ -865,12 +934,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     cradel(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'cradel',
-            items: [items.gold(100), items.spiked_club()],
+            pronouns: pronouns.male,
+            items: [getItem('gold', 100), getItem('spiked_club')],
             description: 'Cradel the troll',
             hp: 1000,
             blunt_damage: 250,
             sharp_damage: 150,
-            weapon: items.spiked_club(),
+            weapon: getItem('spiked_club'),
             blunt_armor: 26,
             coordination: 5,
             agility: 5,
@@ -911,12 +981,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
         }
         return new A2dCharacter({
             name: 'Mino',
-            items: [items.gold(15), items.long_dagger(), items.lute_de_lumonate()],
+            pronouns: pronouns.male,
+            items: [getItem('gold', 15), getItem('long_dagger'), getItem('lute_de_lumonate')],
             description: 'musical Mino',
             hp: 250,
             blunt_damage: 0,
             sharp_damage: 40,
-            weapon: items.long_dagger(),
+            weapon: getItem('long_dagger'),
             blunt_armor: 20,
             agility: 40,
             coordination: 12,
@@ -954,34 +1025,41 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     if (await getKey(['y', 'n']) == "n") return
                     print("Ok, here I go.");
                     // Dim tune$(1 To 6)
-                    this.flags.tune = {}
+                    this.flags.tune = {
+                        'grogrin': [],
+                        'mino': [],
+                        'turlin': [],
+                        'cat woman': [],
+                        'doo-dad man': [],
+                        'ieadon': [],
+                    }
                     print("Tune one, by Grogrin");
-                    this.flags['tune']['grogrin'] = play(musicc$(10));
+                    this.flags.tune['grogrin'] = play(musicc$(10));
                     // Play tune$(1)
                     print("Press a key when finished.");
                     // GetKey
                     print("Tune two, by ME!");
-                    this.flags['tune']['mino'] = play(musicc$(10));
+                    this.flags.tune['mino'] = play(musicc$(10));
                     // Play tune$(2)
                     print("Press a key when finished.");
                     // GetKey
                     print("Tune three, by Turlin");
-                    this.flags['tune']['turlin'] = play(musicc$(10));
+                    this.flags.tune['turlin'] = play(musicc$(10));
                     // Play tune$(3)
                     print("Press a key when finished.");
                     // GetKey
                     print("Tune four, by the old cat woman");
-                    this.flags['tune']['cat woman'] = play(musicc$(10));
+                    this.flags.tune['cat woman'] = play(musicc$(10));
                     // Play tune$(4)
                     print("Press a key when finished.");
                     // GetKey
                     print("Tune five, by doo-dad man");
-                    this.flags['tune']['doo-dad man'] = play(musicc$(10));
+                    this.flags.tune['doo-dad man'] = play(musicc$(10));
                     // Play tune$(5)
                     print("Press a key when finished.");
                     // GetKey
                     print("Tune six, by Ieadon");
-                    this.flags['tune']['ieadon'] = play(musicc$(10));
+                    this.flags.tune['ieadon'] = play(musicc$(10));
                     // Play tune$(6)
                     print("Press a key when finished.");
                     await getKey()
@@ -991,7 +1069,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     print("Now, which artist played this tune:");
                     let yn = 'y'
                     while (yn == "y") {
-                        play(this.flags['tune'][this.flags['right answer']])
+                        play(this.flags.tune[this.flags['right answer']])
                         print()
                         print("Want me to replay it? [y/n]");
                         yn = await getKey(['y', 'n'])
@@ -1006,28 +1084,27 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     print("-Ieadon");
                     color(blue);
                     print("Thanks again!");
-                    this.addAction('guess', async (player: Character, guess: string) => {
-                        if (guess.toLocaleLowerCase() == this.flags['right answer']) {
-                            color(blue)
-                            print("CORRECT!")
-                            play(musicc$(10))
-                            print("  -- Mino gives you the 'lute de lumonate'")
-                            print()
-                            print("Hey, this might help you in detroying Sift")
-                            print("To play this at any time, type 'play lute'")
-                            this.inventory.transfer('lute de lumonate', player.inventory)
-                            this.flags.won = true
-                        } else {
-                            print("I am so sorry, that is INCORRECT!")
-                            color(blue)
-                            print("TRY AGAIN!")
-                        }
-                    })
                     break;
                 case "n":
                     print("Fine, come again some other day!");
                     play(musicc$(10))
                     break;
+            }
+        }).addAction('guess', async function (player: Character, guess: string) {
+            if (guess.toLocaleLowerCase() == this.flags['right answer']) {
+                color(blue)
+                print("CORRECT!")
+                play(musicc$(10))
+                print("  -- Mino gives you the 'lute de lumonate'")
+                print()
+                print("Hey, this might help you in detroying Sift")
+                print("To play this at any time, type 'play lute'")
+                this.inventory.transfer('lute de lumonate', player.inventory)
+                this.flags.won = true
+            } else {
+                print("I am so sorry, that is INCORRECT!")
+                color(blue)
+                print("TRY AGAIN!")
             }
         }).fightMove(actions.sleep);
     },
@@ -1035,15 +1112,15 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     peon(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'peon',
-            items: [items.gold(2)],
+            items: [getItem('gold', 2)],
             hp: 20,
             blunt_damage: 10,
             sharp_damage: 2,
-            weapon: items.fist(),
+            weapon: getItem('fist'),
             description: 'helpless peon',
             coordination: 2,
             agility: 3,
-            pronouns: pronouns.female,
+            pronouns: randomChoice([pronouns.female, pronouns.male]),
             alignment: 'wander',
             ...args
         }).dialog(async function (player: Character) {
@@ -1065,11 +1142,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     dark_angel(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'dark angel',
-            items: [items.gold(50), items.dark_sword(), items.banana()],
+            items: [getItem('gold', 50), getItem('dark_sword'), getItem('banana')],
             hp: 300,
             magic_damage: 40,
             sharp_damage: 40,
-            weapon: items.dark_sword(),
+            weapon: getItem('dark_sword'),
             description: 'angel of death',
             coordination: 25,
             agility: 11,
@@ -1087,7 +1164,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     gerard(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'gerard',
-            items: [items.gold(50)],
+            items: [getItem('gold', 50)],
             hp: 200,
             blunt_damage: 100,
             sharp_damage: 50,
@@ -1110,13 +1187,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     doo_dad_man(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'doo_dad man',
-            items: [items.gold(150), items.long_dagger()],
+            items: [getItem('gold', 150), getItem('long_dagger')],
             hp: 90,
             blunt_damage: 45,
             sharp_damage: 10,
             coordination: 3,
             agility: 2,
-            weapon: items.club({ name: 'jackhammer' }),
+            weapon: getItem('club', { name: 'jackhammer' }),
             description: 'doo-dad man',
             pronouns: pronouns.male,
             ...args
@@ -1132,13 +1209,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 12,
             blunt_damage: 3,
             sharp_damage: 0,
-            weapon: items.fist({ name: 'hands' }),
+            weapon: getItem('fist', { name: 'hands' }),
             description: 'screaming farm wife',
             pronouns: pronouns.female,
             aliases: ['wife'],
             ...args
         }).dialog(async function (player: Character) {
-            if (this.game.flags.forest_pass) {
+            if (player.flags.forest_pass) {
                 print("Help!  Help!, please save us!  There are treacherous evil things invaiding");
                 print("our farm... Ahh... Goblins, Kobolds, Zombies, Ahhh... BOOOHOOO, my poor ");
                 print("husband... WAHHHHH!!!!");
@@ -1160,12 +1237,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     clubman(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'clubman',
-            items: [items.club()],
+            items: [getItem('club')],
             hp: 21,
             blunt_damage: 7,
             coordination: 2,
             agility: 1,
-            weapon: items.club(),
+            weapon: getItem('club'),
             description: 'clubman',
             alignment: 'wander',
             pronouns: pronouns.male,
@@ -1178,13 +1255,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     rush_lurker(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'rush lurker',
-            items: [items.gold(10)],
+            items: [getItem('gold', 10)],
             hp: 31,
             blunt_damage: 8,
             sharp_damage: 3,
             coordination: 3,
             agility: 2,
-            weapon: items.claws(),
+            weapon: getItem('claws'),
             description: 'rush lurker',
             attackPlayer: true,
             pronouns: pronouns.inhuman,
@@ -1195,11 +1272,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     swordsman(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'swordsman',
-            items: [items.shortsword(), items.gold(5)],
+            items: [getItem('shortsword'), getItem('gold', 5)],
             hp: 72,
             blunt_damage: 14,
             sharp_damage: 8,
-            weapon: items.shortsword(),
+            weapon: getItem('shortsword'),
             description: 'swordsman',
             blunt_armor: 2,
             coordination: 3,
@@ -1212,13 +1289,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     evil_forester(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'evil forester',
-            items: [items.wooden_stick(), items.gold(8)],
+            items: [getItem('wooden_stick'), getItem('gold', 8)],
             hp: 50,
             blunt_damage: 20,
             sharp_damage: 0,
             coordination: 5,
             agility: 2,
-            weapon: items.wooden_stick(),
+            weapon: getItem('wooden_stick'),
             description: 'evil forester',
             attackPlayer: true,
             pronouns: pronouns.male,
@@ -1229,13 +1306,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     dirty_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'dirty thief',
-            items: [items.dagger(), items.gold(6)],
+            items: [getItem('dagger'), getItem('gold', 6)],
             hp: 52,
             blunt_damage: 0,
             sharp_damage: 10,
             coordination: 3,
             agility: 2,
-            weapon: items.dagger(),
+            weapon: getItem('dagger'),
             description: 'dirty thiefing rascal',
             pronouns: pronouns.male,
             ...args
@@ -1245,13 +1322,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     fat_merchant_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'fat_merchant thief',
-            items: [items.whip(), items.gold(20)],
+            items: [getItem('whip'), getItem('gold', 20)],
             hp: 61,
             blunt_damage: 12,
             sharp_damage: 0,
             coordination: 9,
             agility: 2,
-            weapon: items.whip(),
+            weapon: getItem('whip'),
             description: 'fat merchant',
             pronouns: pronouns.male,
             ...args
@@ -1261,13 +1338,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     snarling_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'snarling thief',
-            items: [items.flail(), items.gold(7)],
+            items: [getItem('flail'), getItem('gold', 7)],
             hp: 82,
             blunt_damage: 7,
             sharp_damage: 11,
             coordination: 4,
             agility: 2,
-            weapon: items.flail(),
+            weapon: getItem('flail'),
             description: 'thief',
             pronouns: pronouns.female,
             ...args
@@ -1277,13 +1354,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     dark_rider(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'dark rider',
-            items: [items.hand_axe(), items.gold(3)],
+            items: [getItem('hand_axe'), getItem('gold', 3)],
             hp: 115,
             blunt_damage: 20,
             sharp_damage: 10,
             coordination: 3,
             agility: 5,
-            weapon: items.hand_axe(),
+            weapon: getItem('hand_axe'),
             description: 'dark rider',
             blunt_armor: 3,
             attackPlayer: true,
@@ -1295,13 +1372,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     fine_gentleman(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'fine gentleman',
-            items: [items.rapier(), items.gold(26)],
+            items: [getItem('rapier'), getItem('gold', 26)],
             hp: 103,
             blunt_damage: 4,
             sharp_damage: 12,
             coordination: 5,
             agility: 3,
-            weapon: items.rapier(),
+            weapon: getItem('rapier'),
             description: 'gentleman',
             blunt_armor: 1,
             pronouns: pronouns.male,
@@ -1312,13 +1389,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     little_goblin_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'little_goblin thief',
-            items: [items.metal_bar(), items.gold(6)],
+            items: [getItem('metal_bar'), getItem('gold', 6)],
             hp: 100,
             blunt_damage: 30,
             sharp_damage: 10,
             coordination: 2,
             agility: 6,
-            weapon: items.metal_bar(),
+            weapon: getItem('metal_bar'),
             description: 'goblin',
             pronouns: pronouns.male,
             ...args
@@ -1328,7 +1405,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     orc_amazon(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'orc amazon',
-            items: [items.claymoore(), items.gold(17)],
+            items: [getItem('claymoore'), getItem('gold', 17)],
             hp: 250,
             blunt_armor: 5,
             sharp_armor: 30,
@@ -1337,7 +1414,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             agility: 5,
             blunt_damage: 29,
             sharp_damage: 16,
-            weapon: items.claymoore(),
+            weapon: getItem('claymoore'),
             pronouns: pronouns.female,
             ...args
         }).onAttack(async function (character: Character) {
@@ -1348,7 +1425,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     orc_behemoth(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'orc behemoth',
-            items: [items.mighty_warhammer()],
+            pronouns: pronouns.male,
+            items: [getItem('mighty_warhammer')],
             hp: 300,
             blunt_armor: 11,
             sharp_armor: 12,
@@ -1357,18 +1435,18 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             agility: 1,
             blunt_damage: 19,
             sharp_damage: 16,
-            weapon: items.mighty_warhammer(),
+            weapon: getItem('mighty_warhammer'),
             ...args
         });
     },
 
-    //, items.87_then_wg(1)(), items.gold(98), items.94_then_wg(1)(), items.gold(1), items.1_then_wg(1)(), items.gold(7)
+    //, getItem('87_then_wg', 1)(), getItem('gold', 98), getItem('94_then_wg', 1)(), getItem('gold', 1), getItem('1_then_wg', 1)(), getItem('gold', 7)
     peddler(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'peddler',
-            items: [items.spy_o_scope(), items.gold(100)],
+            items: [getItem('spy_o_scope'), getItem('gold', 100)],
             hp: 100,
-            weapon: items.dagger(),
+            weapon: getItem('dagger'),
             coordination: 2,
             agility: 5,
             sharp_damage: 25,
@@ -1401,11 +1479,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     rock_hydra(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'rock hydra',
-            items: [items.gold(29)],
+            items: [getItem('gold', 29)],
             hp: 200,
             blunt_damage: 60,
             sharp_damage: 5,
-            weapon: items.fist({ name: 'his heads' }),
+            weapon: getItem('fist', { name: 'his heads' }),
             description: 'Hydra',
             blunt_armor: 5,
             coordination: 4,
@@ -1419,11 +1497,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     nightmare(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'nightmare',
-            items: [items.gold(50), items.longsword()],
+            items: [getItem('gold', 50), getItem('longsword')],
             hp: 450,
             blunt_damage: 112,
             sharp_damage: 21,
-            weapon: items.longsword(),
+            weapon: getItem('longsword'),
             description: 'nightmare',
             coordination: 9,
             agility: 5,
@@ -1439,11 +1517,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     mogrim(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'mogrim',
-            items: [items.gold(Math.random() * 30), items.hardened_club()],
+            items: [getItem('gold', Math.random() * 30), getItem('hardened_club')],
             hp: 490,
             blunt_damage: 56,
             sharp_damage: 20,
-            weapon: items.hardened_club(),
+            weapon: getItem('hardened_club'),
             description: 'mogrim',
             coordination: 5,
             agility: 3,
@@ -1457,11 +1535,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     reaper(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'reaper',
-            items: [items.scythe(), items.gold(Math.random() * 50)],
+            items: [getItem('scythe'), getItem('gold', Math.random() * 50)],
             hp: 150,
             blunt_damage: 0,
             sharp_damage: 250,
-            weapon: items.scythe(),
+            weapon: getItem('scythe'),
             description: 'reaper',
             coordination: 55,
             agility: 25,
@@ -1475,11 +1553,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     goblin_hero(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'goblin hero',
-            items: [items.jagged_polearm(), items.gold(Math.random() * 56)],
+            items: [getItem('jagged_polearm'), getItem('gold', Math.random() * 56)],
             hp: 230,
             blunt_damage: 120,
             sharp_damage: 70,
-            weapon: items.jagged_polearm(),
+            weapon: getItem('jagged_polearm'),
             description: 'goblin hero',
             coordination: 12,
             agility: 4,
@@ -1493,11 +1571,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     stone_golem(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'stone golem',
-            items: [items.warhammer(), items.gold(19)],
+            items: [getItem('warhammer'), getItem('gold', 19)],
             hp: 120,
             blunt_damage: 45,
             sharp_damage: 15,
-            weapon: items.warhammer(),
+            weapon: getItem('warhammer'),
             description: 'Huge stone golem',
             coordination: 4,
             agility: 1,
@@ -1510,18 +1588,21 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     wood_troll(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'wood troll',
-            items: [items.club()],
+            pronouns: pronouns.male,
+            items: [getItem('club')],
             hp: 250,
             blunt_damage: 52,
             sharp_damage: 1,
-            weapon: items.club(),
+            weapon: getItem('club'),
             description: 'wood troll',
             coordination: 15,
             agility: 5,
             blunt_armor: 16,
             alignment: 'evil/areaw',
             ...args
-        }).fightMove(async function () {
+        }).onTurn(
+            actions.wander
+        ).fightMove(async function () {
             if (Math.random() < 1 / 2) {
                 print('TODO: call help')
             }
@@ -1531,11 +1612,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     cat_woman(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'cat woman',
-            items: [items.axe_of_the_cat(), items.gold(25)],
+            items: [getItem('axe_of_the_cat'), getItem('gold', 25)],
             hp: 400,
             blunt_damage: 75,
             sharp_damage: 100,
-            weapon: items.axe_of_the_cat(),
+            weapon: getItem('axe_of_the_cat'),
             description: 'cat woman',
             coordination: 20,
             agility: 15,
@@ -1549,11 +1630,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     megara(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'megara',
-            items: [items.megarian_club(), items.gold(50)],
+            pronouns: pronouns.inhuman,
+            items: [getItem('megarian_club'), getItem('gold', 50)],
             hp: 300,
             blunt_damage: 200,
             sharp_damage: 10,
-            weapon: items.megarian_club(),
+            weapon: getItem('megarian_club'),
             description: 'megara',
             coordination: 10,
             agility: 0,
@@ -1566,11 +1648,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     cow(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'cow',
-            items: [items.side_of_meat()],
+            items: [getItem('side_of_meat')],
             hp: 51,
             blunt_damage: 4,
             sharp_damage: 4,
-            weapon: items.horns(),
+            weapon: getItem('horns'),
             description: 'cow',
             coordination: 3,
             agility: 0,
@@ -1588,11 +1670,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     bull(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'bull',
-            items: [items.side_of_meat()],
+            pronouns: pronouns.male,
+            items: [getItem('side_of_meat')],
             hp: 55,
             blunt_damage: 8,
             sharp_damage: 5,
-            weapon: items.horns(),
+            weapon: getItem('horns'),
             description: 'bull',
             coordination: 4,
             agility: 1,
@@ -1604,15 +1687,15 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     jury_member(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'jury member',
-            items: [items.gold(1)],
+            items: [getItem('gold', 1)],
             hp: 20,
             blunt_damage: 3,
             sharp_damage: 0,
             coordination: 2,
             agility: 3,
-            weapon: items.fist(),
+            weapon: getItem('fist'),
             description: 'jury member',
-            pronouns: { "subject": "she", "object": "her", "possessive": "her" },
+            pronouns: randomChoice([pronouns.male, pronouns.female]),
             ...args
         }).dialog(async function (player: Character) {
             print("GUILTY!");
@@ -1624,38 +1707,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
         });
     },
 
-    peasant_man_Or_SB_n(args: { [key: string]: any }) {
-        return new A2dCharacter({
-            name: 'peasant_man_Or_SB n',
-            items: [],
-            ...args
-        }).onDeath(async function () {
-            color(red);
-            print("This is MURDER! The guards will have your head for this!");
-            this.game.player.flags.enemy_of_ierdale = true
-            this.game.player.flags.murders += 1
-        });
-    },
-
-    Ierdale_guard_Or_SB_n(args: { [key: string]: any }) {
-        return new A2dCharacter({
-            name: 'Ierdale_guard_Or_SB n',
-            items: [],
-            ...args
-        }).onDeath(async function () {
-            if (!this.game.player.flags.enemy_of_ierdale) {
-                color(red)
-                print("You shall regret this, Ierdale has turned against you!");
-                this.game.player.flags.enemy_of_ierdale = true
-                this.game.player.flags.murders += 1
-            }
-        });
-    },
-
     peasant_elder(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'peasant elder',
-            items: [items.magic_ring()],
+            pronouns: pronouns.female,
+            items: [getItem('magic_ring')],
             flags: { 'talk': 0 },
             ...args
         }).dialog(async function (player: Character) {
@@ -1756,11 +1812,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     scarecrow_gaurd(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'scarecrow gaurd',
-            items: [items.pitchfork(), items.gold(10)],
+            items: [getItem('pitchfork'), getItem('gold', 10)],
             hp: 210,
             blunt_damage: 31,
             sharp_damage: 57,
-            weapon: items.pitchfork(),
+            weapon: getItem('pitchfork'),
             description: 'scarecrow gaurd',
             coordination: 4,
             agility: 3,
@@ -1774,11 +1830,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     scarecrow_worker(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'scarecrow worker',
-            items: [items.pitchfork()],
+            items: [getItem('pitchfork')],
             hp: 130,
             blunt_damage: 25,
             sharp_damage: 48,
-            weapon: items.pitchfork(),
+            weapon: getItem('pitchfork'),
             description: 'scarecrow worker',
             coordination: 3,
             agility: 3,
@@ -1792,11 +1848,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     scarecrow_king(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'scarecrow king',
-            items: [items.golden_pitchfork(), items.gold(38)],
+            items: [getItem('golden_pitchfork'), getItem('gold', 38)],
             hp: 260,
             blunt_damage: 43,
             sharp_damage: 75,
-            weapon: items.golden_pitchfork(),
+            weapon: getItem('golden_pitchfork'),
             description: 'scarecrow king',
             coordination: 5,
             agility: 3,
@@ -1991,7 +2047,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             agility: 2,
             blunt_damage: 5,
             sharp_damage: 0,
-            weapon: items.fist(),
+            weapon: getItem('fist'),
             ...args
         }).dialog(async function (player: Character) {
             print("Hmmmmfff...");
@@ -2024,7 +2080,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             agility: 2,
             hp: 100,
             blunt_armor: 10,
-            weapon: items.fist(),
+            weapon: getItem('fist'),
             coordination: 3,
             blunt_damage: 4,
             description: 'cleric tendant',
@@ -2099,8 +2155,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     color(blue);
                     print("<recieved a list>");
                     print("<recieved an amber chunk>");
-                    player.inventory.add(items.list());
-                    player.inventory.add(items.amber_chunk());
+                    player.inventory.add(getItem('list'));
+                    player.inventory.add(getItem('amber_chunk'));
                 }
             }
         }).onAttack(actions.pish2);
@@ -2152,7 +2208,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 32,
             blunt_damage: 2,
             sharp_damage: 10,
-            weapon: items.fangs(),
+            weapon: getItem('fangs'),
             coordination: 6,
             agility: 4,
             description: 'poisonus adder',
@@ -2172,7 +2228,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 2,
             coordination: 3,
             agility: 1,
-            weapon: items.fist({ name: 'huge fists' }),
+            weapon: getItem('fist', { name: 'huge fists' }),
             description: 'troll',
             blunt_armor: 1,
             aliases: ['troll'],
@@ -2232,8 +2288,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 3,
             coordination: 2,
             agility: 4,
-            weapon: items.wooden_stick(),
-            items: [items.gold(3), items.wooden_stick()],
+            weapon: getItem('wooden_stick'),
+            items: [getItem('gold', 3), getItem('wooden_stick')],
             description: 'evil looking goblin',
             attackPlayer: true,
             ...args
@@ -2247,8 +2303,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 48,
             blunt_damage: 29,
             sharp_damage: 10,
-            weapon: items.broadsword(),
-            items: [items.gold(9), items.broadsword(), items.longsword()],
+            weapon: getItem('broadsword'),
+            items: [getItem('gold', 9), getItem('broadsword'), getItem('longsword')],
             description: 'horifying goblin captain',
             blunt_armor: 9,
             agility: 3,
@@ -2271,8 +2327,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 7,
             coordination: 3,
             agility: 2,
-            weapon: items.shortsword(),
-            items: [items.shortsword()],
+            weapon: getItem('shortsword'),
+            items: [getItem('shortsword')],
             description: 'Ierdale guard',
             blunt_armor: 2,
             aliases: ['guard'],
@@ -2347,7 +2403,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 5,
             coordination: 5,
             agility: 1,
-            weapon: items.dagger(),
+            weapon: getItem('dagger'),
             description: 'snotty ASS page',
             aliases: ['page'],
             alignment: 'ierdale',
@@ -2373,7 +2429,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 150,
             blunt_damage: 65,
             sharp_damage: 30,
-            weapon: items.silver_sword(),
+            weapon: getItem('silver_sword'),
             description: 'Police chief',
             blunt_armor: 29,
             sharp_armor: 35,
@@ -2389,7 +2445,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 print("Its interesting how in our time of greatest need, Ieadon - our best and most");
                 print("trusted fighter - can disapear.  Some say to have seen him leaving town at");
                 print("dusk one night.");
-                // Else
+            } else {
                 print("*cough*  How may I help you?");
                 print("Don't try anything funny: here in Ierdale we crack down hard on crime!");
                 print("We sell passes to the forest of theives up North at the information desk.");
@@ -2404,8 +2460,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 450,
             blunt_damage: 18,
             sharp_damage: 0,
-            weapon: items.fist({ name: 'sand he throws' }),
-            items: [items.gold(7)],
+            weapon: getItem('fist', { name: 'sand he throws' }),
+            items: [getItem('gold', 7)],
             description: 'HUGE sandworm',
             coordination: 4,
             agility: 0,
@@ -2420,8 +2476,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 45,
             blunt_damage: 0,
             sharp_damage: 40,
-            weapon: items.long_rapier(),
-            items: [items.gold(12), items.partial_healing_potion(), items.long_rapier()],
+            weapon: getItem('long_rapier'),
+            items: [getItem('gold', 12), getItem('partial_healing_potion'), getItem('long_rapier')],
             description: 'quick sand scout',
             agility: 7,
             coordination: 10,
@@ -2439,8 +2495,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 0,
             coordination: 1,
             agility: 3,
-            weapon: items.beak(),
-            items: [items.chicken_leg()],
+            weapon: getItem('beak'),
+            items: [getItem('chicken_leg')],
             description: 'clucking hen',
             ...args
         });
@@ -2453,8 +2509,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 5,
             blunt_damage: 7,
             sharp_damage: 2,
-            weapon: items.claws(),
-            items: [items.chicken_leg()],
+            weapon: getItem('claws'),
+            items: [getItem('chicken_leg')],
             description: 'furious rooster',
             coordination: 4,
             agility: 2,
@@ -2472,8 +2528,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 0,
             coordination: 4,
             agility: 1,
-            weapon: items.gavel(),
-            items: [items.gold(10), items.gavel()],
+            weapon: getItem('gavel'),
+            items: [getItem('gold', 10), getItem('gavel')],
             description: 'Judge',
             aliases: ['judge'],
             ...args
@@ -2495,8 +2551,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 50,
             blunt_damage: 22,
             sharp_damage: 10,
-            weapon: items.broadsword(),
-            items: [items.broadsword(), items.gold(Math.random() * 5)],
+            weapon: getItem('broadsword'),
+            items: [getItem('broadsword'), getItem('gold', Math.random() * 5)],
             description: 'Ierdale elite',
             coordination: 2,
             agility: 2,
@@ -2521,8 +2577,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 175,
             blunt_damage: 90,
             sharp_damage: 10,
-            weapon: items.axe(),
-            items: [items.gold(Math.random() * 15), items.axe()],
+            weapon: getItem('axe'),
+            items: [getItem('gold', Math.random() * 15), getItem('axe')],
             description: 'evil dwarf',
             coordination: 8,
             agility: 5,
@@ -2544,8 +2600,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 220,
             blunt_damage: 20,
             sharp_damage: 10,
-            weapon: items.fist(),
-            items: [items.gold(43)],
+            weapon: getItem('fist'),
+            items: [getItem('gold', 43)],
             description: 'orkin and his animals',
             coordination: 2,
             agility: 1,
@@ -2562,11 +2618,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     lion(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'lion',
-            pronouns: { "subject": "she", "object": "her", "possessive": "her" },
+            pronouns: randomChoice([pronouns.female, pronouns.male]),
             hp: 155,
             blunt_damage: 30,
             sharp_damage: 12,
-            weapon: items.claws(),
+            weapon: getItem('claws'),
             description: 'Lion',
             coordination: 5,
             agility: 6,
@@ -2588,7 +2644,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 500,
             blunt_damage: 10,
             sharp_damage: 0,
-            weapon: items.high_pitched_screetch(),
+            weapon: getItem('scream', { name: 'high_pitched_screech' }),
             description: 'mutant bat',
             coordination: 40,
             agility: 5,
@@ -2608,8 +2664,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 240,
             blunt_damage: 30,
             sharp_damage: 10,
-            weapon: items.spear(),
-            items: [items.gold(12), items.spear()],
+            weapon: getItem('spear'),
+            items: [getItem('gold', 12), getItem('spear')],
             description: 'captain',
             coordination: 4,
             agility: 2,
@@ -2630,7 +2686,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 65,
             blunt_damage: 20,
             sharp_damage: 20,
-            weapon: items.ballista_bolt(),
+            weapon: getItem('ballista_bolt'),
             description: 'bow fletcher',
             coordination: 2,
             blunt_armor: 10,
@@ -2647,8 +2703,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 100,
             blunt_damage: 15,
             sharp_damage: 10,
-            weapon: items.sickle(),
-            items: [items.sickle(), items.gold(3)],
+            weapon: getItem('sickle'),
+            items: [getItem('sickle'), getItem('gold', 3)],
             description: 'work-hardened peasant',
             coordination: -1,
             blunt_armor: 4,
@@ -2676,7 +2732,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 90,
             blunt_damage: 7,
             sharp_damage: 3,
-            weapon: items.fist(),
+            weapon: getItem('fist'),
             description: 'peasant woman',
             coordination: -1,
             blunt_armor: 3,
@@ -2699,7 +2755,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 45,
             blunt_damage: 10,
             sharp_damage: 15,
-            weapon: items.teeth(),
+            weapon: getItem('teeth'),
             description: 'yapping dog',
             coordination: 2,
             agility: 2,
@@ -2751,7 +2807,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 190,
             blunt_damage: 0,
             sharp_damage: 70,
-            weapon: items.sickle(),
+            weapon: getItem('sickle'),
             description: 'work-hardened peasant',
             coordination: 2,
             agility: 2,
@@ -2772,7 +2828,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 1000,
             blunt_damage: 120,
             sharp_damage: 200,
-            weapon: items.mighty_excalabor(),
+            weapon: getItem('mighty_excalabor'),
             description: 'the ledgendary Ieadon',
             coordination: 35,
             agility: 15,
@@ -2789,7 +2845,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 print('TODO: ring ultimate power')
             }
         }).addAction('train strength', async function (player: Character) {
-            actions.train({
+            await actions.train({
                 player: player,
                 skillName: 'strength',
                 requirements: {
@@ -2803,7 +2859,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 }
             })
         }).addAction('train stamina', async function (player: Character) {
-            actions.train({
+            await actions.train({
                 player: player,
                 skillName: 'strength',
                 requirements: {
@@ -2817,7 +2873,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 }
             })
         }).addAction('train toughness', async function (player: Character) {
-            actions.train({
+            await actions.train({
                 player: player,
                 skillName: 'toughness',
                 requirements: {
@@ -2843,8 +2899,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             blunt_damage: 40,
             sharp_damage: 120,
             magic_damage: 40,
-            weapon: items.psionic_dagger({ name: 'glowing dagger' }),
-            items: [items.psionic_dagger(), items.gold(300)],
+            weapon: getItem('psionic_dagger', { name: 'glowing dagger' }),
+            items: [getItem('psionic_dagger'), getItem('gold', 300)],
             description: 'the outcast Mythin',
             coordination: 25,
             agility: 25,
@@ -2870,8 +2926,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 450,
             magic_damage: 180,
-            weapon: items.lightning_staff(),
-            items: [items.lightning_staff(), items.gold(300), items.maple_leaf()],
+            weapon: getItem('lightning_staff'),
+            items: [getItem('lightning_staff'), getItem('gold', 300), getItem('maple_leaf')],
             description: 'the mystical Eldin',
             coordination: 12,
             agility: 4,
@@ -2911,8 +2967,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 450,
             blunt_damage: 90,
             sharp_damage: 0,
-            weapon: items.fist(),
-            items: [items.gold(400)],
+            weapon: getItem('fist'),
+            items: [getItem('gold', 400)],
             description: 'the respected Eldfarl',
             coordination: 12,
             agility: 4,
@@ -2937,7 +2993,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 150,
             blunt_damage: 60,
             sharp_damage: 0,
-            weapon: items.fist({ name: 'huge fists' }),
+            weapon: getItem('fist', { name: 'huge fists' }),
             description: 'Turlin',
             blunt_armor: 4,
             coordination: 3,
@@ -2953,8 +3009,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 320,
             blunt_damage: 50,
             sharp_damage: 40,
-            weapon: items.longsword(),
-            items: [items.gold(25), items.longsword(), items.ring_of_stone()],
+            weapon: getItem('longsword'),
+            items: [getItem('gold', 25), getItem('longsword'), getItem('ring_of_stone')],
             description: 'Henge',
             blunt_armor: 10,
             coordination: 6,
@@ -2972,8 +3028,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 750,
             magic_damage: 50,
             sharp_damage: 150,
-            weapon: items.blade_of_time(),
-            items: [items.blade_of_time(), items.gold(125), items.ring_of_time()],
+            weapon: getItem('blade_of_time'),
+            items: [getItem('blade_of_time'), getItem('gold', 125), getItem('ring_of_time')],
             description: 'Ziatos',
             coordination: 35,
             agility: 8,
@@ -2988,12 +3044,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
         return new A2dCharacter({
             name: 'official',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            items: [items.gold(25), items.long_dagger()],
+            items: [getItem('gold', 25), getItem('long_dagger')],
             description: 'orc official',
             hp: 200,
             blunt_damage: 60,
             sharp_damage: 100,
-            weapon: items.long_dagger(),
+            weapon: getItem('long_dagger'),
             coordination: 25,
             agility: 12,
             blunt_armor: 10,
@@ -3034,7 +3090,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 30000,
             blunt_damage: 10,
             sharp_damage: 0,
-            weapon: items.fist(),
+            weapon: getItem('fist'),
             description: 'evasive Biadon',
             coordination: 1,
             agility: 32000,
@@ -3072,7 +3128,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 860,
             blunt_damage: 174,
             sharp_damage: 5,
-            weapon: items.uprooted_tree(),
+            weapon: getItem('club', { name: 'uprooted_tree' }),
             items: [],
             description: 'towering cyclops',
             coordination: 9,
@@ -3096,7 +3152,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 1300,
             blunt_damage: 40,
             sharp_damage: 166,
-            weapon: items.sharp_claw(),
+            weapon: getItem('claws', { name: "sharp claws" }),
             items: [],
             description: 'fire-breathing dragon',
             coordination: 5,
@@ -3137,7 +3193,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 100,
             blunt_damage: 15,
             sharp_damage: 6,
-            weapon: items.poison_stinger(),
+            weapon: getItem('spear', { name: 'poison_stinger' }),
             description: 'scorpion',
             coordination: 5,
             agility: -1,
@@ -3153,7 +3209,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 100,
             blunt_damage: 6,
             sharp_damage: 15,
-            weapon: items.horns(),
+            weapon: getItem('horns'),
             description: 'mutant hedgehog',
             coordination: 0,
             agility: 18,
@@ -3173,7 +3229,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 350,
             blunt_damage: 60,
             sharp_damage: 6,
-            weapon: items.massive_paws(),
+            weapon: getItem('fist', { name: 'massive_paws' }),
             description: 'grizzly bear',
             coordination: 15,
             agility: 1,
@@ -3191,7 +3247,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 250,
             blunt_damage: 42,
             sharp_damage: 5,
-            weapon: items.heavy_paws(),
+            weapon: getItem('fist', { name: 'heavy_paws' }),
             description: 'striped bear',
             coordination: 15,
             agility: 10,
@@ -3212,7 +3268,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 400,
             blunt_damage: 40,
             sharp_damage: 30,
-            weapon: items.claws({ name: 'sharp claws' }),
+            weapon: getItem('claws', { name: 'sharp claws' }),
             description: 'ferocious tiger',
             coordination: 25,
             agility: 18,
@@ -3232,7 +3288,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 80,
             blunt_damage: 12,
             sharp_damage: 35,
-            weapon: items.teeth(),
+            weapon: getItem('teeth'),
             description: 'wolf',
             coordination: 15,
             agility: 11,
@@ -3252,7 +3308,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 60,
             blunt_damage: 12,
             sharp_damage: 45,
-            weapon: items.teeth(),
+            weapon: getItem('teeth'),
             description: 'rabid wolf',
             coordination: 5,
             agility: 0,
@@ -3275,7 +3331,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             agility: 8,
             blunt_damage: 19,
             sharp_damage: 16,
-            weapon: items.talons(),
+            weapon: getItem('claws', { name: 'talons' }),
             ...args
         });
     },
@@ -3283,6 +3339,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     grogren(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'grogren',
+            pronouns: pronouns.male,
             ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.biadon) {
@@ -3297,6 +3354,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     mythins_employee(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: "mythin's employee",
+            pronouns: pronouns.male,
             aliases: ['employee'],
             ...args
         }).dialog(async function (player: Character) {
@@ -3308,7 +3366,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print("To fool the guards, in town we ONLY refer to Mythin as a \"forester\"");
         });
     },
-
 }
 
-export { A2dCharacter, characters, actions };
+function getCharacter(charName: string, args?: A2dCharacterParams): A2dCharacter {
+    const char = characters[charName](args);
+    char.key = charName;
+    return char
+}
+
+export { A2dCharacter, A2dCharacterParams, getCharacter, actions };

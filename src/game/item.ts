@@ -2,7 +2,30 @@ import { GameState } from "./game.ts";
 import { Character } from "./character.ts";
 import { plural } from "./utils.ts";
 
+type ItemParams = {
+    name: string;
+    description?: string;
+    value?: number;
+    size?: number;
+    quantity?: number;
+    weapon_stats?: {
+        blunt_damage?: number,
+        sharp_damage?: number,
+        magic_damage?: number,
+        weapon_type: string,
+        strength_required?: number,
+    }
+    armor_stats?: any;
+    drink?: (character: Character) => void;
+    eat?: (character: Character) => void;
+    use?: (character: Character) => void;
+    read?: (character?: Character) => void;
+    acquire?: (character: Character) => void;
+    fungible?: boolean;
+    immovable?: boolean;
+}
 class Item {
+    key: string = '';
     name: string;
     description: string;
     value: number = 0;
@@ -16,11 +39,11 @@ class Item {
         strength_required?: number,
     } | undefined;
     armor_stats: any;
-    drink: ((character: Character) => void) | undefined = undefined;
-    eat: ((character: Character) => void) | undefined = undefined;
-    use: ((character: Character) => void) | undefined = undefined;
-    read: ((character?: Character) => void) | undefined = undefined;
-    acquire: ((character: Character) => void) | undefined = undefined;
+    _drink: ((this: Item, character: Character) => void) | undefined = undefined;
+    _eat: ((character: Character) => void) | undefined = undefined;
+    _use: ((character: Character) => void) | undefined = undefined;
+    _read: ((character?: Character) => void) | undefined = undefined;
+    _acquire: ((this: Item, character: Character) => void) | undefined = undefined;
     fungible: boolean = true;
     immovable: boolean = false;
     _actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
@@ -33,35 +56,11 @@ class Item {
         quantity = 1,
         weapon_stats: weapon_stats,
         armor_stats,
-        drink,
-        eat,
-        use,
-        read,
-        acquire,
         fungible = true,
         immovable = false,
-    }: {
-        name: string;
-        description?: string;
-        value?: number;
-        size?: number;
-        quantity?: number;
-        weapon_stats?: {
-            blunt_damage?: number,
-            sharp_damage?: number,
-            magic_damage?: number,
-            weapon_type: string,
-            strength_required?: number,
-        };
-        armor_stats?: any;
-        drink?: (character: Character) => void;
-        eat?: (character: Character) => void;
-        use?: (character: Character) => void;
-        read?: (character?: Character) => void;
-        acquire?: (character: Character) => void;
-        fungible?: boolean;
-        immovable?: boolean;
-    }) {
+        eat,
+        drink,
+    }: ItemParams) {
         this.name = name;
         this.description = description;
         this.value = value;
@@ -69,21 +68,64 @@ class Item {
         this.quantity = Math.floor(quantity);
         this.weapon_stats = weapon_stats;
         this.armor_stats = armor_stats;
-        if (drink) this.drink = drink;
-        if (eat) this.eat = eat;
-        if (use) this.use = use;
-        if (read) this.read = read;
-        if (acquire) this.acquire = acquire;
         this.fungible = fungible;
         this.immovable = immovable;
+        this._eat = eat;
+        this._drink = drink;
     }
 
     addAction(name: string, action: (this: Item, ...args: any[]) => Promise<void>) {
         this._actions.set(name, action.bind(this));
         return this;
     }
+
     getAction(name: string) {
         return this._actions.get(name);
+    }
+
+    on_drink(action: (this: Item, character: Character) => void) {
+        this._drink = action.bind(this);
+        return this;
+    }
+
+    on_eat(action: (character: Character) => void) {
+        this._eat = action.bind(this);
+        return this;
+    }
+
+    on_use(action: (character: Character) => void) {
+        this._use = action.bind(this);
+        return this;
+    }
+
+    on_read(action: (character?: Character) => void) {
+        this._read = action.bind(this);
+        return this;
+    }
+
+    on_acquire(action: (this: Item, character: Character) => void) {
+        this._acquire = action.bind(this);
+        return this;
+    }
+
+    get drink() {
+        return this._drink;
+    }
+
+    get eat() {
+        return this._eat;
+    }
+
+    get use() {
+        return this._use;
+    }
+
+    get read() {
+        return this._read;
+    }
+
+    get acquire() {
+        return this._acquire;
     }
 
     get is_weapon() {
@@ -105,10 +147,17 @@ class Item {
         return this.read !== undefined;
     }
     get display() {
-        if (this.quantity > 1) {
+        if (this.quantity !== 1) {
             return `${this.quantity} ${plural(this.name)}`;
         }
         return this.name;
+    }
+    save() {
+        return {
+            key: this.key,
+            name: this.name,
+            quantity: this.quantity,
+        }
     }
 }
 
@@ -220,4 +269,4 @@ class Container {
     }
 }
 
-export { Item, Container };
+export { Item, Container, ItemParams };
