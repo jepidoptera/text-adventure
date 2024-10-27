@@ -1,5 +1,5 @@
 import { GameState } from "./game.ts";
-import { Character } from "./character.ts";
+import { Character, DamageTypes, Buff, BonusKeys } from "./character.ts";
 import { plural } from "./utils.ts";
 
 type ItemParams = {
@@ -12,21 +12,40 @@ type ItemParams = {
         blunt_damage?: number,
         sharp_damage?: number,
         magic_damage?: number,
-        weapon_type: string,
+        type: WeaponTypes,
         strength_required?: number,
+        damage_type?: DamageTypes
     }
-    armor_stats?: any;
-    drink?: (character: Character) => void;
-    eat?: (character: Character) => void;
-    use?: (character: Character) => void;
-    read?: (character?: Character) => void;
-    acquire?: (character: Character) => void;
+    equipment_slot?: string;
+    forSale?: boolean;
+    drink?: (character: Character) => Promise<void>;
+    eat?: (character: Character) => Promise<void>;
+    use?: (character: Character) => Promise<void>;
+    read?: (character?: Character) => Promise<void>;
+    acquire?: (character: Character) => Promise<void>;
     fungible?: boolean;
     immovable?: boolean;
 }
+type WeaponTypes = 'club' | 'axe' | 'spear' | 'sword' | 'fire' | 'bow' | 'magic' | 'electric' | 'blades' | 'sonic' | 'teeth'
+
+const weapon_conversions: { [key in WeaponTypes]: DamageTypes } = {
+    'club': 'blunt',
+    'axe': 'sharp',
+    'spear': 'sharp',
+    'sword': 'sharp',
+    'fire': 'fire',
+    'bow': 'sharp',
+    'magic': 'magic',
+    'electric': 'electric',
+    'blades': 'sharp',
+    'sonic': 'sharp',
+    'teeth': 'sharp'
+}
+
 class Item {
     key: string = '';
     name: string;
+    display_name: string = '';
     description: string;
     value: number = 0;
     size: number = 1;
@@ -35,18 +54,19 @@ class Item {
         blunt_damage?: number,
         sharp_damage?: number,
         magic_damage?: number,
-        weapon_type: string,
+        type: WeaponTypes,
+        damage_type?: DamageTypes,
         strength_required?: number,
     } | undefined;
-    armor_stats: any;
-    _drink: ((this: Item, character: Character) => void) | undefined = undefined;
-    _eat: ((character: Character) => void) | undefined = undefined;
-    _use: ((character: Character) => void) | undefined = undefined;
-    _read: ((character?: Character) => void) | undefined = undefined;
-    _acquire: ((this: Item, character: Character) => void) | undefined = undefined;
-    fungible: boolean = true;
-    immovable: boolean = false;
-    _actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
+    equipment_slot?: string;
+    _buff?: Buff;
+    private _drink: ((this: Item, character: Character) => Promise<void>) | undefined = undefined;
+    private _eat: ((character: Character) => Promise<void>) | undefined = undefined;
+    private _use: ((character: Character) => Promise<void>) | undefined = undefined;
+    private _read: ((character?: Character) => Promise<void>) | undefined = undefined;
+    private _acquire: ((this: Item, character: Character) => Promise<void>) | undefined = undefined;
+    private _displayName: ((this: Item) => string) | undefined = undefined;
+    private _actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
 
     constructor({
         name,
@@ -54,10 +74,8 @@ class Item {
         value = 0,
         size = 1,
         quantity = 1,
-        weapon_stats: weapon_stats,
-        armor_stats,
-        fungible = true,
-        immovable = false,
+        weapon_stats,
+        equipment_slot,
         eat,
         drink,
     }: ItemParams) {
@@ -67,9 +85,10 @@ class Item {
         this.size = size;
         this.quantity = Math.floor(quantity);
         this.weapon_stats = weapon_stats;
-        this.armor_stats = armor_stats;
-        this.fungible = fungible;
-        this.immovable = immovable;
+        this.equipment_slot = equipment_slot;
+        if (this.weapon_stats && !this.weapon_stats.damage_type) {
+            this.weapon_stats.damage_type = weapon_conversions[this.weapon_stats.type] ?? 'blunt';
+        }
         this._eat = eat;
         this._drink = drink;
     }
@@ -83,56 +102,72 @@ class Item {
         return this._actions.get(name);
     }
 
-    on_drink(action: (this: Item, character: Character) => void) {
+    on_drink(action: (this: Item, character: Character) => Promise<void>) {
         this._drink = action.bind(this);
         return this;
     }
 
-    on_eat(action: (character: Character) => void) {
+    on_eat(action: (character: Character) => Promise<void>) {
         this._eat = action.bind(this);
         return this;
     }
 
-    on_use(action: (character: Character) => void) {
+    on_use(action: (character: Character) => Promise<void>) {
         this._use = action.bind(this);
         return this;
     }
 
-    on_read(action: (character?: Character) => void) {
+    on_read(action: (character?: Character) => Promise<void>) {
         this._read = action.bind(this);
         return this;
     }
 
-    on_acquire(action: (this: Item, character: Character) => void) {
+    on_acquire(action: (this: Item, character: Character) => Promise<void>) {
         this._acquire = action.bind(this);
+        return this;
+    }
+
+    addBuff(buff: Buff | { [key in BonusKeys]?: number }) {
+        if (buff instanceof Buff) {
+            this._buff = buff;
+        } else {
+            this._buff = new Buff({
+                duration: -1,
+                power: 1,
+                name: this.name,
+                bonuses: buff,
+            });
+        }
+        return this;
+    }
+
+    buff(key: BonusKeys) {
+        return this._buff?.bonuses[key] ?? 0;
+    }
+
+    displayName(action: (this: Item) => string) {
+        this._displayName = action.bind(this);
         return this;
     }
 
     get drink() {
         return this._drink;
     }
-
     get eat() {
         return this._eat;
     }
-
     get use() {
         return this._use;
     }
-
     get read() {
         return this._read;
     }
-
     get acquire() {
         return this._acquire;
     }
 
     get is_weapon() {
         return this.weapon_stats !== undefined;
-    }
-    get is_armor() {
-        return this.armor_stats !== undefined;
     }
     get drinkable() {
         return this.drink !== undefined;
@@ -147,10 +182,15 @@ class Item {
         return this.read !== undefined;
     }
     get display() {
-        if (this.quantity !== 1) {
+        if (this._displayName) {
+            return this._displayName();
+        } else if (this.quantity !== 1) {
             return `${this.quantity} ${plural(this.name)}`;
         }
         return this.name;
+    }
+    copy() {
+        return Object.assign(new Item({ ...this }), this);
     }
     save() {
         return {
@@ -175,65 +215,49 @@ class Container {
     }
 
     add(item: Item, quantity: number = item.quantity): void {
-        if (item.fungible) {
-            const existingItem = this.item(item.name);
-            if (existingItem) {
-                existingItem.quantity += quantity;
-            } else {
-                item.quantity = quantity;
-                this.items.push(item);
-            }
+        const existingItem = this.item(item.name);
+        if (existingItem) {
+            existingItem.quantity += quantity;
         } else {
+            item.quantity = quantity;
             this.items.push(item);
-            for (let i = 1; i < quantity; i++) {
-                const new_item = new Item(item);
-                this.items.push(new_item);
-            }
         }
     }
 
-    remove(itemToRemove: Item | string, quantity?: number): void {
-        const itemName = typeof itemToRemove === 'string' ? itemToRemove : itemToRemove.name;
+    remove(itemToRemove: Item | string, quantity: number = 0): void {
+        let itemName: string;
+        if (typeof itemToRemove === 'string') {
+            itemName = itemToRemove
+            quantity = quantity > 0 ? quantity : 1;
+        } else {
+            itemName = itemToRemove.name;
+            quantity = quantity > 0 ? quantity : itemToRemove.quantity;
+        }
         const item = this.item(itemName);
 
         if (!item) return;
 
-        console.log(`drop quantity: ${quantity}`)
         const removeQuantity = quantity ?? Math.min(item.quantity, this.count(itemName));
-        console.log(`dropping ${removeQuantity} ${itemName} from ${this.constructor.name}`);
 
-        if (item.fungible) {
-            if (item.quantity > removeQuantity) {
-                item.quantity -= removeQuantity;
-                console.log(`${item.quantity} left.`)
-            } else {
-                this.items = this.items.filter(i => i.name !== itemName);
-            }
+        if (item.quantity > removeQuantity) {
+            item.quantity -= removeQuantity;
+            console.log(`removing ${removeQuantity} ${itemName}. ${item.quantity} left.`)
         } else {
-            this.items = this.items.filter((i, index) =>
-                i.name !== itemName || index >= this.items.findIndex(item => item.name === itemName) + removeQuantity
-            );
+            this.items = this.items.filter(i => i.name !== itemName);
         }
     }
 
-    transfer(itemToTransfer: string | Item, container: Container, quantity: number = 1) {
-        const itemName = typeof itemToTransfer === 'string' ? itemToTransfer : itemToTransfer.name;
+    transfer(itemToTransfer: string | Item, container: Container, quantity?: number) {
+        const itemName = typeof itemToTransfer == 'string' ? itemToTransfer : itemToTransfer.name;
+        if (quantity === undefined) {
+            quantity = this.count(itemName);
+        }
         const item = this.item(itemName);
 
         if (item) {
             const transferQuantity = quantity === 0 ? item.quantity : Math.min(quantity, item.quantity);
-
-            if (item.fungible) {
-                // For fungible items, we can just transfer the quantity
-                this.remove(item, transferQuantity);
-                container.add(new Item({ ...item, quantity: transferQuantity }));
-            } else {
-                // For non-fungible items, we transfer individual items
-                for (let i = 0; i < transferQuantity; i++) {
-                    this.remove(item, 1);
-                    container.add(new Item({ ...item, quantity: 1 }));
-                }
-            }
+            this.remove(item, transferQuantity);
+            container.add(Object.assign(item.copy(), { quantity: transferQuantity }));
         }
     }
 
@@ -269,4 +293,4 @@ class Container {
     }
 }
 
-export { Item, Container, ItemParams };
+export { Item, Container, ItemParams, WeaponTypes, weapon_conversions };
