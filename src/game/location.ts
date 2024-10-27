@@ -1,15 +1,14 @@
 import { Container, Item } from "./item.ts";
 import { Character } from "./character.ts";
 
-type Action = (...args: any[]) => Promise<void>;
-
 class Landmark {
     name: string;
+    key?: string;
     description: string;
     location?: Location;
     contents: Container;
     text?: string;
-    _actions: Map<string, Action> = new Map();
+    _actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
     constructor({
         name, description, text, items = []
     }: {
@@ -27,7 +26,9 @@ class Landmark {
     save() {
         return {
             name: this.name,
-            items: this.contents.items.map(item => item.save())
+            key: this.key,
+            items: this.contents.items.map(item => item.save()),
+            text: this.text
         }
     }
 }
@@ -35,8 +36,9 @@ class Landmark {
 class Location extends Container {
     unique_id!: string | number;
     name: string;
+    key!: string | number;
     adjacent: Map<string, Location> | undefined;
-    _adjacent: { [key: string]: string | number } = {};
+    adjacent_ids: { [key: string]: string | number } = {};
     description: string | undefined;
     characters: Set<Character> = new Set();
     landmarks: Landmark[] = [];
@@ -58,7 +60,7 @@ class Location extends Container {
         super(items);
         this.name = name;
         this.description = description;
-        this._adjacent = adjacent;
+        this.adjacent_ids = adjacent;
         for (let character of characters) {
             this.addCharacter(character);
         };
@@ -77,7 +79,9 @@ class Location extends Container {
         return this;
     }
     addLandmark(Landmark: Landmark) {
-        Landmark._actions.forEach(action => (this.actions.set(action.name, action)));
+        Landmark._actions.forEach((action, name) => {
+            this.actions.set(name, action)
+        });
         this.landmarks.push(Landmark);
         return this;
     }
@@ -102,6 +106,23 @@ class Location extends Container {
     }
     get playerPresent(): boolean {
         return [...this.characters].some(character => character.isPlayer);
+    }
+    save() {
+        return {
+            name: this.name,
+            characters: [...this.characters].map(char => (
+                char.save()
+            )),
+            landmarks: this.landmarks.map(landmark => (
+                landmark.save()
+            )),
+            items: this.items.map(item => ({
+                key: item.key,
+                name: item.name,
+                quantity: item.quantity
+            })),
+            adjacent: this.adjacent_ids,
+        }
     }
 }
 
