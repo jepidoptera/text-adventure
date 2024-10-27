@@ -1,0 +1,21 @@
+todo:
+
+X save/load
+X character-specific actions
+X respawn timeouts
+X locate characters on map
+X characters of same alignment in same room automatically attack when their ally is attacked
+X weapons command
+X pawn items
+X more trainers
+X buy items
+X fix gold piles (_displayName function for items)
+/ spells
+
+context switching to support multiple games at once
+robust gameState map on server
+list of existing character names, enforce uniqueness
+hunger
+use list of strings for enemies and friends (unique ID?)
+onTimer event
+pets
