@@ -3,6 +3,7 @@ function caps(str: string): string {
 }
 
 function plural(str: string): string {
+    if (str.includes('of')) return plural(str.split('of')[0].trim()) + ' of ' + str.split('of')[1].trim();
     let ans = str;
     let l1 = str.slice(-1);
     let l2 = str.slice(-2);
