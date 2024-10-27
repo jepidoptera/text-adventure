@@ -1,13 +1,14 @@
 import { Location } from '../../game/location.ts';
 import { Character, CharacterParams, pronouns } from '../../game/character.ts';
-import { Item } from '../../game/item.ts';
 import { Player } from './player.ts';
+import { Item, WeaponTypes } from '../../game/item.ts';
 import { plural, caps, randomChoice } from '../../game/utils.ts';
 import { getItem } from './items.ts';
 import { getLandmark } from './landmarks.ts';
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
 import { GameState } from '../../game/game.ts';
 import { A2D } from './game.ts';
+import { abilityLevels } from './spells.ts';
 
 interface A2dCharacterParams extends CharacterParams {
     spellChance?: ((this: A2dCharacter) => boolean) | undefined
@@ -22,14 +23,24 @@ class A2dCharacter extends Character {
     tripping: number = 0;
     drunk: number = 0;
     _action: string | undefined;
+    respawnTime: number = 500;
     declare game: A2D
 
     constructor({ spellChance, respawnTime, action, ...baseParams }: A2dCharacterParams) {
         super(baseParams)
-        if (!this.weapons['main']) this.weapons.main = getItem('fist')
+        // recover 100% of max hp per turn (when not in combat)
+        if (!baseParams.hp_recharge) this.hp_recharge = 1
+        if (!this.weaponName) {
+            this.weaponName = 'fists';
+            this.weaponType = 'club';
+            this.damageType = 'blunt';
+        }
         this._spellChance = spellChance?.bind(this)
         this.respawnTime = respawnTime || this.respawnTime
-        if (action == "wander") this.onTurn(actions[action])
+        if (action == "wander") {
+            console.log(`${this.name} is wandering`)
+            this.onTurn(actions.wander)
+        }
         if (caps(this.alignment) == 'Ierdale') {
             this.onEncounter(
                 async function (character: Character) {
@@ -60,24 +71,24 @@ class A2dCharacter extends Character {
     async die(cause?: any) {
         await super.die(cause);
         // go to limbo
-        await this.relocate(this.game.locations.get(0))
+        await this.relocate(this.game.find_location('limbo'));
         this.respawnCountdown = this.respawnTime;
         console.log(`${this.name} respawning in ${this.respawnCountdown} seconds from ${this.location?.name}`);
     }
 
-    async encounter(character: Character) {
-        this._onEncounter?.(character);
-        if (this.enemies.includes(character) || this.attackPlayer && character.isPlayer) {
-            if (character.isPlayer) {
+    fight(character: Character | null) {
+        if (character) {
+            if (this.attackTarget === character) return;
+            if (character.isPlayer && character.attackTarget !== this) {
                 color(red)
                 print(this.name, 1)
                 color(black)
                 print(` takes the initiative to attack you!`);
-            } else if (this.location?.playerPresent) {
+            } else if (!character.isPlayer && this.location?.playerPresent && !this.isPlayer) {
                 print(`${this.name} attacks ${character.name}!`);
             }
-            this.attackTarget = character;
         }
+        super.fight(character);
     }
 
     async go(direction: string): Promise<boolean> {
@@ -106,7 +117,7 @@ class A2dCharacter extends Character {
         }
     }
 
-    get toHit() {
+    get evasion() {
         let toHit = this.agility * Math.random();
         if (this.drunk) toHit = toHit * (1 - this.drunk / (this.max_sp / 2 + 50))
         return toHit
@@ -157,64 +168,72 @@ class A2dCharacter extends Character {
         return this._spellChance?.() || true
     }
 
-    async describeAttack(target: Character, weapon: Item = this.weapons['main'], damage: number) {
-        console.log(`attacking ${target.name} with ${weapon.name}: ${damage} damage`)
+    describeAttack(
+        target: Character,
+        weaponName: string,
+        weaponType: WeaponTypes,
+        damage: number,
+        call_attack: boolean = true
+    ): string {
+        console.log(`${this.name} attacking ${target.name} with ${weaponName} (${weaponType}): ${damage} damage`)
         const DT = (damage / target.max_hp) * 100
-        const enemyName = target.isPlayer ? 'you' : target.name
+        const targetName = target.isPlayer ? 'you' : target.name
+        const attackerName = this.isPlayer ? 'you' : this.name
         const s = ['you', 'they'].includes(this.pronouns.subject) ? (str: string) => str : plural
         const t_s = ['you', 'they'].includes(target.pronouns.subject) ? (str: string) => str : plural
         const t_be = ['you', 'they'].includes(target.pronouns.subject) ? 'are' : 'is'
 
-        if (DT === 0) {
-            if (this.location?.playerPresent) {
-                color(gray)
-                print(`${this.pronouns.subject} ${s('miss')} ${target.pronouns.object} with ${weapon.name}!`)
-                return
-            }
+        let does = ''
+        let callAttack = ''
+        if (DT < 0) {
+            does = `${this.pronouns.subject} ${s('miss')} ${target.pronouns.object} with ${weaponName}!`
+        } else {
+            does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weaponName}, doing little to no damage.`
         }
 
-        let does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weapon.name}, doing little to no damage.`;
-        let weaponType = weapon.weapon_stats?.weapon_type
         if (weaponType === 'sword') weaponType = Math.random() > 0.5 ? 'spear' : 'axe'
         switch (weaponType) {
             case ("club"):
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('knock')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('whack')} ${target.pronouns.object} with ${weapon.name}, making a jagged cut.` };
-                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, knocking ${target.pronouns.object} backwards.` };
-                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('smash')} ${target.pronouns.object} with ${weapon.name}, and you hear a bone break.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weapon.name}, damaging organs.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('pulverise')} ${target.pronouns.object} with ${weapon.name}, splintering bones.` };
-                if (DT >= 500) { does = `${caps(this.pronouns.subject)} ${s('send')} ${target.pronouns.object} FLYING backwards with ${weapon.name}, and severed body parts fly in all directions!` };
+                if (DT >= 0) { does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weaponName}, doing little to no damage.` };
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('knock')} ${target.pronouns.object} with ${weaponName}, inflicting a minor wound.` };
+                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('whack')} ${target.pronouns.object} with ${weaponName}, making a jagged cut.` };
+                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weaponName}, knocking ${target.pronouns.object} backwards.` };
+                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('smash')} ${target.pronouns.object} with ${weaponName}, and you hear a bone break.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weaponName}, damaging organs.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('pulverise')} ${target.pronouns.object} with ${weaponName}, splintering bones.` };
+                if (DT >= 500) { does = `${caps(this.pronouns.subject)} ${s('send')} ${target.pronouns.object} FLYING backwards with ${weaponName}, and severed body parts fly in all directions!` };
                 break;
             case ("axe"):
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('scratch')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, making a deep gash.` };
-                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('slash')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
-                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('hack')} ${target.pronouns.object} with ${weapon.name}, and you hear a bone break.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('lacerate')} ${target.pronouns.object} with ${weapon.name}, inflicting a mortal wound.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('hew')} ${target.pronouns.object} with ${weapon.name}, severing limbs.` };
-                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('cleave')} ${target.pronouns.object} with ${weapon.name}, slicing ${target.pronouns.object} in half.` };
+                if (DT >= 0) { does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weaponName}, doing little to no damage.` };
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('scratch')} ${target.pronouns.object} with ${weaponName}, inflicting a minor wound.` };
+                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weaponName}, making a deep gash.` };
+                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('slash')} ${target.pronouns.object} with ${weaponName}, inflicting a major wound.` };
+                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('hack')} ${target.pronouns.object} with ${weaponName}, and you hear a bone break.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('lacerate')} ${target.pronouns.object} with ${weaponName}, inflicting a mortal wound.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('hew')} ${target.pronouns.object} with ${weaponName}, severing limbs.` };
+                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('cleave')} ${target.pronouns.object} with ${weaponName}, slicing ${target.pronouns.object} in half.` };
                 break;
             case ("spear"):
-                if (DT >= 8) { does = `${caps(this.pronouns.subject)} ${s('nick')} ${target.pronouns.object} with ${weapon.name}, drawing blood.` };
-                if (DT >= 17) { does = `${caps(this.pronouns.subject)} ${s('jab')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
-                if (DT >= 35) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
-                if (DT >= 55) { does = `${caps(this.pronouns.subject)} ${s('stab')} ${target.pronouns.object} with ${weapon.name}, damaging organs.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('impale')} ${target.pronouns.object} with ${weapon.name}, making vital fluids gush.` };
-                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('eviscerate')} ${target.pronouns.object} with ${weapon.name}, and blood splatters everywhere.` };
+                if (DT >= 0) { does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weaponName}, doing little to no damage.` };
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('nick')} ${target.pronouns.object} with ${weaponName}, drawing blood.` };
+                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('jab')} ${target.pronouns.object} with ${weaponName}, inflicting a minor wound.` };
+                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weaponName}, inflicting a major wound.` };
+                if (DT >= 50) { does = `${caps(this.pronouns.subject)} ${s('stab')} ${target.pronouns.object} with ${weaponName}, damaging organs.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('impale')} ${target.pronouns.object} with ${weaponName}, making vital fluids gush.` };
+                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('eviscerate')} ${target.pronouns.object} with ${weaponName}, and blood splatters everywhere.` };
                 break;
-            case ("burn"):
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weapon.name}, singeing ${target.pronouns.possessive} hair.` };
-                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('scorch')} ${target.pronouns.object} with ${weapon.name}, inflicting first-degree burns.` };
-                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('scald')} ${target.pronouns.object} with ${weapon.name}, inflicting second-degree burns.` };
-                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weapon.name}, instantly blistering skin.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('roast')} ${target.pronouns.object} with ${weapon.name}, making charred flesh sizzle.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('torch')} ${target.pronouns.object} with ${weapon.name}, boiling the blood inside ${target.pronouns.possessive} veins.` };
-                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('incinerate')} ${target.pronouns.object} with ${weapon.name}, setting fire to ${target.pronouns.possessive} skeleton.` };
-                if (DT >= 500) { does = `${caps(this.pronouns.subject)} ${s('cremate')} ${target.pronouns.object} with ${weapon.name}, burning ${target.pronouns.object} to ash.` };
+            case ("fire"):
+                if (DT >= 0) does = `${caps(this.pronouns.subject)} ${weaponName} flickers against ${target.pronouns.object} without leaving a mark.`;
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('singe')} ${target.pronouns.object} with ${weaponName}, hurting ${target.pronouns.object} slightly.` };
+                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('scorch')} ${target.pronouns.object} with ${weaponName}, inflicting first-degree burns.` };
+                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('scald')} ${target.pronouns.object} with ${weaponName}, inflicting second-degree burns.` };
+                if (DT >= 50) { does = `${caps(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weaponName}, instantly blistering skin.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('roast')} ${target.pronouns.object} with ${weaponName}, making charred flesh sizzle.` };
+                if (DT >= 220) { does = `${caps(target.pronouns.subject)} ${t_be} blasted off ${target.pronouns.possessive} feet and ${t_s('land')} in a smoking heap.` };
+                if (DT >= 500) { does = `${caps(target.pronouns.possessive)} family is saved the cost of cremation, as ${target.pronouns.possessive} ashes scatter to the wind.` };
                 break;
-            case ("arrow"):
-                does = `${target.name} barely ${t_s('notices')} ${this.pronouns.possessive} arrow striking ${target.pronouns.object}.`;
+            case ("bow"):
+                if (DT >= 0) does = `${target.name} barely ${t_s('notices')} ${this.pronouns.possessive} arrow striking ${target.pronouns.object}.`;
                 if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${s('take')} minimal damage.` };
                 if (DT >= 12) { does = `${caps(target.pronouns.subject)} ${t_be} minorly wounded.` };
                 if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${s('sustain')} a major injury.` };
@@ -223,66 +242,77 @@ class A2dCharacter extends Character {
                 if (DT >= 400) { does = `${caps(target.pronouns.subject)} ${t_be} ripped messily in half.` };
                 if (DT >= 1000) { does = `Tiny pieces of ${caps(target.pronouns.subject)} fly in all directions.` };
                 if (DT >= 2500) { does = `${caps(target.pronouns.subject)} ${t_be} VAPORIZED.` };
+                if (call_attack) callAttack = `${caps(attackerName)} ${s('shoot')} an arrow at ${targetName}!`;
                 break;
             case ("magic"):
-                does = `${caps(target.pronouns.subject)} ${s('wince')} slightly, perhaps at ${this.pronouns.possessive} incompetence.`;
+                if (DT >= 0) does = `${caps(target.pronouns.subject)} ${t_s('wince')} slightly, perhaps at ${this.pronouns.possessive} incompetence.`;
+                if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${t_s('flinch')}, but doesn't slow down.` };
                 if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_be} knocked back a step.` };
-                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${s('stagger')} under the force.` };
-                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${s('reel')} backwards, almost knocked off ${target.pronouns.possessive} feet.` };
+                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${t_s('stagger')} under the force.` };
+                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${t_s('reel')} backwards, almost knocked off ${target.pronouns.possessive} feet.` };
                 if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} snuffed out like a candle.` };
+                if (DT >= 220) { does = `${caps(target.pronouns.subject)} blows away like a dendelion puff in a hurricane.` };
                 if (DT >= 500) { does = `${caps(target.pronouns.subject)} ${t_be} swept off ${target.pronouns.possessive} feet and out of the time/space continuum!` };
+                if (call_attack) callAttack = `${caps(attackerName)} ${s('attack')} ${targetName} with ${weaponName}!`
                 break;
             case ("electric"):
-                does = `${caps(target.pronouns.subject)} ${t_s('twitch')} irritably as the bolt strikes.`;
+                if (DT >= 0) does = `${caps(target.pronouns.subject)} barely ${t_s('notice')}.`;
+                if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${t_s('twitch')} irritably.` };
                 if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_be} struck with a sizzle.` };
-                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${t_be} badly zapped.` };
-                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${t_s('howl')}, and ${t_be} rendered briefly transparent.` };
+                if (DT >= 20) { does = `${caps(target.pronouns.subject)} ${t_be} badly zapped.` };
+                if (DT >= 35) { does = `${caps(target.pronouns.subject)} ${t_s('stagger')}, sparking and spasming.` };
+                if (DT >= 60) { does = `${caps(target.pronouns.subject)} ${t_s('howl')}, and ${t_be} rendered briefly transparent.` };
                 if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_s('fall')}, smoking, to the ground and ${t_s('twitch')} a couple of times.` };
-                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weapon.name}, and electrical flames shoot from ${target.pronouns.possessive} blistered\neye sockets.` };
+                if (DT >= 220) { does = `${caps(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weaponName}, and electrical flames shoot from ${target.pronouns.possessive} blistered\neye sockets.` };
                 if (DT >= 500) { does = `${caps(target.pronouns.subject)} ${t_s('explode')} like a knot of pine sap.` };
-                break;
-            case ("fire"):
-                does = `${caps(target.pronouns.subject)} ${t_be} burned slightly.`;
-                if (DT >= 10) { does = `${caps(target.pronouns.subject)} stops, drops, and rolls.` };
-                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${t_be} scorched blisteringly.` };
-                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${t_be} very seriously torched.` };
-                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} blasted off ${target.pronouns.possessive} feet and ${t_s('land')} in a smoking heap.` };
-                if (DT >= 500) { does = `${caps(target.pronouns.possessive)} family is saved the cost of a cremation as ${target.pronouns.possessive} ashes scatter in a puff.` };
+                if (call_attack) callAttack = `${caps(attackerName)} ${s('attack')} ${targetName} with ${weaponName}!`
                 break;
             case ("blades"):
-                does = `${caps(target.pronouns.subject)} ${t_be} only scratched.`;
-                if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_s('suffer')} some nicks and cuts.` };
-                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${t_be} slashed rather badly.` };
-                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${t_s('scream')} as magical knives stab through ${target.pronouns.object}.` };
-                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} sliced to ribbons.` };
+                if (DT >= 0) does = `${caps(target.pronouns.subject)} ${t_be} only scratched.`;
+                if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${t_s('suffer')} some nicks and cuts.` };
+                if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_s('suffer')} some cuts and gashes.` };
+                if (DT >= 20) { does = `${caps(target.pronouns.subject)} ${t_be} slashed rather badly.` };
+                if (DT >= 35) { does = `${caps(target.pronouns.subject)} ${t_s('stagger')} backwards, bleeding copiously from multiple wounds.` };
+                if (DT >= 60) { does = `${caps(target.pronouns.subject)} ${t_s('scream')} as magical knives stab through ${target.pronouns.object}.` };
+                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_s('fall')}, streaming blood from numerous fatal wounds.` };
+                if (DT >= 220) { does = `${caps(target.pronouns.subject)} ${t_be} sliced to ribbons.` };
+                if (DT >= 500) { does = `${caps(target.pronouns.subject)} ${t_be} pureed into soup.` };
+                if (call_attack) callAttack = `${caps(attackerName)} ${s('attack')} ${targetName} with ${weaponName}!`
                 break;
             case ("sonic"):
-                if (DT >= 5) { does = `${caps(this.pronouns.possessive)} ${weapon.name} stings ${target.pronouns.object}, making ${target.pronouns.object} grit ${target.pronouns.possessive} teeth.` };
-                if (DT >= 10) { does = `${caps(this.pronouns.possessive)} ${weapon.name} stabs at ${target.pronouns.possessive} ears, and ${target.pronouns.subject} ${t_s('feel')} momentarily faint.` };
-                if (DT >= 20) { does = `${caps(this.pronouns.possessive)} ${weapon.name} hits ${target.pronouns.object} full in the face, making ${target.pronouns.possessive} ears ring.` };
-                if (DT >= 35) { does = `${caps(this.pronouns.possessive)} ${weapon.name} strikes ${target.pronouns.object} in the gut, sucking the breath from ${target.pronouns.possessive} lungs.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.possessive)} ${weapon.name} rolls through ${target.pronouns.object}, siezing in ${target.pronouns.possessive} chest, and blackness\ncreeps into the corners of ${target.pronouns.possessive} vision.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.possessive)} ${weapon.name} sweeps ${target.pronouns.possessive} feet from under ${target.pronouns.object}, etching cold lines of\nfrost over ${target.pronouns.possessive} stilled heart.` };
-                if (DT >= 200) { does = `${caps(this.pronouns.possessive)} ${weapon.name} pierces ${target.pronouns.object} like a sword, freezing the blood in ${target.pronouns.possessive} veins.` };
-                if (DT >= 500) { does = `${caps(this.pronouns.possessive)} ${weapon.name} whips through ${target.pronouns.possessive} body, and ${target.pronouns.possessive} frozen limbs shatter like\nfine crystal."   ` };
+                if (DT >= 5) { does = `${caps(this.pronouns.possessive)} ${weaponName} stings ${target.pronouns.object}, making ${target.pronouns.object} grit ${target.pronouns.possessive} teeth.` };
+                if (DT >= 10) { does = `${caps(this.pronouns.possessive)} ${weaponName} stabs at ${target.pronouns.possessive} ears, and ${target.pronouns.subject} ${t_s('feel')} momentarily faint.` };
+                if (DT >= 20) { does = `${caps(this.pronouns.possessive)} ${weaponName} hits ${target.pronouns.object} full in the face, making ${target.pronouns.possessive} ears ring.` };
+                if (DT >= 35) { does = `${caps(this.pronouns.possessive)} ${weaponName} strikes ${target.pronouns.object} in the gut, sucking the breath from ${target.pronouns.possessive} lungs.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.possessive)} ${weaponName} rolls through ${target.pronouns.object}, siezing in ${target.pronouns.possessive} chest, and blackness\ncreeps into the corners of ${target.pronouns.possessive} vision.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.possessive)} ${weaponName} sweeps ${target.pronouns.possessive} feet from under ${target.pronouns.object}, etching cold lines of\nfrost over ${target.pronouns.possessive} stilled heart.` };
+                if (DT >= 220) { does = `${caps(this.pronouns.possessive)} ${weaponName} pierces ${target.pronouns.object} like a sword, freezing the blood in ${target.pronouns.possessive} veins.` };
+                if (DT >= 500) { does = `${caps(this.pronouns.possessive)} ${weaponName} whips through ${target.pronouns.possessive} body, and ${target.pronouns.possessive} frozen limbs shatter like\nfine crystal."   ` };
                 break;
             case ("teeth"):
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('nip')} ${target.pronouns.object} with ${weapon.name}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('rake')} ${target.pronouns.object} with ${weapon.name}, leaving a trail of scratches.` };
-                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('bite')} ${target.pronouns.object} with ${weapon.name}, inflicting a major wound.` };
-                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('chomp')} ${target.pronouns.object} with ${weapon.name}, taking a chunk from ${target.pronouns.possessive} side.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('rip')} ${target.pronouns.object} with ${weapon.name}, making vital fluids gush.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('shred')} ${target.pronouns.object} with ${weapon.name}, severing limbs.` };
-                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weapon.name}, snapping ${target.pronouns.possessive} bones like matchsticks.` };
+                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('nip')} ${target.pronouns.object} with ${weaponName}, inflicting a minor wound.` };
+                if (DT >= 10) { does = `${caps(this.pronouns.subject)} ${s('rake')} ${target.pronouns.object} with ${weaponName}, leaving a trail of scratches.` };
+                if (DT >= 20) { does = `${caps(this.pronouns.subject)} ${s('bite')} ${target.pronouns.object} with ${weaponName}, inflicting a major wound.` };
+                if (DT >= 35) { does = `${caps(this.pronouns.subject)} ${s('chomp')} ${target.pronouns.object} with ${weaponName}, taking a chunk from ${target.pronouns.possessive} side.` };
+                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('rip')} ${target.pronouns.object} with ${weaponName}, making vital fluids gush.` };
+                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('shred')} ${target.pronouns.object} with ${weaponName}, severing limbs.` };
+                if (DT >= 220) { does = `${caps(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weaponName}, snapping ${target.pronouns.possessive} bones like dry twigs.` };
+                if (DT >= 500) { does = `${caps(this.pronouns.subject)} ${s('snap')} ${target.pronouns.object} up and ${s('pick')} the bones from ${this.pronouns.possessive} teeth.` };
                 break;
         }
-        if (this.location?.playerPresent) {
-            color(black)
-            if (!this.isPlayer && !target.isPlayer) {
-                print(`${this.name} attacks ${target.name} with ${weapon.name}!`)
-            }
-            print(does)
-        }
+        if (!this.isPlayer && !target.isPlayer && !callAttack) callAttack = `${caps(attackerName)} ${s('attack')} ${targetName} with ${weaponName}!`
+        // if (DT === 0) callAttack = ''
+        return callAttack ? `${callAttack}\n${does}` : does
+    }
+    async attack(target: Character | null = null, weapon: Item | null = null) {
+        color(black)
+        await super.attack(target, weapon);
+    }
+    save() {
+        const saveObj = Object.assign(super.save(), { key: this.key });
+        if (this._action) Object.assign(saveObj, { action: this._action });
+        Object.assign(saveObj, { attackPlayer: this.attackPlayer || this.enemies.includes(this.game.player) });
+        return saveObj;
     }
 }
 
@@ -295,7 +325,7 @@ const actions = {
     pish2: async function (character: Character) {
         // usage: character.onAttack(actions.pish2)
         if (character.isPlayer) print("I don't want to fight.");
-        character.attackTarget = undefined;
+        character.fight(null);
     },
     heal: async function (this: A2dCharacter) {
         if (this.spellChance) {
@@ -322,68 +352,118 @@ const actions = {
             print(`TODO: howl`);
         }
     },
-    train: async function (
-        { player, skillName, requirements, classDiscount, result }:
-            {
-                player: Character,
-                skillName: string,
-                requirements: { gold: number, xp: number, magic_level?: number },
-                classDiscount: { [key: string]: number },
-                result: (player: Character) => void
-            }
-    ) {
-        const discount = (classDiscount[player.class_name] ? (1 - classDiscount[player.class_name] / 100) : 1)
-        requirements.gold = Math.floor(requirements.gold * discount),
-            requirements.xp = Math.floor(requirements.xp * discount),
-            requirements.magic_level = requirements.magic_level || 0
-        if (player.isPlayer) {
-            print("It will require the following attributes:");
-            if (classDiscount[player.class_name]) {
-                print(`Because you are of the ${player.class_name} class, "${skillName}"`)
-                print(`will take ${classDiscount[player.class_name]}% less gold and experience.`);
-            }
-            print(`Exp: ${requirements.xp}`);
-            if (requirements.magic_level) print(`Magic Level: ${requirements.magic_level} or higher.`);
-            print(`Gold: ${requirements.gold}`);
+    train: function ({ skillName, requirements, classDiscount, result }:
+        {
+            skillName: string,
+            requirements: (player: Player) => { gold: number, xp: number, magic_level?: number, other?: boolean },
+            classDiscount: { [key: string]: number },
+            result: (player: Player) => void
         }
-        if (player.has('gold', requirements.gold) && player.experience >= requirements.xp && player.magic_level >= requirements.magic_level) {
-            player.inventory.remove('gold', requirements.gold);
-            player.experience -= requirements.xp;
+    ): (this: A2dCharacter, player: Player) => Promise<void> {
+        return async function (this: A2dCharacter, player: Player) {
+            color(black)
+
+            const discount = (classDiscount[player.class_name] ? (1 - classDiscount[player.class_name] / 100) : 1)
+            const reqs = Object.assign({ other: true }, requirements(player))
+
+            if (!reqs.other) {
+                print('You will not be able to train at this time.');
+                return;
+            }
+
+            reqs.gold = Math.floor(reqs.gold * discount)
+            reqs.xp = Math.floor(reqs.xp * discount)
+            reqs.magic_level = Math.floor(reqs.magic_level || 0)
+
             if (player.isPlayer) {
-                print("You begin your training...");
-                await pause(3);
-                print("You continue your training...");
-                await pause(3);
-                print("Your training is almost complete...");
-                await pause(2);
+                print("It will require the following attributes:");
+                if (classDiscount[player.class_name]) {
+                    print(`Because you are of the ${player.class_name} class, "${skillName}"`)
+                    print(`will take ${classDiscount[player.class_name]}% less gold and experience.`);
+                }
+                print(`Exp: ${reqs.xp}`);
+                if (reqs.magic_level) print(`Magic Level: ${reqs.magic_level} or higher.`);
+                print(`Gold: ${reqs.gold}`);
             }
-            result(player);
-            return;
-        }
-        if (player.isPlayer) {
-            if (player.experience < requirements.xp) {
-                print("You do not have enough experience.");
+
+            if (player.has('gold', reqs.gold) && player.experience >= reqs.xp && player.magic_level >= reqs.magic_level) {
+                if (!player.isPlayer || await (async () => { print("Procede with training? [y/n]"); return await getKey() == 'y' })()) {
+                    player.removeItem('gold', reqs.gold);
+                    player.experience -= reqs.xp;
+                    if (player.isPlayer) {
+                        print("You begin your training...");
+                        await pause(3);
+                        print();
+                        print("You continue your training...");
+                        await pause(3);
+                        print();
+                        print("Your training is almost complete...");
+                        await pause(2);
+                        print();
+                    }
+                    result(player);
+                    return;
+                }
             }
-            if (!player.has('gold', requirements.gold)) {
-                print("You do not have enough gold.");
+
+            if (player.isPlayer) {
+                if (player.experience < reqs.xp) {
+                    print("You do not have enough experience.");
+                }
+                if (!player.has('gold', reqs.gold)) {
+                    print("You do not have enough gold.");
+                }
+                if (player.magic_level < reqs.magic_level) {
+                    print("You are too low of a magic level.");
+                }
+                print("You will not be able to train at this time.");
+                print("Press any key.");
+                await getKey();
             }
-            if (player.magic_level < requirements.magic_level) {
-                print("You are too low of a magic level.");
-            }
-            print("You will not be able to train at this time.");
-            print("Press any key.");
-            await getKey();
         }
     },
+    buy: async function (this: A2dCharacter, character: Character, itemName: string) {
+        color(black)
+        const item = this.item(itemName);
+        if (!item) {
+            print("That is not for sale here.");
+            return;
+        } else if (item.value > character.itemCount('gold')) {
+            print("You don't have enough money.");
+            return;
+        } else {
+            character.giveItem(item.copy());
+            character.removeItem('gold', item.value);
+            print(`Bought ${item.name} for ${item.value} GP.`);
+
+            if (item.equipment_slot === 'armor') {
+                const player = character as Player
+                if (player.equipment.armor) {
+                    print("You remove your old armor...")
+                    await pause(1)
+                }
+                player.equip(item, 'armor')
+                print(`${item.name} equipped.`)
+            }
+        }
+    }
 }
 
-const characters: { [key: string]: (...args: any) => A2dCharacter } = {
+const characters = {
+    player(args: { [key: string]: any }) {
+        return new A2dCharacter({
+            name: 'player',
+            isPlayer: true,
+            ...args
+        });
+    },
     sick_old_cleric(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'A sick old cleric, lying in bed',
             aliases: ['cleric', 'old cleric', 'sick cleric', 'sick old cleric'],
             description: 'A sick old cleric, lying in bed',
             items: [getItem('clear_liquid'), getItem('blue_liquid'), getItem('red_liquid')],
+            ...args
         }).dialog(async function (player: Character) {
             print("A young fresh piece of meat... how nice.  I am leaving this world, I can feal")
             print("it.  Please, I have something to ask of you.  My father's father was alive in")
@@ -403,7 +483,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print("Good lu -----")
             this.location?.removeCharacter(this)
             this.location?.addLandmark(getLandmark('dead_cleric'))
-            this.inventory.transferAll(player.inventory)
+            this.transferAllItems(player)
         })
     },
 
@@ -438,7 +518,11 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 this.game.player.flags.enemy_of_ierdale = true;
             }
         }).onDeparture(async function (character, direction) {
-            if (direction == 'north' && character.isPlayer && character.flags.forest_pass) {
+            if (
+                this.location?.name.toLowerCase().includes('entrance')
+                && this.location?.character(this.name) === this
+                && direction == 'north' && character.isPlayer && character.flags.forest_pass) {
+
                 print("Cautiously you pull back your sleve to reveal your tatoo...")
                 await pause(3)
                 print("Yup you're fine, proceed.")
@@ -642,7 +726,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 if (player.isPlayer) print("Sorry sir, you are not aplicable.")
                 return;
             }
-            player.inventory.remove('gold', 30)
+            player.removeItem('gold', 30)
             if (player.isPlayer) {
                 print("The Page takes out a hot iron and sets it in the fire.")
                 print("One moment please!  *beams*")
@@ -678,6 +762,32 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
         }).dialog(async function (player: Character) {
             print("Welcome to my thop.  Here we buy and thell many an ithem.");
             print("Read my thign to learn more bucko.  Teehhehehehe.");
+        }).addAction('pawn', async function (player: Character, itemName: string) {
+            color(black)
+            const item = player.item(itemName)
+            if (!item) {
+                print("You don't have that.");
+                return;
+            }
+            if (!item.value) {
+                print("Hmm... nice piece of equipment there.")
+                print("Sorry, can't give ya money for it, I'll take it though.")
+            } else {
+                print(`Selling price: ${item.value}`);
+            }
+            print("How many?")
+            const quantity: number = Math.min(parseInt(await input()) || 0, player.itemCount(itemName));
+            const payment = item.value * quantity;
+            player.removeItem(itemName, quantity);
+            player.giveItem(getItem('gold', payment));
+            if (quantity > 0) {
+                print("Thanks, here's your money - HEHEHAHAHOHOHO!!")
+            }
+            if (quantity === 1) {
+                print(`----Pawned 1 ${itemName} for ${payment} GP.`)
+            } else {
+                print(`----Pawned ${quantity} ${plural(itemName)} for ${payment} GP.`)
+            }
         }).fightMove(actions.heal);
     },
 
@@ -685,7 +795,15 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
         return new A2dCharacter({
             name: 'armor merchant',
             pronouns: pronouns.male,
-            items: [getItem('gold', 100)],
+            items: [
+                getItem('leather_armor'),
+                getItem('studded_leather'),
+                getItem('light_chainmail'),
+                getItem('chain_mail'),
+                getItem('banded_mail'),
+                getItem('light_plate'),
+                getItem('full_plate'),
+            ],
             hp: 130,
             blunt_damage: 30,
             sharp_damage: 0,
@@ -694,12 +812,15 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             agility: 1,
             blunt_armor: 30,
             aliases: ['merchant'],
+            alignment: 'armor shop',
             spellChance: () => Math.random() < 1 / 3,
             ...args
         }).dialog(async function (player: Character) {
             print("May I aid in assisting you?  Read the sign.  It contains all of our products.");
             print("Also: I've heard thiers a ring somewhere in the caves off the meadow.");
         }).onDeath(async function () {
+            this.clearInventory();
+            this.giveItem(getItem('gold', 1418));
             color(red);
             print("armor merchant lets out a strangled cry as he dies.  The blacksmith is pissed.");
             const blacksmith = this.game.find_character('blacksmith')
@@ -708,7 +829,9 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 return
             }
             blacksmith.attackPlayer = true
-        }).fightMove(actions.heal);
+        }).fightMove(
+            actions.heal
+        ).addAction('buy', actions.buy);
     },
 
     blacksmith(args: { [key: string]: any }) {
@@ -716,31 +839,36 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             name: 'blacksmith',
             items: [getItem('gold', 50), getItem('battle_axe')],
             hp: 500,
-            blunt_damage: 100,
-            sharp_damage: 40,
+            blunt_damage: 40,
+            sharp_damage: 100,
             weapon: getItem('battle_axe'),
             coordination: 10,
             agility: 6,
             blunt_armor: 50,
+            sharp_armor: 50,
             description: 'blacksmith',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
+            alignment: 'armor shop',
             spellChance: () => Math.random() < 3 / 4,
             ...args
         }).dialog(async function (player: Character) {
             print("'Ello me'lad.  Please, I am not much of a talker, talk to the other un'");
-        }).fightMove(actions.heal);
+        }).fightMove(
+            actions.heal
+        );
     },
 
     bag_boy(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'bag boy',
             pronouns: pronouns.male,
-            items: [getItem('gold', 4), getItem('dagger')],
+            items: [getItem('gold', 4), getItem('banana')],
             description: 'worthless little bag boy',
-            hp: 70,
-            weapon: getItem('dagger'),
-            blunt_damage: 0,
-            sharp_damage: 10,
+            hp: 30,
+            weaponName: 'banana',
+            weaponType: 'club',
+            blunt_damage: 5,
+            sharp_damage: 0,
             blunt_armor: 2,
             coordination: 1,
             agility: 1,
@@ -749,22 +877,22 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print("Hello SIR!  How are you on this fine day!  I love life!  Isn't this a great");
             print("job I have here!  I get to bag groceries all day long!  Weeee!");
             print("Can I help you PLLLEEEASEEE?  I'd love to help you.");
-            // Call Pause(10)
+            await pause(10)
             print("Can I help you?");
-            // Call Pause(1.5)
+            await pause(1.5)
             print("Pretty Please may I help?");
-            // Call Pause(1.5)
+            await pause(1.5)
             print("May I be of assistance?");
-            // Call Pause(1.5)
+            await pause(1.5)
             print("GOOD DAY!  What can I help ya with?");
-            // Call Pause(1.5)
+            await pause(1.5)
             print("Here to serve you!  Just holler!");
-            // Call Pause(1.5)
+            await pause(1.5)
             print("Seriously though, if you need anything just ASK AWAY!  Weeee!");
         }).onDeath(async function () {
             color(brightblue);
             print("---Grocer");
-            // Thank god you killed him, he was getting annoying."
+            print("Thank god you killed him, he was getting annoying.");
         });
     },
 
@@ -775,11 +903,12 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             items: [getItem('gold', 6), getItem('spritzer_hair')],
             description: 'potent baby spritzer',
             hp: 25,
-            blunt_damage: 8,
-            sharp_damage: 2,
+            magic_damage: 18,
             blunt_armor: 1,
             coordination: 1,
-            weapon: new Item({ name: 'spritzer power', weapon_stats: { weapon_type: 'magic' } }),
+            agility: 1.5,
+            weaponName: 'spritzer power',
+            weaponType: 'magic',
             spellChance: () => Math.random() < 1 / 4,
             ...args
         }).dialog(async function (player: Character) {
@@ -787,12 +916,17 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
         }).onDeath(async function () {
             color(brightblue);
             print(`Baby spritzer vanishes to be with ${this.pronouns.possessive} parents, ${this.pronouns.subject} is done playing.`);
-        }).fightMove(actions.sleep);
+        }).fightMove(
+            actions.sleep
+        ).onRespawn(async function () {
+            this.enemies = [];
+            this.attackPlayer = false;
+        });
     },
 
     colonel_arach(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'colonel arach',
+            name: 'Colonel Arach',
             pronouns: pronouns.male,
             items: [getItem('gold', 500), getItem('longsword')],
             description: 'Arach the Terrible',
@@ -803,16 +937,20 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             coordination: 20,
             agility: 20,
             aliases: ['colonel', 'arach'],
+            alignment: 'ierdale',
             spellChance: () => true,  // always heals
             ...args
         }).dialog(async function (player: Character) {
-            if (player.has("bug repelent")) {
+            if (player.has("bug repellent")) {
                 print("Whats that you're holding in your hand?");
                 print();
                 color(red);
-                print("<show colonel arach your bug repelent?> [y/n]");
+                print("<show colonel arach your bug repellent?> [y/n]");
+                color(black)
+
                 if (await getKey(['y', 'n']) == "y") {
-                    print("Whats that you say... bug repelent???  BUG REPELENT!");
+                    print();
+                    print("Whats that you say... bug repellent???  BUG repellent!");
                     pause(2);
                     print("I DIDN'T KNOW THE STUFF EXISTED!");
                     print("Wow does that mean I am bug-free!");
@@ -830,23 +968,29 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     // Play Musicc$(7)
                     color(red);
                     print("<colonel Arach skips away happily to unlock the gates>");
-                    player.inventory.remove('bug repelent')
+                    player.removeItem('bug repellent')
                     this.game.flags.colonel_arach = true
-                    const gates = [
+                    this.flags['cured'] = true
+                    const gate_locations = [
                         this.game.find_location('Eastern Gatehouse'),
                         this.game.find_location('Western Gatehouse'),
                         this.game.find_location('Northern Gatehouse'),
                     ]
-                    gates.forEach(gate => {
-                        if (gate) gate.landmarks = [getLandmark('open_gate')]
-                        else console.log('gate not found.')
+                    gate_locations.forEach(location => {
+                        if (location) {
+                            location.landmarks = []
+                            location.addLandmark(getLandmark('open_gate'))
+                        }
                     })
+                    this.relocate(this.game.find_location('Ierdale Barracks'))
                 } else {
+                    color(black);
+                    print();
                     print("Alright, looks curious though.");
                     print();
                 }
-            } else if (!this.flags['talked']) {
-                this.flags['talked'] = 1;
+            } else if (!this.flags['talked'] && !this.flags['cured']) {
+                this.flags['talked'] = true;
                 color(black);
                 print("I am terrified of anything on more than 4 legs.");
                 print("Have you be warned though, that mockerey of this is stricktly forbidden.");
@@ -904,8 +1048,10 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     print("no one out the gates.  I myself, admittedly, am afraid to leave.  I am sorry.");
                     print();
                 }
-            } else {
+            } else if (!this.flags['cured']) {
                 print("I'm sorry, no one will be allowed to leave as long as the menace persists.");
+            } else {
+                print("Greetings to you. All is well in Ierdale today.")
             }
         }).fightMove(actions.heal);
     },
@@ -918,7 +1064,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 580,
             blunt_damage: 10,
             sharp_damage: 50,
-            weapon: getItem('claws'),
+            weaponName: 'claws',
+            weaponType: 'sword',
             description: 'Sift',
             coordination: 25,
             agility: 15,
@@ -1099,7 +1246,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 print()
                 print("Hey, this might help you in detroying Sift")
                 print("To play this at any time, type 'play lute'")
-                this.inventory.transfer('lute de lumonate', player.inventory)
+                this.transferItem('lute de lumonate', player)
                 this.flags.won = true
             } else {
                 print("I am so sorry, that is INCORRECT!")
@@ -1168,7 +1315,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 200,
             blunt_damage: 100,
             sharp_damage: 50,
-            weapon: new Item({ name: 'a bomb', weapon_stats: { weapon_type: 'magic' } }),
+            weaponName: 'a bomb',
+            weaponType: 'magic',
             description: 'Gerard',
             blunt_armor: 20,
             coordination: 5,
@@ -1186,7 +1334,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
 
     doo_dad_man(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'doo_dad man',
+            name: 'doo dad man',
             items: [getItem('gold', 150), getItem('long_dagger')],
             hp: 90,
             blunt_damage: 45,
@@ -1237,14 +1385,14 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
     clubman(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'clubman',
-            items: [getItem('club')],
+            items: [getItem('club'), getItem('gold', 5)],
             hp: 21,
             blunt_damage: 7,
             coordination: 2,
             agility: 1,
             weapon: getItem('club'),
             description: 'clubman',
-            alignment: 'wander',
+            alignment: 'clubmen clan',
             pronouns: pronouns.male,
             ...args
         }).dialog(async function (player: Character) {
@@ -1261,7 +1409,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 3,
             coordination: 3,
             agility: 2,
-            weapon: getItem('claws'),
+            weaponName: 'claws',
+            weaponType: 'sword',
             description: 'rush lurker',
             attackPlayer: true,
             pronouns: pronouns.inhuman,
@@ -1321,8 +1470,9 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
 
     fat_merchant_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'fat_merchant thief',
+            name: 'fat merchant-thief',
             items: [getItem('whip'), getItem('gold', 20)],
+            aliases: ['fat merchant', 'merchant-thief', 'merchant', 'thief'],
             hp: 61,
             blunt_damage: 12,
             sharp_damage: 0,
@@ -1388,7 +1538,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
 
     little_goblin_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'little_goblin thief',
+            name: 'little goblin thief',
             items: [getItem('metal_bar'), getItem('gold', 6)],
             hp: 100,
             blunt_damage: 30,
@@ -1652,7 +1802,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 51,
             blunt_damage: 4,
             sharp_damage: 4,
-            weapon: getItem('horns'),
+            weaponName: 'horns',
+            weaponType: 'spear',
             description: 'cow',
             coordination: 3,
             agility: 0,
@@ -1675,7 +1826,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 55,
             blunt_damage: 8,
             sharp_damage: 5,
-            weapon: getItem('horns'),
+            weaponName: 'horns',
+            weaponType: 'spear',
             description: 'bull',
             coordination: 4,
             agility: 1,
@@ -1797,7 +1949,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     print("I hope you're happy, young one.");
                     pause(3);
                     print("--Peasant elder keels over backwards and dissolves in a cloud of putrid gas.");
-                    this.die(player);
+                    await this.die(player);
                     print();
                     print("peasant elder drops magic ring")
                     break;
@@ -1867,13 +2019,25 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
         return new A2dCharacter({
             name: 'grocer',
             pronouns: pronouns.male,
+            items: [
+                getItem('banana'),
+                getItem('side_of_meat'),
+                getItem('chicken_leg'),
+                getItem('satchel_of_peas'),
+                getItem('full_ration'),
+                getItem('ear_of_corn'),
+                getItem('flask_of_wine'),
+                getItem('keg_of_wine')
+            ],
             ...args
         }).dialog(async function (player: Character) {
             print("Please ignore my bag boy.  He scares away the majority of our customers.");
             print("Unfortunatley he's my grandson and I can't really fire him.");
             print("If you aren't scared off, please be my guest and read the sign to see what");
             print("we have to offer you.");
-        }).onAttack(actions.pish2);
+        }).onAttack(
+            actions.pish2
+        ).addAction('buy', actions.buy);
     },
 
     old_woman(args: { [key: string]: any }) {
@@ -1973,7 +2137,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     print("Congradulations!  You have defeated the entire army of Ierdale. That will show");
                     print("thoes dirty HUMAN BASTARDS!");
                     print("I will now tell you the Vital secret.");
-                    // Call Pause(5.5)
+                    await pause(5.5);
                     print("Ieadon is right - HERE!");
                     pause(1);
                     print();
@@ -1989,7 +2153,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                             // fight Ieadon
                             const ieadon = this.game.find_character('Ieadon');
                             if (!ieadon) {
-                                console.log('important character Ieadon not found.')
+                                console.log('Character Ieadon not found.')
                                 return;
                             }
                             for (let a = 0; a < 5; a++) {
@@ -2009,10 +2173,10 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                             ieadon.attackPlayer = true;
                         }
                     }
-                    this.location?.addCharacter(characters.gryphon().onDeath(soldierDown));
-                    this.location?.addCharacter(characters.orc_behemoth().onDeath(soldierDown));
-                    this.location?.addCharacter(characters.orc_behemoth().onDeath(soldierDown));
-                    this.location?.addCharacter(characters.orc_amazon().onDeath(soldierDown));
+                    this.location?.addCharacter(getCharacter('gryphon').onDeath(soldierDown));
+                    this.location?.addCharacter(getCharacter('orc_behemoth').onDeath(soldierDown));
+                    this.location?.addCharacter(getCharacter('orc_behemoth').onDeath(soldierDown));
+                    this.location?.addCharacter(getCharacter('orc_amazon').onDeath(soldierDown));
 
                     // Fight 157
                     // print("Ieadon is hiding in a mysterious place know as ", 1);
@@ -2051,13 +2215,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             ...args
         }).dialog(async function (player: Character) {
             print("Hmmmmfff...");
-            // If GP < 10 Then Exit Sub
+            if (!player.has('gold', 10)) return;
             print("Do you have 10gp spare change? [y/n]");
             if (await getKey(['y', 'n']) == "n") {
                 print("Hmmfff... Thanks a lot...");
             } else {
                 color(yellow);
-                player.inventory.remove('gold', 10)
+                player.removeItem('gold', 10)
                 pause(2)
                 color(black);
                 print("I will tell you something now:");
@@ -2098,8 +2262,48 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 return
             }
             eldfarl.location = this.location;
-            eldfarl.attackTarget = attacker;
-        });
+            eldfarl.fight(attacker);
+        }).addAction('train healing', actions.train({
+            skillName: 'healing',
+            requirements: (player: Character) => ({
+                gold: 20 + player.healing * 5 / 8,
+                xp: 30 + 15 * player.healing
+            }),
+            classDiscount: {
+                'cleric': 0.5,
+            },
+            result: (player: Character) => {
+                player.healing += 1;
+                print(`Your healing capabilitys Improved.  Congradulations, you now heal by: ${player.healing}`);
+            }
+        })).addAction('train archery', actions.train({
+            skillName: 'archery',
+            requirements: (player: Character) => ({
+                gold: 10 + player.archery / 4,
+                xp: 15 + 8 * player.archery
+            }),
+            classDiscount: {
+                'cleric': 0.25,
+                'thief': 0.25
+            },
+            result: (player: Character) => {
+                player.archery += 1;
+                print(`Your archery skills improved.  Congradulations, you now have Archery: ${player.archery}`);
+            }
+        })).addAction('train mindfulness', actions.train({
+            skillName: 'mindfulness',
+            requirements: (player: Character) => ({
+                gold: 30 + 10 * player.max_mp / 50,
+                xp: 4 * player.max_mp
+            }),
+            classDiscount: {
+                'cleric': 0.5,
+            },
+            result: (player: Character) => {
+                player.max_mp += 5;
+                print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player.max_mp}`);
+            }
+        }));
     },
 
     blind_hermit(args: { [key: string]: any }) {
@@ -2145,7 +2349,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                 print("The dark lord has naught a chance now that the one is dead");
                 print("A normal human would not take such a risky bribe.");
                 pause(7);
-                player.die(this.game.find_character('Mythin'));
+                await player.die(this.game.find_character('Mythin'));
             } else {
                 print("Fine, but 10000gp will cover most any expense");
                 print();
@@ -2155,8 +2359,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     color(blue);
                     print("<recieved a list>");
                     print("<recieved an amber chunk>");
-                    player.inventory.add(getItem('list'));
-                    player.inventory.add(getItem('amber_chunk'));
+                    player.giveItem(getItem('list'));
+                    player.giveItem(getItem('amber_chunk'));
                 }
             }
         }).onAttack(actions.pish2);
@@ -2208,7 +2412,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 32,
             blunt_damage: 2,
             sharp_damage: 10,
-            weapon: getItem('fangs'),
+            weaponName: 'fangs',
+            weaponType: 'spear',
             coordination: 6,
             agility: 4,
             description: 'poisonus adder',
@@ -2236,9 +2441,9 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
         }).dialog(async function (player: Character) {
             print("trying to bother me?");
             print("worthless little human...");
-            pause((2));
+            await pause(2);
             print("aarrr... get off my bridge!");
-            this.attackPlayer = true;
+            this.fight(player);
         });
     },
 
@@ -2251,10 +2456,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 1,
             coordination: 4,
             agility: 1,
-            weapon: new Item({
-                name: 'whip-like fingers',
-                weapon_stats: { weapon_type: 'club' }
-            }),
+            weaponName: 'whip-like fingers',
             description: 'swamp thing',
             attackPlayer: true,
             ...args
@@ -2270,10 +2472,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 5,
             coordination: 3,
             agility: 1,
-            weapon: new Item({
-                name: 'trunkish arms',
-                weapon_stats: { weapon_type: 'club' }
-            }),
+            weaponName: 'trunkish arms',
             description: 'dryad',
             ...args
         });
@@ -2304,18 +2503,14 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             blunt_damage: 29,
             sharp_damage: 10,
             weapon: getItem('broadsword'),
-            items: [getItem('gold', 9), getItem('broadsword'), getItem('longsword')],
+            items: [getItem('gold', 9), getItem('broadsword')],
             description: 'horifying goblin captain',
             blunt_armor: 9,
             agility: 3,
             coordination: 2,
             attackPlayer: true,
             ...args
-        }).onDeath(async function () {
-            // If SB_BC = 95 Then B(95) = 0
-            // hengef = 1
-            // Turlinf = 1
-        });
+        })
     },
 
     security_guard(args: { [key: string]: any }) {
@@ -2410,7 +2605,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             ...args
         }).dialog(async function (player: Character) {
             print("What do you want... wait I am too good and too cool to be talking to you,");
-            print("Eldin picked me to mentor him because I am the BEST!!!  Way better than you!");
+            print("Eldfarl picked me to mentor him because I am the BEST!!!  Way better than you!");
             print("Go away, you're breathing on me, EWWW FAT SLOB!");
         }).onDeath(async function () {
             if (!this.game.player.flags.enemy_of_ierdale) {
@@ -2495,7 +2690,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_damage: 0,
             coordination: 1,
             agility: 3,
-            weapon: getItem('beak'),
+            weaponName: 'beak',
+            weaponType: 'spear',
             items: [getItem('chicken_leg')],
             description: 'clucking hen',
             ...args
@@ -2509,7 +2705,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 5,
             blunt_damage: 7,
             sharp_damage: 2,
-            weapon: getItem('claws'),
+            weaponName: 'claws',
+            weaponType: 'sword',
             items: [getItem('chicken_leg')],
             description: 'furious rooster',
             coordination: 4,
@@ -2595,7 +2792,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
 
     orkin_the_animal_trainer(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'orkin_the_animal trainer',
+            name: 'Orkin the animal trainer',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 220,
             blunt_damage: 20,
@@ -2622,7 +2819,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 155,
             blunt_damage: 30,
             sharp_damage: 12,
-            weapon: getItem('claws'),
+            weaponName: 'claws',
             description: 'Lion',
             coordination: 5,
             agility: 6,
@@ -2642,9 +2839,9 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             name: 'mutant bat',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 500,
-            blunt_damage: 10,
-            sharp_damage: 0,
-            weapon: getItem('scream', { name: 'high_pitched_screech' }),
+            magic_damage: 10,
+            weaponName: 'high pitched screech',
+            weaponType: 'sonic',
             description: 'mutant bat',
             coordination: 40,
             agility: 5,
@@ -2662,8 +2859,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             name: 'kobalt captain',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 240,
-            blunt_damage: 30,
-            sharp_damage: 10,
+            blunt_damage: 10,
+            sharp_damage: 30,
             weapon: getItem('spear'),
             items: [getItem('gold', 12), getItem('spear')],
             description: 'captain',
@@ -2701,8 +2898,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             name: 'peasant man',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 100,
-            blunt_damage: 15,
-            sharp_damage: 10,
+            sharp_damage: 25,
             weapon: getItem('sickle'),
             items: [getItem('sickle'), getItem('gold', 3)],
             description: 'work-hardened peasant',
@@ -2722,7 +2918,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print("This is MURDER! The guards will have your head for this!");
             this.game.player.flags.enemy_of_ierdale = true;
             this.game.player.flags.murders += 1
-        });
+        }).onTurn(actions.wander);
     },
 
     peasant_woman(args: { [key: string]: any }) {
@@ -2730,14 +2926,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             name: 'peasant woman',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             hp: 90,
-            blunt_damage: 7,
-            sharp_damage: 3,
+            blunt_damage: 10,
+            sharp_damage: 0,
             weapon: getItem('fist'),
             description: 'peasant woman',
             coordination: -1,
             blunt_armor: 3,
             aliases: ['peasant'],
-            alignment: 'wander',
             ...args
         }).dialog(async function (player: Character) {
             print("Excuse me I need to get to my work.");
@@ -2745,7 +2940,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print("Whats that you say??? Interested in rings?  I heard one is in the mountains.");
             print("Floated by my ear also that it was guarded by some strange beast... Henge???");
             print("Now excuse me, must work work work.");
-        });
+        }).onTurn(actions.wander);
     },
 
     dog(args: { [key: string]: any }) {
@@ -2755,7 +2950,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 45,
             blunt_damage: 10,
             sharp_damage: 15,
-            weapon: getItem('teeth'),
+            weaponName: 'teeth',
+            weaponType: 'teeth',
             description: 'yapping dog',
             coordination: 2,
             agility: 2,
@@ -2773,18 +2969,31 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             ...args
         }).onAttack(async function (character: Character) {
+            console.log(this.name, 'onAttack')
             if (character.isPlayer) {
+                const player = character as Player
                 print("YOU DUMB CRAP!")
                 print("You want to kill a poor helpless little KID?")
                 if (await getKey(['y', 'n']) == "n") {
                     print("The devilish side of you regrets that decision.")
                     const evil_you = new A2dCharacter({
-                        name: `evil ${this.game.player.name}`,
+                        name: `evil ${player.name}`,
+                        pronouns: player.pronouns,
+                        hp: player.hp,
+                        weapon: player.equipment['right hand'] || getItem('fist'),
+                        blunt_armor: player.blunt_armor,
+                        sharp_armor: player.sharp_armor,
+                        magic_armor: player.magic_armor,
+                        coordination: player.coordination,
+                        agility: player.agility,
+                        magic_level: player.healing,
+                        game: player.game
                     })
-                    Object.assign(evil_you, this.game.player)
-                    evil_you.magic_level = this.game.player.healing
                     evil_you.fightMove(actions.heal)
-                    evil_you.attackPlayer = true
+                    evil_you.relocate(this.location)
+                    evil_you.fight(player)
+                    player.fight(evil_you)
+                    this.fight(null)
                 } else {
                     print("Now you will be punished!")
                     print()
@@ -2794,10 +3003,10 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     print("YOU SMELL DEFEAT FULLY AND TERRIBLY AS YOU GO LIMPLY UNCONSIOUS")
                     print()
                     print(" LET THIS BE A LESSON TO YOU!!!!!!!!!")
-                    this.game.player.die('Lars')
+                    await player.die('Lars')
                 }
             }
-        });
+        }).onTurn(actions.wander);
     },
 
     peasant_worker(args: { [key: string]: any }) {
@@ -2829,6 +3038,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             blunt_damage: 120,
             sharp_damage: 200,
             weapon: getItem('mighty_excalabor'),
+            items: [getItem('gold', 1000), getItem('mighty_excalabor'), getItem('ring_of_power')],
             description: 'the ledgendary Ieadon',
             coordination: 35,
             agility: 15,
@@ -2844,56 +3054,55 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             if (Math.random() < 1 / 4) {
                 print('TODO: ring ultimate power')
             }
-        }).addAction('train strength', async function (player: Character) {
-            await actions.train({
-                player: player,
-                skillName: 'strength',
-                requirements: {
-                    xp: 80 + 25 * player.strength,
-                    gold: 25 + 5 * Math.floor(player.strength / 5)
-                },
-                classDiscount: { 'fighter': 50, 'thief': 25 },
-                result: (player: Character) => {
-                    player.strength += 1;
-                    if (player.isPlayer) print(`Your raw fighting POWER increased.  Congradulations, your Attack is now: ${player.strength}`);
-                }
-            })
-        }).addAction('train stamina', async function (player: Character) {
-            await actions.train({
-                player: player,
-                skillName: 'strength',
-                requirements: {
-                    xp: 2 * player.max_sp,
-                    gold: 15 + 5 * Math.floor(player.max_sp / 50)
-                },
-                classDiscount: { 'fighter': 25, 'thief': 25 },
-                result: (player: Character) => {
-                    player.max_sp += 5;
-                    if (player.isPlayer) print(`Your Stamina improved.  Congradulations, it is now: ${player.max_sp}`);
-                }
-            })
-        }).addAction('train toughness', async function (player: Character) {
-            await actions.train({
-                player: player,
-                skillName: 'toughness',
-                requirements: {
-                    xp: 2 * player.max_hp,
-                    gold: 30 + 10 * Math.floor(player.max_hp / 50)
-                },
-                classDiscount: { 'fighter': 25 },
-                result: (player: Character) => {
-                    player.max_hp += 5;
-                    if (player.isPlayer) print(`Your toughness increased.  Congradulations your Hit Points are now: ${player.max_hp}`);
-                }
-            })
-        }).onDeath(async function () {
+        }).addAction('train strength', actions.train({
+            skillName: 'strength',
+            requirements: (player: Character) => ({
+                xp: 80 + 25 * player.strength,
+                gold: 25 + 5 * Math.floor(player.strength / 5)
+            }),
+            classDiscount: { 'fighter': 50, 'thief': 25 },
+            result: (player: Character) => {
+                player.strength += 1;
+                if (player.isPlayer) print(`Your raw fighting POWER increased.  Congradulations, your Attack is now: ${player.strength}`);
+            }
+        })).addAction('train stamina', actions.train({
+            skillName: 'stamina',
+            requirements: (player: Character) => ({
+                xp: 2 * player.max_sp,
+                gold: 15 + 5 * Math.floor(player.max_sp / 50)
+            }),
+            classDiscount: { 'fighter': 25, 'cleric': 25 },
+            result: (player: Character) => {
+                player.max_sp += 5;
+                if (player.isPlayer) print(`Your Stamina improved.  Congradulations, it is now: ${player.max_sp}`);
+            }
+        })).addAction('train toughness', actions.train({
+            skillName: 'toughness',
+            requirements: (player: Character) => ({
+                xp: 2 * player.max_hp,
+                gold: 30 + 10 * Math.floor(player.max_hp / 50)
+            }),
+            classDiscount: { 'fighter': 25 },
+            result: (player: Character) => {
+                player.max_hp += 5;
+                if (player.isPlayer) print(`Your toughness increased.  Congradulations your Hit Points are now: ${player.max_hp}`);
+            }
+        })).onDeath(async function () {
             // win
-        });
+        }).addAction('list', async function () {
+            color(black);
+            print("At the domain of Ieadon we teach the following:");
+            print(" train toughness   | increaces HP");
+            print(" train skill       | increases dammage");
+            print(" train strength    | increases left-hand weapon power");
+            print(" To train any of these, please type 'train' then");
+            print(" type what to train.");
+        })
     },
 
     mythin(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'mythin',
+            name: 'Mythin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 550,
             blunt_damage: 40,
@@ -2917,12 +3126,60 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print();
             print("The directions out are the exact oposite (n,n,e,e,e,e). Then you will be at");
             print("the entrance to the forest.  (Area #112)Go south once more to exit.");
+        }).addAction('train coordination', actions.train({
+            skillName: 'coordination',
+            requirements: (player) => ({
+                xp: 100 + 150 * player.coordination,
+                gold: 30 + 20 * player.coordination
+            }),
+            classDiscount: { 'thief': 25, 'fighter': 25 },
+            result: (player) => {
+                player.coordination += 1;
+                if (player.isPlayer) print(`Your coordination increased.  Congradulations, it is now: ${player.coordination}`);
+            }
+        })).addAction('train agility', actions.train({
+            skillName: 'agility',
+            requirements: (player) => ({
+                xp: 75 + 150 * player.agility,
+                gold: 35 + 20 * player.agility
+            }),
+            classDiscount: { 'thief': 50 }, // thief specialty
+            result: (player) => {
+                player.agility += 1;
+                if (player.isPlayer) print(`Your agility increased.  Congradulations, it is now: ${player.agility}`);
+            }
+        })).addAction('train offhand', actions.train({
+            skillName: 'offhand',
+            requirements: (player) => {
+                const ambidextrous = player.offhand >= 1;
+                if (ambidextrous && player.isPlayer) {
+                    print("You are already fully ambidextrous.");
+                }
+                return {
+                    xp: 100 + 200 * (1 - player.offhand),
+                    gold: 35,
+                    other: !ambidextrous
+                }
+            },
+            classDiscount: { 'thief': 25, 'fighter': 25 },
+            result: (player) => {
+                player.offhand += Math.max(Math.floor(((1 - player.offhand) / 4) * 100 + 1.5) / 100, 1);
+                if (player.isPlayer) print(`Your left-handed capabilities increased.  Congradulations, offhand is now: ${Math.floor(player.offhand * 100)}%`);
+            }
+        })).addAction('list', async function () {
+            color(black)
+            print("At the domain of Mythin we teach the following:");
+            print(" train coordination | increaces to-hit");
+            print(" train agility      | decreases enemy to-hit");
+            print(" train offhand      | increases SP");
+            print(" To train any of these, please type 'train' then");
+            print(" type what to train.");
         }).fightMove(actions.heal);
     },
 
     eldin(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'eldin',
+            name: 'Eldin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 450,
             magic_damage: 180,
@@ -2936,10 +3193,10 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             sharp_armor: 35,
             ...args
         }).dialog(async function (player: Character) {
-            print("Hello, nice to have company!!!  Please, I am slighty busy, please read");
-            print("the sign, then come back to me!");
-            print();
-            if (player.has("clear liquid") && !player.has("maple leaf")) {
+            print("Hello, nice to have company!!!")
+            if (player.has("clear liquid") && this.has("maple leaf")) {
+                print();
+                await pause(1);
                 print("Whats that in your hand?");
                 print("May I see it?");
                 print("SHOW Eldin your clear liquid? [y/n]");
@@ -2948,21 +3205,195 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
                     pause(3);
                     print("Suspicions confirmed, here you are.");
                     print("Oh, I collect maple leaves, are not they beautiful. Have one.");
-                    this.inventory.transfer('maple leaf', player.inventory);
+                    this.transferItem('maple leaf', player);
                     color(blue);
                     print("<recieved maple leaf>");
                 }
+            } else {
+                print("Please, I am slighty busy, please read");
+                print("the sign, then come back to me!");
+                print();
             }
         }).fightMove(async function () {
             if (Math.random() < 3 / 4) {
                 print('TODO: powermaxout')
             }
-        });
+        }).addAction('list', async function () {
+            color(black)
+            print("At the domain of Eldfarl we teach the following:")
+            print(" train mindfulness | increaces BP")
+            print(" train healing     | increases healing power")
+            print(" train archery     | increases archery skills")
+            print(" To train any of these, please type 'train' then")
+            print(" type what to train.")
+        }).addAction('train magic', actions.train({
+            skillName: 'magic',
+            requirements: (player) => ({
+                xp: 160 + 50 * player.magic_level,
+                gold: 50 + 10 * player.magic_level
+            }),
+            classDiscount: { 'spellcaster': 50 },
+            result: (player) => {
+                player.magic_level += 1;
+                if (player.isPlayer) print(`Your magical abilities increased. Congradulations, your magic level is now: ${player.magic_level}`);
+            }
+        })).addAction('train newbie', actions.train({
+            skillName: 'newbie',
+            requirements: (player) => {
+                const reqs = {
+                    xp: 100 + 20 * (player.abilities['newbie'] || 0),
+                    gold: 10 + 5 * (player.abilities['newbie'] || 0),
+                }
+                if (player.abilities['newbie'] >= 7) {
+                    if (player.isPlayer) print("You have already mastered that spell.");
+                    Object.assign(reqs, { other: false });
+                }
+                return reqs;
+            },
+            classDiscount: { 'spellcaster': 30 },
+            result: (player) => {
+                player.abilities['newbie'] = player.abilities['newbie'] ? player.abilities['newbie'] + 1 : 1;
+                if (player.isPlayer) print(`Learned Newbie.  Congradulations, your skill is now: ${abilityLevels[player.abilities['newbie']]}`);
+            }
+        })).addAction('train bolt', actions.train({
+            skillName: 'bolt',
+            requirements: (player) => {
+                const reqs = {
+                    xp: 375 + 125 * (player.abilities['bolt'] || 0),
+                    gold: 40 + 20 * (player.abilities['bolt'] || 0),
+                    magic_level: 3 + (player.abilities['bolt'] || 0)
+                }
+                if (player.abilities['bolt'] >= 7) {
+                    if (player.isPlayer) print("You have already mastered that spell.");
+                    Object.assign(reqs, { other: false });
+                }
+                return reqs;
+            },
+            classDiscount: { 'spellcaster': 30 },
+            result: (player) => {
+                player.abilities['bolt'] = player.abilities['bolt'] ? player.abilities['bolt'] + 1 : 1;
+                if (player.isPlayer) print(`Learned Bolt.  Congradulations, your skill is now: ${abilityLevels[player.abilities['bolt']]}`);
+            }
+        })).addAction('train fire', actions.train({
+            skillName: 'fire',
+            requirements: (player) => {
+                const reqs = {
+                    xp: 700 + 250 * (player.abilities['fire'] || 0),
+                    gold: 75 + 25 * (player.abilities['fire'] || 0),
+                    magic_level: 6 + 2 * (player.abilities['fire'] || 0)
+                }
+                if (player.abilities['fire'] >= 7) {
+                    if (player.isPlayer) print("You have already mastered that spell.");
+                    Object.assign(reqs, { other: false });
+                }
+                return reqs;
+            },
+            classDiscount: { 'spellcaster': 30 },
+            result: (player) => {
+                player.abilities['fire'] = player.abilities['fire'] ? player.abilities['fire'] + 1 : 1;
+                if (player.isPlayer) print(`Learned Fire.  Congradulations, your skill is now: ${abilityLevels[player.abilities['fire']]}`);
+            }
+        })).addAction('train blades', actions.train({
+            skillName: 'blades',
+            requirements: (player) => {
+                const reqs = {
+                    xp: 1200 + 400 * (player.abilities['blades'] || 0),
+                    gold: 80 + 30 * (player.abilities['blades'] || 0),
+                    magic_level: 10 + 3 * (player.abilities['blades'] || 0)
+                }
+                if (player.abilities['blades'] >= 7) {
+                    if (player.isPlayer) print("You have already mastered that spell.");
+                    Object.assign(reqs, { other: false });
+                }
+                return reqs;
+            },
+            classDiscount: { 'spellcaster': 30 },
+            result: (player) => {
+                player.abilities['blades'] = player.abilities['blades'] ? player.abilities['blades'] + 1 : 1;
+                if (player.isPlayer) print(`Learned Blades.  Congradulations, your skill is now: ${abilityLevels[player.abilities['blades']]}`);
+            }
+        })).addAction('train powermaxout', actions.train({
+            skillName: 'powermaxout',
+            requirements: (player) => {
+                const reqs = {
+                    xp: 2000 + 1000 * (player.abilities['powermaxout'] || 0),
+                    gold: 150 + 50 * (player.abilities['powermaxout'] || 0),
+                }
+                if (player.abilities['powermaxout'] >= 7) {
+                    if (player.isPlayer) print("You have already mastered that spell.");
+                    Object.assign(reqs, { other: false });
+                }
+                return reqs;
+            },
+            classDiscount: { 'spellcaster': 30 },
+            result: (player) => {
+                player.abilities['powermaxout'] = player.abilities['powermaxout'] ? player.abilities['powermaxout'] + 1 : 1;
+                if (player.isPlayer) print(`Learned Powermaxout.  Congradulations, your skill is now: ${abilityLevels[player.abilities['powermaxout']]}`);
+            }
+        })).addAction('train shield', actions.train({
+            skillName: 'shield',
+            requirements: (player) => {
+                const reqs = {
+                    xp: 300 + 150 * (player.abilities['shield'] || 0),
+                    gold: 50 + 20 * (player.abilities['shield'] || 0),
+                }
+                if (player.abilities['shield'] >= 7) {
+                    if (player.isPlayer) print("You have already mastered that spell.");
+                    Object.assign(reqs, { other: false });
+                }
+                return reqs;
+            },
+            classDiscount: { 'spellcaster': 30 },
+            result: (player) => {
+                player.abilities['shield'] = player.abilities['shield'] ? player.abilities['shield'] + 1 : 1;
+                if (player.isPlayer) print(`Learned Shield.  Congradulations, your skill is now: ${abilityLevels[player.abilities['shield']]}`);
+            }
+        })).addAction('train bloodlust', actions.train({
+            skillName: 'bloodlust',
+            requirements: (player) => {
+                const reqs = {
+                    xp: 300 + 150 * (player.abilities['bloodlust'] || 0),
+                    gold: 50 + 20 * (player.abilities['bloodlust'] || 0),
+                }
+                if (player.abilities['bloodlust'] >= 7) {
+                    if (player.isPlayer) print("You have already mastered that spell.");
+                    Object.assign(reqs, { other: false });
+                }
+                return reqs;
+            },
+            classDiscount: { 'spellcaster': 30, 'fighter': 25 },
+            result: (player) => {
+                player.abilities['bloodlust'] = player.abilities['bloodlust'] ? player.abilities['bloodlust'] + 1 : 1;
+                if (player.isPlayer) print(`Learned Bloodlust.  Congradulations, your skill is now: ${abilityLevels[player.abilities['bloodlust']]}`);
+            }
+        })).addAction('list', async function () {
+            print("At the Cottage of Eldin we teach the following:");
+            print(" train newbie        | basic attack spell, low requirements");
+            print(" train bolt          | heat-seeking lightning bolt");
+            print(" train bloodlust     | increase strength for a short time");
+            print(" train shield        | a temporary shield protects you from attacks");
+            print(" train trance        | teaches trance spell (todo)");
+            print(" train flex          | teaches flex spell (todo)");
+            print(" train fire          | a blast of magical flame roasts your enemies");
+            print(" train blades        | cut your enemies to pieces with magical knives");
+            print(" train vanish        | become invisible! (todo)");
+            color(yellow)
+            print(" train powermaxout   | put all your magic into a single overwhelming blast");
+            color(blue)
+            print(" train conjure       | pull useful items out of thin air (todo)");
+            color(black)
+            print(" train magic         | increases magical power, enhances all spells");
+            print(" To see info on a spell type 'info [spellname]'");
+        }).addAction('transport', async function (player) {
+            print("Goodbye!")
+            await pause(1)
+            player.relocate(this.game.find_location("Eldin's house"))
+        })
     },
 
     eldfarl(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'eldfarl',
+            name: 'Eldfarl',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 450,
             blunt_damage: 90,
@@ -2983,17 +3414,30 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print();
             print("If you like, I can heal all that ails you.");
             print("It is absolutley free and restores you to maximum HP: type 'healme'");
-        }).fightMove(actions.heal)
+        }).fightMove(
+            actions.heal
+        ).addAction('list', async function (player) {
+            print("There are no classes offered here.")
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- Go south, that's where the classes are.");
+            }
+        }).addAction('healme', async function (player) {
+            print("Eldfarl lifts his hands and a remakably calm feeling floats over your body.")
+            print(`Eldfarl healed you ${Math.floor(player.max_hp - player.hp)} HP.`)
+            player.hp = player.max_hp
+        })
     },
 
     turlin(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'turlin',
+            name: 'Turlin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 150,
+            hp: 250,
             blunt_damage: 60,
             sharp_damage: 0,
-            weapon: getItem('fist', { name: 'huge fists' }),
+            weaponName: 'huge fists',
+            items: [getItem('ring_of_nature')],
             description: 'Turlin',
             blunt_armor: 4,
             coordination: 3,
@@ -3004,7 +3448,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
 
     henge(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'henge',
+            name: 'Henge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 320,
             blunt_damage: 50,
@@ -3015,6 +3459,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             blunt_armor: 10,
             coordination: 6,
             agility: 4,
+            attackPlayer: true,
             ...args
         }).onDeath(async function () {
             this.game.flags.henge = true;
@@ -3073,7 +3518,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             blunt_damage: 10,
             magic_damage: 150,
             magic_level: 500,
-            weapon: new Item({ name: 'piercing scream', weapon_stats: { weapon_type: 'magic' } }),
+            weaponName: 'piercing scream',
+            weaponType: 'sonic',
             description: 'wandering wisp',
             coordination: 100,
             agility: 10,
@@ -3128,7 +3574,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 860,
             blunt_damage: 174,
             sharp_damage: 5,
-            weapon: getItem('club', { name: 'uprooted_tree' }),
+            weaponName: 'uprooted tree',
             items: [],
             description: 'towering cyclops',
             coordination: 9,
@@ -3152,7 +3598,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 1300,
             blunt_damage: 40,
             sharp_damage: 166,
-            weapon: getItem('claws', { name: "sharp claws" }),
+            weaponName: "sharp claws",
+            weaponType: "sword",
             items: [],
             description: 'fire-breathing dragon',
             coordination: 5,
@@ -3160,27 +3607,13 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             blunt_armor: 60,
             attackPlayer: true,
             ...args
-        }).onDeath(async function () {
-            // B_n$(212) = "X"
-            // WE(504) = 505
-            // CreateOBJ 505, "bag of gold"
-            // Call CreateOBJ(505, "bag of gold")
-            // Call CreateOBJ(506, "bag of gold")
-            // Call CreateOBJ(506, "bag of gold")
-            // Call CreateOBJ(506, "bag of gold")
-            // Call CreateOBJ(507, "bag of gold")
-            // Call CreateOBJ(507, "bag of gold")
-            // Call CreateOBJ(508, "bag of gold")
-            // Call CreateOBJ(508, "bag of gold")
-            // Call CreateOBJ(508, "bag of gold")
-            // End If
         }).fightMove(async function () {
             if (Math.random() < 1 / 2) {
                 color(yellow)
                 if (this.location?.playerPresent) {
                     print(`A wave of fire erupts from ${this.name}, heading toward ${this.attackTarget?.name}!`)
                     const dam = Math.floor(Math.sqrt(Math.random()) * this.magic_level)
-                    this.attackTarget?.hurt(dam, 'fire')
+                    await this.attackTarget?.hurt(dam, 'fire', this)
                 }
             }
         })
@@ -3193,7 +3626,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 100,
             blunt_damage: 15,
             sharp_damage: 6,
-            weapon: getItem('spear', { name: 'poison_stinger' }),
+            weapon: getItem('spear', { name: 'poison stinger' }),
             description: 'scorpion',
             coordination: 5,
             agility: -1,
@@ -3209,7 +3642,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 100,
             blunt_damage: 6,
             sharp_damage: 15,
-            weapon: getItem('horns'),
+            weaponName: 'horns',
+            weaponType: 'spear',
             description: 'mutant hedgehog',
             coordination: 0,
             agility: 18,
@@ -3229,7 +3663,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 350,
             blunt_damage: 60,
             sharp_damage: 6,
-            weapon: getItem('fist', { name: 'massive_paws' }),
+            weapon: getItem('fist', { name: 'massive paws' }),
             description: 'grizzly bear',
             coordination: 15,
             agility: 1,
@@ -3247,7 +3681,7 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 250,
             blunt_damage: 42,
             sharp_damage: 5,
-            weapon: getItem('fist', { name: 'heavy_paws' }),
+            weapon: getItem('fist', { name: 'heavy paws' }),
             description: 'striped bear',
             coordination: 15,
             agility: 10,
@@ -3268,7 +3702,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 400,
             blunt_damage: 40,
             sharp_damage: 30,
-            weapon: getItem('claws', { name: 'sharp claws' }),
+            weaponName: 'sharp claws',
+            weaponType: 'sword',
             description: 'ferocious tiger',
             coordination: 25,
             agility: 18,
@@ -3288,7 +3723,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 80,
             blunt_damage: 12,
             sharp_damage: 35,
-            weapon: getItem('teeth'),
+            weaponName: 'teeth',
+            weaponType: 'sword',
             description: 'wolf',
             coordination: 15,
             agility: 11,
@@ -3308,7 +3744,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             hp: 60,
             blunt_damage: 12,
             sharp_damage: 45,
-            weapon: getItem('teeth'),
+            weaponName: 'teeth',
+            weaponType: 'sword',
             description: 'rabid wolf',
             coordination: 5,
             agility: 0,
@@ -3331,7 +3768,8 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             agility: 8,
             blunt_damage: 19,
             sharp_damage: 16,
-            weapon: getItem('claws', { name: 'talons' }),
+            weaponName: 'talons',
+            weaponType: 'sword',
             ...args
         });
     },
@@ -3366,12 +3804,23 @@ const characters: { [key: string]: (...args: any) => A2dCharacter } = {
             print("To fool the guards, in town we ONLY refer to Mythin as a \"forester\"");
         });
     },
+} as const;
+
+type CharacterKey = keyof typeof characters;
+
+function isValidCharacter(key: string): key is CharacterKey {
+    return key in characters;
 }
 
-function getCharacter(charName: string, args?: A2dCharacterParams): A2dCharacter {
+function getCharacter(charName: CharacterKey, args?: any): A2dCharacter {
+    if (!characters[charName]) {
+        console.log(`Character "${charName}" not found`);
+        throw new Error(`Character "${charName}" not found`);
+    }
+    // console.log(`Creating character: ${charName}`);
     const char = characters[charName](args);
     char.key = charName;
     return char
 }
 
-export { A2dCharacter, A2dCharacterParams, getCharacter, actions };
+export { A2dCharacter, A2dCharacterParams, getCharacter, isValidCharacter, actions };
