@@ -1,11 +1,13 @@
 import { GameState } from '../../game/game.ts'
 import { Location } from '../../game/location.ts'
 import { Character } from '../../game/character.ts'
-import { getItem, ItemKey } from './items.ts'
+import { Container } from '../../game/item.ts'
+import { getItem, isValidItemKey, ItemKey } from './items.ts'
 import { getLandmark } from './landmarks.ts'
 import { GameMap } from './map.ts'
 import { Player } from './player.ts'
-import { A2dCharacter, getCharacter } from './characters.ts'
+import { A2dCharacter, getCharacter, isValidCharacter } from './characters.ts'
+import { BuffNames, getBuff, } from './buffs.ts'
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
 
 class A2D extends GameState {
@@ -54,7 +56,6 @@ class A2D extends GameState {
     }
 
     async start() {
-        this.loadScenario(new GameMap().locations);
         this.intro();
         await getKey();
         this.clear();
@@ -65,25 +66,24 @@ class A2D extends GameState {
         this.clear();
         console.log('chose', opt);
         if (opt === 0) {
+            this.loadScenario(new GameMap().locations);
             this.player = await this.newCharacter();
-        }
-        else if (opt === 1) {
-            await this.load(
-                await input('Enter save name: ')
-            )
-            this.player = this.characters.find(char => char.isPlayer) as Player;
+            this.player.location?.addCharacter(this.player);
+        } else if (opt === 1) {
+            this.player = new Player('', '', this);
+            await this.player.loadGame();
+        } else {
+            // glitch on client side
+            return;
         }
         this.player.game = this;
         this.respawnInterval = setInterval(async () => {
-            // console.log('respawn interval')
-            // console.log(`looping ${this.characters.length} characters`)
             for (let character of this.characters) {
-                if (character.respawnCountdown) {
+                if (character.respawnCountdown > 0) {
                     character.respawnCountdown -= 5;
-                    // console.log(`${character.name} ${character.respawnCountdown}`)
                     if (character.respawnCountdown <= 0) {
                         console.log('respawning', character.name)
-                        character.respawnCountdown = 0;
+                        character.respawnCountdown = -1;
                     }
                 }
             }
@@ -94,20 +94,30 @@ class A2D extends GameState {
     async main() {
         let command = '';
         console.log('starting main loop');
-        await this.player.look();
-        while (!(command in ['exit', 'quit'])) {
+        while (!(['exit', 'quit'].includes(command)) && !this.player.dead) {
+            // await this.player.turn();
             await this.player.getInput();
-            for (let character of this.characters.sort((a, b) => a.isPlayer ? 1 : -1)) {
+            for (let character of this.characters.sort((a, b) => a === this.player ? -1 : b === this.player ? 1 : 0)) {
                 if (character.respawnCountdown == -1) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
-                if (character.act) {
-                    // console.log(`${character.name} acting`)
-                    await character.act(this);
+                if (!character.dead) {
+                    if (character.turn) {
+                        await character.turn(this);
+                    }
+                    if (character.buffs) {
+                        for (let buff of Object.values(character.buffs)) {
+                            await buff.turn();
+                        }
+                    }
                 }
             }
         }
+        print('Press any key to continue.')
+        await getKey();
+        // start over on quit
+        this.start();
     }
 
     newCharacter(): Promise<Player> {
@@ -120,7 +130,8 @@ class A2D extends GameState {
                     title: "     Choose One          ",
                     options: classes,
                     default_option: 1
-                })]
+                })],
+                this
             )
             new_player.location = this.find_location('Cottage of the Young');
 
@@ -165,46 +176,61 @@ class A2D extends GameState {
         };
 
         this.locations.forEach((location, key) => {
-            gameStateObj.locations[key] = {
-                name: location.name,
-                characters: [...location.characters].map(char => (
-                    char.save()
-                )),
-                landmarks: location.landmarks.map(landmark => (
-                    landmark.save()
-                )),
-                items: location.items.map(item => ({
-                    key: item.key,
-                    name: item.name,
-                    quantity: item.quantity
-                }))
-            };
+            gameStateObj.locations[key] = location.save();
         });
 
         this._save(saveName, gameStateObj);
     }
 
-    async load(saveName: string): Promise<void> {
+    async load(saveName: string): Promise<boolean> {
         const gamestate = await this._load(saveName) as any;
-        this.locations = new Map()
+        if (gamestate === null) {
+            print(`Character ${saveName} not found.`)
+            return false;
+        }
+        const loadScenario: { [key: string]: Location } = {};
         Object.keys(gamestate.locations).forEach(key => {
             const location = gamestate.locations[key];
             const newLocation = new Location({
                 name: location.name,
                 characters: location.characters.map((character: any) => {
-                    // TODO: this does not give these characters the ability to retain items other than what they're instantiated with in getCharacter
-                    Object.assign(getCharacter(character.key), character)
-                }),
+                    return character.isPlayer
+                        ? new Player('', '', this).load(character)
+                        : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key), {
+                            items: character.items?.map(
+                                (itemData: any) => isValidItemKey(itemData.key) ? getItem(itemData.key, itemData) : undefined
+                            ).filter((item: any) => item),
+                            flags: character.flags,
+                            respawnCountdown: character.respawnCountdown,
+                            respawnLocationKey: character.respawnLocationKey,
+                            attackPlayer: character.attackPlayer,
+                            buffs: character.buffs ? Object.fromEntries(
+                                Object.entries(character.buffs).map(
+                                    ([buffName, buffData]: [string, any]) => [buffName, getBuff(buffName as BuffNames)(buffData)]
+                                )
+                            ) : {}
+                        }) : undefined
+                }).filter((character: any) => character),
                 items: location.items.map((itemData: any) => Object.assign(getItem(itemData.key), itemData)),
+                adjacent: location.adjacent,
             });
             location.landmarks.forEach((landmarkData: any) => {
-                const newLandmark = getLandmark(landmarkData.name, landmarkData.text);
-                newLandmark.contents = landmarkData.contents.map((itemData: any) => Object.assign(getItem(itemData.key), itemData));
+                const newLandmark = getLandmark(landmarkData.key, landmarkData.text);
+                landmarkData.items.forEach((itemData: any) => {
+                    if (isValidItemKey(itemData.key))
+                        newLandmark.contents.add(getItem(itemData.key, itemData))
+                });
+                newLocation.addLandmark(newLandmark);
             });
-            this.locations.set(key, newLocation)
+            loadScenario[key] = newLocation;
         });
+        this.loadScenario(loadScenario);
+        this.flags = gamestate.flags;
+        this.player = this.characters.find(char => char.isPlayer) as Player;
+        this.player.game = this;
+        this.player.relocate(this.player.location);
+        return true;
     }
 }
-
 
 export { A2D };
