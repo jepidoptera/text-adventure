@@ -33,8 +33,8 @@ function renderScreen() {
         row.forEach((cell, x) => {
             const index = y * cols + x;
             const span = spans[index];
-            if (span.textContent !== cell.char || 
-                span.style.color !== cell.fg || 
+            if (span.textContent !== cell.char ||
+                span.style.color !== cell.fg ||
                 span.style.backgroundColor !== cell.bg) {
                 span.textContent = cell.char;
                 span.style.color = cell.fg;
@@ -54,7 +54,7 @@ function color(fg, bg) {
 function locate(x, y) {
     cursor.x = parseInt(x);
     cursor.y = parseInt(y) || cursor.y;
-    continueLine = true;
+    // continueLine = true;
 }
 
 // Function to print text at the current cursor location with the current colors
@@ -62,10 +62,10 @@ function quote(text = '', extend = false) {
     function lineFeed() {
         // Scroll the buffer up
         screenBuffer.shift();
-        screenBuffer.push(Array(cols).fill(null).map(() => {return { char: ' ', fg: currentColor.fg, bg: currentColor.bg }}));
+        screenBuffer.push(Array(cols).fill(null).map(() => { return { char: ' ', fg: currentColor.fg, bg: currentColor.bg } }));
         cursor.y = rows - 1;
     }
-    if (extend) continueLine = true;
+
     for (let i = 0; i < text.length; i++) {
         if (cursor.x >= cols) {
             cursor.x = 0;
@@ -77,15 +77,15 @@ function quote(text = '', extend = false) {
         }
         if (cursor.y >= rows) lineFeed();
         if (text[i] === '\n') continue;
-        screenBuffer[cursor.y][cursor.x] = { 
-            char: text[i], 
-            fg: currentColor.fg, 
-            bg: currentColor.bg 
+        screenBuffer[cursor.y][cursor.x] = {
+            char: text[i],
+            fg: currentColor.fg,
+            bg: currentColor.bg
         };
         cursor.x++;
     }
     if (cursor.y >= rows) lineFeed();
-    if (!continueLine) {
+    if (!extend) {
         // fill in the line with background color
         for (let i = cursor.x; i < cols; i++) {
             screenBuffer[cursor.y][i] = { char: ' ', fg: currentColor.fg, bg: currentColor.bg };
@@ -93,8 +93,7 @@ function quote(text = '', extend = false) {
         cursor.x = 0;
         cursor.y++;
     }
-    continueLine = false;
-    
+
     renderScreen();
 }
 
@@ -139,13 +138,13 @@ function query(promptText = '') {
 }
 
 async function optionBox(
-        title, options, 
-        colorOptions = {
-            box: {fg: 'lightgray', bg: 'black'},
-            selected: {fg: 'black', bg: 'darkred'},
-            background: currentColor.bg
-        },
-        default_option = 0
+    title, options,
+    colorOptions = {
+        box: { fg: 'lightgray', bg: 'black' },
+        selected: { fg: 'black', bg: 'darkred' },
+        background: currentColor.bg
+    },
+    default_option = 0
 ) {
     previousColors = [currentColor.fg, currentColor.bg];
     let key = '';
@@ -154,16 +153,16 @@ async function optionBox(
         color('black', colorOptions.background);
         clear();
     }
-    
+
     boxWidth = Math.max(12, Math.max(...[title, ...options].map(option => option.length)) + 2);
     boxHeight = options.length + 1;
     boxTop = parseInt((rows - boxHeight) / 2);
     boxLeft = parseInt((cols - boxWidth) / 2);
     color(colorOptions.box.fg, colorOptions.box.bg);
     locate(boxLeft, boxTop);
-    quote(` ${title}${' '.repeat(boxWidth - title.length - 1)}`);
+    quote(` ${title}${' '.repeat(boxWidth - title.length - 1)}`, true);
     locate(boxLeft, boxTop + 1);
-    quote('─'.repeat(boxWidth));
+    quote('─'.repeat(boxWidth), true);
 
     while (key !== 'Enter') {
         if (key === 'ArrowUp') {
@@ -178,7 +177,7 @@ async function optionBox(
             } else {
                 color(colorOptions.box.fg, colorOptions.box.bg);
             }
-            quote(` ${options[i]}${' '.repeat(boxWidth - options[i].length - 1)}`);
+            quote(` ${options[i]}${' '.repeat(boxWidth - options[i].length - 1)}`, true);
         }
         key = await getKey();
     }
@@ -201,8 +200,8 @@ function getKey() {
 
 function clear() {
     screenBuffer = Array.from(
-        { length: rows }, 
-        () => Array(cols).fill(null).map(() =>{return { char: ' ', fg: currentColor.fg, bg: currentColor.bg }})
+        { length: rows },
+        () => Array(cols).fill(null).map(() => { return { char: ' ', fg: currentColor.fg, bg: currentColor.bg } })
     );
     cursor.x = 0;
     cursor.y = 0;
@@ -242,7 +241,7 @@ async function processResponse(line) {
 function initializeWebSocket() {
     socket = new WebSocket('ws://localhost:3000');
 
-    socket.onopen = function(event) {
+    socket.onopen = function (event) {
         console.log('Connected to WebSocket server');
         clearInterval(keepAliveInterval);
         keepAliveInterval = setInterval(() => {
@@ -250,7 +249,7 @@ function initializeWebSocket() {
         }, 30000);
     };
 
-    socket.onmessage = async function(event) {
+    socket.onmessage = async function (event) {
         const response = JSON.parse(event.data);
         if (response.gameID) {
             gameID = response.gameID;
@@ -260,13 +259,13 @@ function initializeWebSocket() {
         }
     };
 
-    socket.onclose = function(event) {
+    socket.onclose = function (event) {
         console.log('Disconnected from WebSocket server');
         // Optionally, try to reconnect after a delay
         setTimeout(initializeWebSocket, 5000);
     };
 
-    socket.onerror = function(error) {
+    socket.onerror = function (error) {
         console.error('WebSocket error:', error);
     };
 }
