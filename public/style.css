@@ -7,7 +7,7 @@
 @font-face {
     font-family: "Perfect DOS VGA 437";
     src: url('./PerfectDOSVGA437.ttf');
-         /* url('path/to/PerfectDOSVGA437.woff') format('woff'); */
+    /* url('path/to/PerfectDOSVGA437.woff') format('woff'); */
     font-weight: normal;
     font-style: normal;
 }
