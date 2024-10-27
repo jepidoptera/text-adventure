@@ -1,9 +1,7 @@
-import { Location, Landmark } from '../../game/location.ts'
-import { Item } from '../../game/item.ts'
-import { Character } from '../../game/character.ts'
+import { Location } from '../../game/location.ts'
 import { getItem } from './items.ts'
 import { getLandmark } from './landmarks.ts'
-import { getCharacter, actions } from './characters.ts'
+import { getCharacter } from './characters.ts'
 
 class GameMap {
     locations: { [key: string | number]: Location } = {
@@ -106,7 +104,7 @@ class GameMap {
         12: new Location({
             name: "Center of Town",
             adjacent: { 'north': 2, 'east': 8, 'south': 5, 'west': 11 },
-            characters: [getCharacter('clubman').onTurn(actions.wander), getCharacter('clubman').onTurn(actions.wander), getCharacter('colonel_arach'), getCharacter('guard_captain')]
+            characters: [getCharacter('clubman', { action: 'wander' }), getCharacter('clubman', { action: 'wander' }), getCharacter('colonel_arach'), getCharacter('guard_captain')]
         }).addLandmark(getLandmark('sign', [
             "/\\\\------------------------\\   ",
             "\\// The Town of Ierdale    /   ",
@@ -222,9 +220,9 @@ class GameMap {
             "!    Welcome.                              !",
             "!  I raise and sell various animals.       !",
             "!  To see which ones I currently have      !",
-            "!  available, please type ",
+            "!  available, please type \"list\".          !",
             "!  I also buy pets you don't want.         !",
-            "!  To sell one, type ",
+            "!  To sell one, type \"sell\" and the name   !",
             "!  of the pet.                             !",
             "!                                          !",
             "\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/"
@@ -514,9 +512,7 @@ class GameMap {
         76: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 81, 'east': 75, 'south': 77 }
-        }).addLandmark(
-            new Landmark({ name: 'rock', description: 'A Large Rock' })
-        ),
+        }).addLandmark(getLandmark('large_rock')),
         77: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 76, 'east': 68, 'south': 78 },
@@ -740,14 +736,15 @@ class GameMap {
         }).addLandmark(getLandmark('sign', [
             "+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+",
             "+  Welcome to My Cottage!                 +",
-            "+    Please make yourself at home, to see +",
-            "+    what I train, please type 'list'.    +",
             "+                                         +",
-            "+    I know that is a long trip out here, +",
-            "+    and so for your convenience I will   +",
-            "+    transport you back to town free of   +",
-            "+    cost.  Type 'transport' to have me do+",
-            "+    so.                                  +",
+            "+   Please make yourself at home, to see  +",
+            "+   what I train, please type 'list'.     +",
+            "+                                         +",
+            "+   I know that is a long trip out here,  +",
+            "+   and so for your convenience I will    +",
+            "+   transport you back to town free of    +",
+            "+   cost.  Type 'transport' to have me do +",
+            "+   so.                                   +",
             "+                                         +",
             "+        Thankyou, Eldin                  +",
             "+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+"
@@ -1545,7 +1542,9 @@ class GameMap {
             name: "The Top of the Tree",
             adjacent: {},
             characters: [getCharacter('turlin')]
-        }),
+        }).addLandmark(
+            getLandmark('treehouse_platform')
+        ),
         283: new Location({
             name: "Gatehouse",
             adjacent: { 'north': 286, 'east': 284, 'west': 96 },
@@ -1606,9 +1605,7 @@ class GameMap {
             name: "Sandy Desert",
             adjacent: { 'east': 296, 'south': 292, 'west': 290 },
             characters: [getCharacter('sand_scout')]
-        }).addLandmark(
-            new Landmark({ name: 'spire', description: "A Towering Sandstone Spire" })
-        ),
+        }).addLandmark(getLandmark('spire')),
         292: new Location({
             name: "Sandy Desert",
             adjacent: { 'north': 291, 'east': 300, 'west': 288 }
@@ -1710,7 +1707,7 @@ class GameMap {
         311: new Location({
             name: "Eldfarl's Office",
             adjacent: { 'north': 310, 'east': 308, 'south': 316 },
-            characters: [getCharacter('cleric_tendant'), getCharacter('eldfarl')]
+            characters: [getCharacter('eldfarl')]
         }).addLandmark(getLandmark('sign', [
             "+=+=+=+=+=+=+=+=+=+=+=+=+=+=+",
             "|                           |",
@@ -1734,10 +1731,20 @@ class GameMap {
             "{ I will do so in the shelter of the }",
             "{ mountains.  Please come by just to }",
             "{ see me sometime if you like!       }",
+            "{                                    }",
+            "{ Because I know the journey can be  }",
+            "{ difficult, I have placed a portal  }",
+            "{ stone at this location. If you     }",
+            "{ to be brought to me, simply type   }",
+            "{ 'transport' and you will find      }",
+            "{ yourself in my mountain abode.     }",
+            "{                                    }",
             "{        sincerly,                   }",
             "{         Eldin the wise of Ierdale  }",
-            "{{{{{{{{{{{{{{{{{{{{}}}}}}}}}}}}}}}}}}}"
-        ])),
+            "{{{{{{{{{{{{{{{{{{{}}}}}}}}}}}}}}}}}}}"
+        ])).addLandmark(
+            getLandmark('portal_stone')
+        ),
         313: new Location({
             name: "Archery Workshop",
             adjacent: { 'west': 307 },
@@ -1866,7 +1873,7 @@ class GameMap {
             adjacent: { 'south': 329 }
         }),
         331: new Location({
-            name: "Ierdale Barracks",
+            name: "Ierdale Barracks Lobby",
             adjacent: { 'east': 332, 'west': 26 },
         }).addLandmark(getLandmark('sign', [
             "0========(--------------------------------",
@@ -2148,9 +2155,9 @@ class GameMap {
             "!    Welcome.                              !",
             "!  I raise and sell various animals.       !",
             "!  To see which ones I currently have      !",
-            "!  available, please type ",
+            "!  available, please type \"list\".          !",
             "!  I also buy pets you don't want.         !",
-            "!  To sell one, type ",
+            "!  To sell one, type \"sell\" and the name   !",
             "!  of the pet.                             !",
             "!                                          !",
             "\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/!\\/"
