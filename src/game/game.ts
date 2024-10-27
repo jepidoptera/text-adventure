@@ -5,7 +5,7 @@ import { Character } from './character.ts'
 
 class GameState {
     flags: { [key: string]: any } = {};
-    locations: Map<string | number, Location> = new Map();
+    private _locations: Map<string | number, Location> = new Map();
     on_input: ((input: string) => void) | null = null;
     send: (output: object) => void;
     _save: (saveName: string, gameState: object) => Promise<void>;
@@ -28,10 +28,11 @@ class GameState {
         this._load = load;
     }
     loadScenario(locations: { [key: string | number]: Location }) {
-        this.locations = new Map(Object.entries(locations).map(([k, v]) => [isNaN(Number(k)) ? k : Number(k), v]));
-        for (let location of this.locations.values()) {
+        this._locations = new Map(Object.entries(locations).map(([k, v]) => [isNaN(Number(k)) ? k : Number(k), v]));
+        for (let [key, location] of this.locations.entries()) {
             // since we have to link locations by id initially, we now link to the actual location object
-            location.adjacent = new Map(Object.entries(location._adjacent).map(([direction, id]) => [direction, this.locations.get(id) || location]));
+            location.key = key;
+            location.adjacent = new Map(Object.entries(location.adjacent_ids).map(([direction, id]) => [direction, this.locations.get(id) || location]));
             // link characters to locations
             for (let character of location.characters) {
                 character.location = location;
@@ -156,7 +157,7 @@ class GameState {
         player.addAction('w', async function () { await player.go('west') });
         player.addAction('get', player.getItem)
         player.addAction('drop', player.dropItem)
-        player.location = this.locations.values().next().value;
+        player.location = this.locations.values().next().value || null;
         let command = ''
         while (command != 'exit') {
             let player_input = await this.query('What do you want to do?');
@@ -164,7 +165,7 @@ class GameState {
             if (player.actions.has(command)) {
                 player.getAction(command)?.(args.join(' '));
             } else {
-                for (let item of player.inventory) {
+                for (let item of player.items) {
                     if (item.name === command) {
                         item.getAction(command)?.(args.join(' '));
                     }
@@ -181,18 +182,29 @@ class GameState {
     }
     animate_characters() {
         this.characters.forEach(character => {
-            if (character.act) {
-                character.act(this);
+            if (character.turn) {
+                character.turn(this);
             }
         });
     }
     find_character(name: string) {
         name = name.toLowerCase();
-        return this.characters.find(character => character.name.toLowerCase() === name);
+        const character = this.characters.find(character => character.name.toLowerCase() === name);
+        if (!character) {
+            console.log(`could not find character ${name}`);
+        }
+        return character;
+    }
+    get locations() {
+        return this._locations;
     }
     find_location(name: string) {
         name = name.toLowerCase();
-        return Array.from(this.locations.values()).find(location => location.name.toLowerCase() === name);
+        const location = Array.from(this.locations.values()).find(location => location.name.toLowerCase() === name) || null;
+        if (!location) {
+            console.log(`could not find location ${name}`);
+        }
+        return location;
     }
     find_all_locations(name: string) {
         name = name.toLowerCase();
