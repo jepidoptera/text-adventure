@@ -34,7 +34,7 @@ class GameSaver {
             MongoClient.connect(this.mongoUrl).then(client => {
                 this.client = client
                 this.db = this.client.db(this.dbName);
-                this.savesCollection = this.db.collection<SaveDocument>('saves');
+                this.savesCollection = this.db.collection<SaveDocument>('A2D');
                 console.log('mongo connected')
                 resolve()
             })
@@ -69,7 +69,8 @@ class GameSaver {
         }
 
         console.log(`Game loaded from save '${saveName}'`);
-        return saveDocument;
+        // console.log(saveDocument.gameState);
+        return saveDocument.gameState;
     }
 
     async close(): Promise<void> {
@@ -103,11 +104,11 @@ wss.on('connection', (ws) => {
 
     ws.on('message', (input) => {
         const message = input.toString();
-        console.log(`Received message: ${message}`);
         if (message === 'keepalive') {
             console.log('keepalive');
             return;
         }
+        else console.log(`Received message: ${message}`);
         gameState.process_input(input.toString());
     });
 
