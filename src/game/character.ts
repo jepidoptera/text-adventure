@@ -12,7 +12,7 @@ const pronouns = {
 
 type Action = (this: Character, ...args: any[]) => Promise<void>;
 type BonusKeys = (
-    'hp' | 'mp' | 'sp' | 'strength' | 'coordination' | 'agility' | 'magic_level' | 'healing' |
+    'max_hp' | 'max_mp' | 'max_sp' | 'strength' | 'coordination' | 'agility' | 'magic_level' | 'healing' |
     'blunt_damage' | 'sharp_damage' | 'magic_damage' | 'blunt_armor' | 'sharp_armor' | 'magic_armor' |
     'archery' | 'hp_recharge' | 'mp_recharge' | 'sp_recharge'
 )
@@ -28,10 +28,10 @@ class Buff {
     public duration: number;
     public bonuses: { [key in BonusKeys]?: number };
     public damage_modifier: { [key in DamageTypes]?: (damage: number) => number } = {};
-    constructor({ name, duration, power, bonuses = {}, damage_modifier = {} }: {
+    constructor({ name, duration = -1, power = 1, bonuses = {}, damage_modifier = {} }: {
         name: string,
-        duration: number,
-        power: number,
+        duration?: number,
+        power?: number,
         bonuses?: { [key in BonusKeys]?: number }
         damage_modifier?: { [key in DamageTypes]?: (damage: number) => number }
     }) {
@@ -69,6 +69,7 @@ class Buff {
             this.character.removeBuff(this);
         }
     }
+
     save(): object {
         return {
             name: this.name,
@@ -119,6 +120,8 @@ interface CharacterParams {
     attackPlayer?: boolean;
     flags?: { [key: string]: any };
     respawn_time?: number;
+    respawn?: boolean;
+    persist?: boolean;
 }
 
 class Character {
@@ -167,7 +170,6 @@ class Character {
     _buffs: { [key: string]: Buff } = {};
     location: Location | null = null;
     abilities: { [key: string]: number };
-    actions: Map<string, (...args: any[]) => Promise<void>> = new Map()
     flags: { [key: string]: any } = {};
     private _attackTarget: Character | null = null;
     private _onEncounter: ((character: Character) => Promise<void>) | undefined;
@@ -180,10 +182,13 @@ class Character {
     private _onTurn: Action | undefined;
     private _fightMove: Action | undefined;
     private _onRespawn: Action | undefined;
+    private _actions: Map<string, (...args: any[]) => Promise<void>> = new Map()
     attackPlayer: boolean = false;
     respawnTime: number = 0;
     respawnCountdown: number = 0;
     respawnLocationKey: string | number | undefined;
+    private _respawn: boolean = true;
+    persist: boolean = true;
 
     constructor({
         name,
@@ -195,7 +200,7 @@ class Character {
         items = [],
         exp = 0,
         hp = 1,
-        hp_recharge = 0,
+        hp_recharge = 0.01, // 1% per turn by default
         mp = 1,
         mp_recharge = 0,
         sp = 1,
@@ -221,7 +226,9 @@ class Character {
         damage_modifier = {},
         armor = {},
         attackPlayer = false,
-        flags = {}
+        respawn = true,
+        flags = {},
+        persist = true
     }: CharacterParams) {
         this.name = name;
         if (game) this.game = game;
@@ -251,6 +258,8 @@ class Character {
         this.enemies = enemies;
         this.friends = friends;
         this.abilities = powers;
+        this._respawn = respawn;
+        this.persist = persist;
         if (weapon instanceof Item) {
             this.weaponName = weapon.name;
             this.weaponType = (weapon as Item).weapon_stats?.type || 'club';
@@ -356,22 +365,22 @@ class Character {
     }
 
     get max_hp(): number {
-        return this._max_hp + this.buff('hp');
+        return this._max_hp + this.buff('max_hp');
     }
     set max_hp(value: number) {
-        this._max_hp = value - this.buff('hp');
+        this._max_hp = value - this.buff('max_hp');
     }
     get max_mp(): number {
-        return this._max_mp + this.buff('mp');
+        return this._max_mp + this.buff('max_mp');
     }
     set max_mp(value: number) {
-        this._max_mp = value - this.buff('mp');
+        this._max_mp = value - this.buff('max_mp');
     }
     get max_sp(): number {
-        return this._max_sp + this.buff('sp');
+        return this._max_sp + this.buff('max_sp');
     }
     set max_sp(value: number) {
-        this._max_sp = value - this.buff('sp');
+        this._max_sp = value - this.buff('max_sp');
     }
     get hp(): number {
         return this._hp;
@@ -598,12 +607,21 @@ class Character {
                 this.location?.add(dropItem)
             }
         }
+        if (this.respawns) {
+            this.respawnCountdown = this.respawnTime;
+            console.log(`${this.name} respawning in ${this.respawnCountdown} seconds from ${this.location?.name}`);
+            this.respawnLocation = this.location;
+        }
         this.location?.removeCharacter(this);
-        this.respawnLocation = this.location;
         this.location = null;
     }
 
+    get respawns() {
+        return this._respawn;
+    }
+
     async respawn() {
+        if (!this._respawn) return;
         await this._onRespawn?.()
         if (this.respawnLocationKey) {
             this.respawnLocation = this.game.locations.get(this.respawnLocationKey) || null
@@ -693,6 +711,10 @@ class Character {
             throw new Error(`Action "${name}" not found.`);
         }
         return action;
+    }
+
+    get actions() {
+        return this._actions;
     }
 
     useAction(name: string, args?: string): Promise<void> {
@@ -823,7 +845,9 @@ class Character {
     }
 
     async turn(game: GameState) {
-        await this._onTurn?.(game);
+        // onTurn only happens if the character is not fighting.
+        // if they are, fightMove will be called instead.
+        if (!this.fighting) await this._onTurn?.(game);
         if (this.hp < this.max_hp && !this.fighting) {
             this.recoverStats({ hp: this.hp_recharge * this.max_hp, mp: this.mp_recharge * this.max_mp, sp: this.sp_recharge * this.max_sp });
             console.log(`${this.name} heals to ${this.hp} hp`)
@@ -834,6 +858,14 @@ class Character {
                 if (enemy.location === this.location) {
                     this.fight(enemy);
                     break;
+                }
+            }
+            if (this.attackPlayer) {
+                for (let character of this.location?.characters ?? []) {
+                    if (character.isPlayer) {
+                        this.fight(character);
+                        break;
+                    }
                 }
             }
         }
@@ -854,6 +886,7 @@ class Character {
             respawnTime: this.respawnTime,
             respawnCountdown: this.respawnCountdown,
             respawnLocationKey: this.respawnLocationKey,
+            respawn: this._respawn,
             items: this.items.filter(item => item).map(item => item.save()),
             flags: this.flags
         }
