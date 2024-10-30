@@ -7,9 +7,10 @@ import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, bright
 import { GameState } from '../../game/game.ts';
 import { caps, plural, randomChoice } from '../../game/utils.ts';
 import { spells, abilityLevels } from './spells.ts';
-import { getBuff } from './buffs.ts'
+import { BuffNames, getBuff } from './buffs.ts'
 import { getLandmark } from './landmarks.ts'
 import { GameMap } from './map.ts'
+import { dir } from 'console'
 
 class Player extends A2dCharacter {
     class_name: string = '';
@@ -20,6 +21,8 @@ class Player extends A2dCharacter {
     isPlayer: boolean = true;
     cheatMode: boolean = false;
     pronouns = { subject: 'you', object: 'you', possessive: 'your' };
+    backDirection: string = '';
+    disabledCommands: { [key: string]: string } = {};
     equipment: {
         'right hand': Item | null,
         'left hand': Item | null,
@@ -152,14 +155,17 @@ class Player extends A2dCharacter {
         this.addAction('s', async () => this.go('south'));
         this.addAction('e', async () => this.go('east'));
         this.addAction('w', async () => this.go('west'));
+        this.addAction('flee', async () => { if (this.backDirection) this.go(this.backDirection); else { color(black); print('you are cornered!') } });
         this.addAction('i', async () => this.listInventory());
         this.addAction('go', this.go);
         this.addAction('look', this.look);
         this.addAction('read', this.read);
         this.addAction('eat', this.eat);
         this.addAction('drink', this.drink);
+        this.addAction('use', this.use);
         this.addAction('wield', async (weapon: string) => this.equip(weapon, 'right hand'));
         this.addAction('wield2', async (weapon: string) => this.equip(weapon, 'left hand'));
+        this.addAction('wear', async (item: string) => this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
         this.addAction('ready', async (weapon: string) => this.equip(weapon, 'bow'));
         this.addAction('drop', this.drop);
         this.addAction('get', this.get);
@@ -188,12 +194,18 @@ class Player extends A2dCharacter {
         // console.log('player input')
         if (this.fighting) {
             console.log(`player is fighting ${this.attackTarget?.name}`)
+            const dirs = ['north', 'south', 'east', 'west']
+            this.disableCommands(dirs.map(dir => `go ${dir}`), `${this.attackTarget?.name} blocks your way!`);
+            this.disableCommands(dirs.map(dir => dir.slice(0, 1)), `${this.attackTarget?.name} blocks your way!`);
             this.checkHP();
             this.onSlay(async () => { });
             color(black)
             print(")===|[>>>>>>>>>>>>>>>>>>")
             command = await input()
         } else {
+            const dirs = ['north', 'south', 'east', 'west']
+            this.enableCommands(dirs.map(dir => `go ${dir}`));
+            this.enableCommands(dirs.map(dir => dir.slice(0, 1)));
             color(blue)
             print(this.name, 1)
             color(black)
@@ -204,20 +216,39 @@ class Player extends A2dCharacter {
                 print("<A@+-/~2~\-+@D>")
             }
         }
+        console.log(`commands disabled: ${Object.keys(this.disabledCommands)}`)
+        command = command.toLowerCase().trim();
+        // block disabled commands
+        if (this.disabledCommands[command]) {
+            color(gray)
+            print(this.disabledCommands[command])
+            return;
+        }
         // first see if the entire command can be executed
+        // the order in which these are checked is important and should not change.
         if (this.location?.actions.has(command)) {
+            // get location actions first
             await this.location?.actions.get(command)?.(this);
-        } else if (this.actions.has(command)) {
-            await this.useAction(command);
         } else {
             for (let character of this.location?.characters ?? []) {
-                if (character.actions.has(command)) {
+                if (character != this && character.actions.has(command)) {
+                    // get character actions next
                     await character.actions.get(command)?.(this);
                     return
                 }
             }
             for (let item of this.items) {
-                await item.getAction(command)?.(this);
+                // then item actions
+                if (item.actions.has(command)) {
+                    await item.getAction(command)?.(this);
+                    return
+                }
+            }
+            if (this.actions.has(command)) {
+                // player's own actions last, which means they can be overridden by locations, characters, or items
+                console.log(`player action ${command}`)
+                await this.useAction(command);
+                return
             }
 
             // if not, try to parse the command
@@ -226,20 +257,48 @@ class Player extends A2dCharacter {
             const args = words.slice(1).join(' ')
             if (this.location?.actions.has(verb)) {
                 await this.location?.actions.get(verb)?.(this, args);
-            } else if (this.actions.has(verb)) {
-                await this.actions.get(verb)?.(args);
             } else {
                 // see if any characters in the room can handle the command
                 for (let character of this.location?.characters ?? []) {
-                    if (character.actions.has(verb)) {
+                    if (character != this && character.actions.has(verb)) {
                         await character.actions.get(verb)?.(this, args);
                         return
                     }
+                }
+                // see if any items can handle the command
+                for (let item of this.items) {
+                    if (item.actions.has(verb)) {
+                        await item.getAction(verb)?.(this, args);
+                        return
+                    }
+                }
+                if (this.actions.has(verb)) {
+                    console.log(`player action ${verb}, ${args}`)
+                    await this.actions.get(verb)?.(args);
+                    return;
                 }
                 color(gray)
                 print('What?');
             }
         }
+    }
+
+    disableCommands(commands: string[], message: string) {
+        console.log(`disabling commands: ${commands}`)
+        commands.forEach(command => {
+            this.disabledCommands[command] = message
+        })
+        console.log(`disabled commands: ${Object.keys(this.disabledCommands)}`)
+    }
+
+    enableCommands(commands?: string[]) {
+        if (!commands) {
+            this.disabledCommands = {}
+            return;
+        }
+        commands.forEach(command => {
+            delete this.disabledCommands[command]
+        })
     }
 
     get hungerPenalty(): number {
@@ -320,7 +379,11 @@ class Player extends A2dCharacter {
 
     async go(direction: string) {
         color(black)
+        const lastLocation = this.location;
         if (await super.go(direction)) {
+            if (this.location?.adjacent?.keys) {
+                this.backDirection = Array.from(this.location?.adjacent?.keys()).find(key => this.location?.adjacent?.get(key) === lastLocation) || '';
+            }
             return true;
         }
         else {
@@ -388,8 +451,14 @@ class Player extends A2dCharacter {
             color(blue)
             print("Bow:             " + this.equipment['bow'].name)
         }
+        color(black)
+        print("Armor:           ", 1)
         color(gray)
-        print("Armor:           " + (this.equipment['armor'] ? this.equipment['armor'].name : 'none'))
+        print((this.equipment['armor'] ? this.equipment['armor'].name : 'none'))
+        if (this.equipment['ring']) {
+            color(blue)
+            print("Ring:            " + this.equipment['ring'].name)
+        }
         if (this.item('arrows')?.quantity) {
             color(orange)
             print("Arrows:          " + this.item('arrows')?.quantity)
@@ -448,6 +517,21 @@ class Player extends A2dCharacter {
         }
     }
 
+    async use(itemName: string) {
+        const item = this.item(itemName);
+        if (!item) {
+            color(gray)
+            print("You don't have that.")
+        }
+        else if (item.use) {
+            await item.use(this);
+        }
+        else {
+            color(gray)
+            print("You can't use that.")
+        }
+    }
+
     equip(item: string | Item | undefined, slot: keyof Player['equipment']) {
         color(black)
         if (item == 'fist') {
@@ -491,7 +575,6 @@ class Player extends A2dCharacter {
                 print("That object has no militaristic properties.")
                 return;
             }
-        } else if (slot === 'armor') {
         }
         if (this.equipment[slot] && this.equipment[slot].name != 'fist') {
             // put their previous weapon in their inventory
@@ -531,12 +614,57 @@ class Player extends A2dCharacter {
         print()
         print("  Armor: ", 1)
         color(blue)
-        print(this.equipment['armor']?.name ?? 'none')
+        print(this.equipment['armor']?.name ?? 'none', 1)
+        if (this.equipment['ring']) {
+            locate(40)
+            color(black)
+            print("Ring: ", 1)
+            color(blue)
+            print(this.equipment['ring']?.name)
+        } else print()
         color(black)
-        print(this.equipment['armor']?.description ?? '')
-        print(`  Blunt Damage AC: ${this.equipment['armor']?.buff('blunt_armor') || 0}`)
-        print(`  Sharp Damage AC: ${this.equipment['armor']?.buff('sharp_armor') || 0}`)
-        print(`  Magic Damage AC: ${this.equipment['armor']?.buff('magic_armor') || 0}`)
+        print(this.equipment['armor']?.description ?? '', 1)
+        if (this.equipment['ring']) {
+            locate(40)
+            print(this.equipment['ring']?.description ?? '')
+        } else print()
+
+        let i = 0;
+        const ringBonus = Object.keys(this.equipment['ring']?.buffs || {}) as BonusKeys[]
+        for (let i = 0; i < Math.max(ringBonus.length, 3); i++) {
+            color(black)
+            if (this.equipment['armor']) {
+                if (i == 0) {
+                    const extraBuff = this.buff('blunt_armor') - this.equipment['armor'].buff('blunt_armor')
+                    print(`  Blunt Damage AC: `, 1)
+                    if (extraBuff) color(blue)
+                    print(`${this.buff('blunt_armor')}`, 1)
+                    if (extraBuff) print(` (+${extraBuff})`, 1)
+                    color(black)
+                } else if (i == 1) {
+                    const extraBuff = this.buff('sharp_armor') - this.equipment['armor'].buff('sharp_armor')
+                    print(`  Sharp Damage AC: `, 1)
+                    if (extraBuff > 0) color(blue)
+                    print(`${this.buff('sharp_armor')}`, 1)
+                    if (extraBuff) print(` (+${extraBuff})`, 1)
+                    color(black)
+                } else if (i == 2) {
+                    const extraBuff = this.buff('magic_armor') - this.equipment['armor'].buff('magic_armor')
+                    print(`  Magic Damage AC: `, 1)
+                    if (extraBuff) color(blue)
+                    print(`${this.buff('magic_armor')}`, 1)
+                    if (extraBuff) print(` (+${extraBuff})`, 1)
+                    color(black)
+                } else print('', 1)
+            }
+            if (ringBonus[i]) {
+                locate(40)
+                color(blue)
+                print(`+${this.statValue(ringBonus[i], this.equipment['ring']?.buff(ringBonus[i]) || 0)} `, 1)
+                color(black)
+                print(`${this.statName(ringBonus[i])}`)
+            } else print()
+        }
     }
 
     async spell(spellName: string) {
@@ -544,6 +672,8 @@ class Player extends A2dCharacter {
         if (this.abilities[spellName]) {
             await spells[spellName].call(this, this.attackTarget ?? this);
         } else {
+            console.log(`${spellName} failed.`)
+            console.log(this.abilities)
             print("You don't know that spell.")
         }
     }
@@ -561,70 +691,110 @@ class Player extends A2dCharacter {
     }
 
     async get(itemName: string) {
-        color(black)
         const item = this.location?.item(itemName);
         if (!item) {
+            color(black)
             print("That's not here.")
         }
         else {
             let displayName = item.display
             this.getItem(itemName);
             if (this.has(itemName)) {
+                color(black)
                 print(`Got ${displayName}.`)
             }
         }
     }
 
     async checkHP() {
-        color(black)
-        print(` [HP:  ${Math.ceil(this.hp)}/${Math.ceil(this._max_hp)}`, 1)
-        print("  SP: ", 1)
-        if (this.hungerPenalty) color(brightred)
-        print(`${Math.ceil(this.sp)}/${Math.ceil(this.max_sp)}`, 1)
-        color(black)
-        print(`  BP: ${Math.ceil(this.mp)}/${Math.ceil(this._max_mp)}]`)
+        color(black);
+        print(`[ HP:  ${Math.ceil(this.hp)}/`, 1);
+        if (this.buff('max_hp') > 0) color(blue); else color(black);
+        print(`${Math.ceil(this.max_hp)}`, 1);
+        color(black);
+        print("  SP: ", 1);
+        if (this.hungerPenalty) color(brightred);
+        print(`${Math.ceil(this.sp)}/`, 1);
+        if (this.buff('max_sp') > 0) color(blue); else color(black);
+        print(`${Math.ceil(this.max_sp)}`, 1);
+        color(black);
+        print(`  BP: ${Math.ceil(this.mp)}/`, 1)
+        if (this.buff('max_mp') > 0) color(blue); else color(black);
+        print(`${Math.ceil(this.max_mp)} ]`)
+    }
+
+    statName(key: BonusKeys) {
+        switch (key) {
+            case ('max_hp'): return 'Max HP';
+            case ('max_mp'): return 'Max MP';
+            case ('max_sp'): return 'Max SP';
+            case ('strength'): return 'Strength';
+            case ('coordination'): return 'Coordination';
+            case ('agility'): return 'Agility';
+            case ('magic_level'): return 'Magic Level';
+            case ('healing'): return 'Healing';
+            case ('blunt_damage'): return 'Blunt Damage';
+            case ('sharp_damage'): return 'Sharp Damage';
+            case ('magic_damage'): return 'Magic Damage';
+            case ('blunt_armor'): return 'Blunt Armor';
+            case ('sharp_armor'): return 'Sharp Armor';
+            case ('magic_armor'): return 'Magic Armor';
+            case ('archery'): return 'Archery';
+            case ('hp_recharge'): return 'HP Recharge';
+            case ('mp_recharge'): return 'MP Recharge';
+            case ('sp_recharge'): return 'SP Recharge';
+            default: return key;
+        }
+    }
+    statValue(key: BonusKeys, value: number) {
+        switch (key) {
+            case ('hp_recharge'): return `${Math.round(value * 100)}%`;
+            case ('mp_recharge'): return `${Math.round(value * 100)}%`;
+            case ('sp_recharge'): return `${Math.round(value * 100)}%`;
+            default: return `${Math.round(value)}`;
+        }
     }
 
     async checkStats() {
+        const printStat = (buffName: BonusKeys) => {
+            if (this.buff(buffName) > 0) {
+                color(blue)
+            } else if (this.buff(buffName) < 0) {
+                color(brightred)
+            } else { color(black) }
+            print(this.statValue(buffName, (this[buffName] as number)), 1)
+            if (this.buff(buffName) > 0) print(`(+${this.statValue(buffName, this.buff(buffName))})`)
+            else if (this.buff(buffName) < 0) print(`(${this.statValue(buffName, this.buff(buffName))})`)
+            else print('')
+            color(black)
+        }
         color(black)
         print(`Class: ${this.class_name}`)
         print(`Archery: `, 1)
-        if (this.buff('archery')) color(brightblue)
-        print(`${Math.floor(this.archery)}`)
+        printStat('archery')
         print(`Coordination: `, 1)
-        if (this.buff('coordination')) color(brightblue)
-        print(`${Math.floor(this.coordination)}`)
+        printStat('coordination')
         print(`Agility: `, 1)
-        if (this.buff('agility')) color(brightblue)
-        print(`${Math.floor(this.agility)}`)
+        printStat('agility')
         print(`Strength: `, 1)
-        if (this.buff('strength')) color(brightblue)
-        print(`${Math.floor(this.strength)}`)
+        printStat('strength')
         print(`Max HP: `, 1)
-        if (this.buff('hp')) color(brightblue)
-        print(`${Math.floor(this.max_hp)}`)
+        printStat('max_hp')
         print(`Max SP: `, 1)
-        if (this.buff('sp')) color(brightblue)
-        print(`${Math.floor(this.max_sp)}`)
+        printStat('max_sp')
         print(`Max BP: `, 1)
-        if (this.buff('mp')) color(brightblue)
-        print(`${Math.floor(this.max_mp)}`)
+        printStat('max_mp')
         print(`Healing: `, 1)
-        if (this.buff('healing')) color(brightblue)
-        print(`${Math.floor(this.healing)}`)
+        printStat('healing')
         print(`HP recovery: `, 1)
-        if (this.buff('hp_recharge')) color(brightblue)
-        print(`${Math.round(this.hp_recharge * 100)}%`)
+        printStat('hp_recharge')
         print(`SP recovery: `, 1)
-        if (this.buff('sp_recharge')) color(brightblue)
-        print(`${Math.round(this.sp_recharge * 100)}%`)
+        printStat('sp_recharge')
         print(`BP recovery: `, 1)
-        if (this.buff('mp_recharge')) color(brightblue)
-        print(`${Math.round(this.mp_recharge * 100)}%`)
+        printStat('mp_recharge')
         print(`OffHand: ${Math.floor(this.offhand * 100)}%`)
         print(`Magic Level: `, 1)
-        if (this.buff('magic_level')) color(brightblue)
-        print(`${Math.floor(this.magic_level)}`)
+        printStat('magic_level')
         for (let ability in this.abilities) {
             print(`--${caps(ability)} skill: ${abilityLevels[Math.floor(this.abilities[ability])]}`)
         }
@@ -714,8 +884,8 @@ class Player extends A2dCharacter {
             print("what?")
             return;
         } else {
-            const code = command.split(' ')[0];
-            const value = command.split(' ').slice(1).join(' ');
+            const code = command.includes(' ') ? command.split(' ')[0] : command;
+            const value = command.includes(' ') ? command.split(' ').slice(1).join(' ') : command;
             switch (code) {
                 case ('hp'):
                     this.recoverStats({ hp: parseInt(value) || 0 });
@@ -785,6 +955,20 @@ class Player extends A2dCharacter {
                     this.relocate(this.game.find_location(this.location?.name || 'start'))
                     print('map regenerated.')
                     break;
+                case ('biadon'):
+                    this.game.flags['biadon'] = false;
+                    const biadon = this.game.find_character('biadon');
+                    if (biadon) this.game.locations.get(78)?.removeCharacter(biadon);
+                    print('Biadon has been removed.')
+                    break;
+                case ('enable'):
+                    this.enableCommands();
+                    print('commands enabled.')
+                    break;
+                case ('landmark'):
+                    this.location?.addLandmark(getLandmark(value));
+                    print(`landmark ${value} added.`)
+                    break;
             }
         }
     }
@@ -810,12 +994,14 @@ class Player extends A2dCharacter {
             _healing: this._healing,
             _magic_level: this._magic_level,
             _archery: this._archery,
-            offHand: this.offhand,
+            offhand: this.offhand,
             abilities: this.abilities,
             max_pets: this.max_pets,
             experience: this.experience,
             cheatMode: this.cheatMode,
             items: this.items.map(item => item.save()),
+            backDirection: this.backDirection,
+            disabledCommands: this.disabledCommands,
             equipment: Object.fromEntries(
                 Object.entries(this.equipment).map(([key, item]) => [key, item?.save() ?? null])
             ),
@@ -828,6 +1014,7 @@ class Player extends A2dCharacter {
 
     load(character: any) {
         Object.assign(this, character)
+        // load items properly
         this.clearInventory()
         const items: Item[] = []
         character.items.forEach((itemData: any) => {
