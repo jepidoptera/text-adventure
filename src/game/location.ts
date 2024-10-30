@@ -40,8 +40,8 @@ class Location extends Container {
     adjacent: Map<string, Location> | undefined;
     adjacent_ids: { [key: string]: string | number } = {};
     description: string | undefined;
-    characters: Set<Character> = new Set();
-    landmarks: Landmark[] = [];
+    private _characters: Set<Character> = new Set();
+    private _landmarks: Landmark[] = [];
     _onEnter?: (player: Character) => void;
     actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
     constructor({
@@ -62,7 +62,7 @@ class Location extends Container {
         this.description = description;
         this.adjacent_ids = adjacent;
         for (let character of characters) {
-            this.addCharacter(character);
+            this._characters.add(character);
         };
     }
     addAction(name: string, action: (player: Character, ...args: any[]) => Promise<any>) {
@@ -70,30 +70,48 @@ class Location extends Container {
         return this;
     }
     addCharacter(character: Character) {
-        this.characters.add(character);
-        character.location = this;
+        character.relocate(this);
         return this;
     }
     removeCharacter(character: Character) {
-        this.characters.delete(character);
+        this._characters.delete(character);
         return this;
     }
-    addLandmark(Landmark: Landmark) {
-        Landmark._actions.forEach((action, name) => {
+    get characters(): Character[] {
+        return [...this._characters];
+    }
+    addLandmark(landmark: Landmark) {
+        landmark._actions.forEach((action, name) => {
             this.actions.set(name, action)
         });
-        this.landmarks.push(Landmark);
+        this._landmarks.push(landmark);
         return this;
     }
+    removeLandmark(landmark: Landmark | string) {
+        if (typeof landmark === 'string') {
+            landmark = (
+                this._landmarks.find(l => l.name === landmark) as Landmark
+                || this._landmarks.find(l => l.key === landmark) as Landmark
+            )
+        }
+        this._landmarks = this._landmarks.filter(l => l !== landmark);
+        landmark._actions.forEach((_, name) => {
+            this.actions.delete(name)
+        });
+        return this;
+    }
+    get landmarks(): Landmark[] {
+        return this._landmarks;
+    }
     enter(character: Character) {
-        this.addCharacter(character);
+        this._characters.add(character);
     }
     exit(character: Character, direction?: string) {
-        this.characters.delete(character);
+        this._characters.delete(character);
     }
     character(name: string = ''): Character | undefined {
         if (!name) return;
-        const charlist = [...this.characters]
+        const charlist = [...this._characters]
         const char = (
             charlist.find(character => character.name === name)
             || charlist.find(character => character.description === name)
@@ -105,12 +123,12 @@ class Location extends Container {
         return char;
     }
     get playerPresent(): boolean {
-        return [...this.characters].some(character => character.isPlayer);
+        return [...this._characters].some(character => character.isPlayer);
     }
     save() {
         return {
             name: this.name,
-            characters: [...this.characters].map(char => (
+            characters: [...this._characters].filter(char => char.persist).map(char => (
                 char.save()
             )),
             landmarks: this.landmarks.map(landmark => (
