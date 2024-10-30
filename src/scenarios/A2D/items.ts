@@ -1280,6 +1280,7 @@ const items = {
                 player.attackTarget.addBuff(
                     new Buff({
                         name: 'power drain',
+                        duration: Math.floor(Math.random() * 5) + 1,
                         bonuses: { 'blunt_damage': -10, 'sharp_damage': -50 }
                     }).onExpire(async function () {
                         color(magenta)
