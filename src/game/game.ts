@@ -6,6 +6,7 @@ import { Character } from './character.ts'
 class GameState {
     flags: { [key: string]: any } = {};
     private _locations: Map<string | number, Location> = new Map();
+    private batchCommands: { [key: string]: string | number | undefined }[] = [];
     on_input: ((input: string) => void) | null = null;
     send: (output: object) => void;
     _save: (saveName: string, gameState: object) => Promise<void>;
@@ -41,16 +42,16 @@ class GameState {
         }
     }
     quote(text?: string, extend?: any) {
-        this.send({ command: 'print', text, extend });
+        this.batchCommands.push({ command: 'print', text, extend });
     }
     clear() {
-        this.send({ command: 'clear' });
+        this.batchCommands.push({ command: 'clear' });
     }
     locate(x: number, y?: number) {
-        this.send({ command: 'locate', x, y });
+        this.batchCommands.push({ command: 'locate', x, y });
     }
     color(fg: string, bg?: string) {
-        this.send({ command: 'color', fg, bg });
+        this.batchCommands.push({ command: 'color', fg, bg });
     }
     optionBox({
         title,
@@ -64,7 +65,9 @@ class GameState {
         default_option?: number
     }) {
         console.log(options);
-        this.send({ command: 'optionBox', title, options, colors, default_option });
+        this.send(this.batchCommands);
+        this.batchCommands = [];
+        this.send([{ command: 'optionBox', title, options, colors, default_option }]);
         return new Promise<number>((resolve) => {
             this.on_input = (response: string) => {
                 console.log(response);
@@ -73,7 +76,9 @@ class GameState {
         });
     }
     query(prompt: string): Promise<string> {
-        this.send({ command: 'input', prompt });
+        this.send(this.batchCommands);
+        this.batchCommands = [];
+        this.send([{ command: 'input', prompt }]);
         return new Promise<string>((resolve) => {
             this.on_input = resolve;
         });
@@ -82,7 +87,9 @@ class GameState {
         if (options) {
             options = options.map(option => option.slice(0, 1).toLowerCase());
         }
-        this.send({ command: 'getKey', options });
+        this.send(this.batchCommands);
+        this.batchCommands = [];
+        this.send([{ command: 'getKey', options }]);
         console.log('waiting for key');
         return new Promise<string>((resolve) => {
             this.on_input = (input: string) => {
@@ -92,12 +99,14 @@ class GameState {
                     resolve(input);
                 }
                 else {
-                    this.send({ command: 'getKey', options });
+                    this.send([{ command: 'getKey', options }]);
                 }
             };
         });
     }
     pause(seconds: number) {
+        this.send(this.batchCommands);
+        this.batchCommands = [];
         return new Promise(resolve => setTimeout(resolve, seconds * 1000));
     }
     async start() {
@@ -173,6 +182,10 @@ class GameState {
                 this.quote('I don\'t understand that command');
             }
         }
+    }
+    shutdown() {
+        // clear intervals or whatever
+        return;
     }
     async process_input(input: string = '') {
         if (this.on_input) {

@@ -42,6 +42,7 @@ function renderScreen() {
             }
         });
     });
+    console.log('rendering');
 }
 
 // Function to set current colors
@@ -93,14 +94,13 @@ function quote(text = '', extend = false) {
         cursor.x = 0;
         cursor.y++;
     }
-
-    renderScreen();
 }
 
 
 // Synchronous input function with in-place updating
 function query(promptText = '') {
     quote(promptText, true); // Display prompt
+    renderScreen();
     return new Promise(resolve => {
         let inputText = '';
         let initialX = cursor.x, initialY = cursor.y;
@@ -120,6 +120,7 @@ function query(promptText = '') {
                 locate(initialX, initialY);
                 quote(inputText, true);
             }
+            renderScreen();
         };
 
         document.addEventListener('keydown', handleInput);
@@ -179,6 +180,7 @@ async function optionBox(
             }
             quote(` ${options[i]}${' '.repeat(boxWidth - options[i].length - 1)}`, true);
         }
+        renderScreen();
         key = await getKey();
     }
     color(...previousColors);
@@ -205,37 +207,39 @@ function clear() {
     );
     cursor.x = 0;
     cursor.y = 0;
-    renderScreen();
 }
 
-async function processResponse(line) {
-    console.log(line);
-    switch (line.command) {
-        case 'locate':
-            locate(line.x, line.y);
-            break;
-        case 'color':
-            color(line.fg, line.bg);
-            break;
-        case 'print':
-            quote(('text' in line ? line.text : ''), line.extend);
-            break;
-        case 'getKey':
-            const key = await getKey();
-            sendCommand(key);
-            break;
-        case 'input':
-            const userInput = await query(line.prompt);
-            sendCommand(userInput);
-            break;
-        case 'clear':
-            clear();
-            break;
-        case 'optionBox':
-            const option = await optionBox(line.title, line.options, line.colors, line.default_option);
-            sendCommand(option);
-            break;
+async function processResponse(batch) {
+    for (line of batch) {
+        console.log(line);
+        switch (line.command) {
+            case 'locate':
+                locate(line.x, line.y);
+                break;
+            case 'color':
+                color(line.fg, line.bg);
+                break;
+            case 'print':
+                quote(('text' in line ? line.text : ''), line.extend);
+                break;
+            case 'getKey':
+                const key = await getKey();
+                sendCommand(key);
+                break;
+            case 'input':
+                const userInput = await query(line.prompt);
+                sendCommand(userInput);
+                break;
+            case 'clear':
+                clear();
+                break;
+            case 'optionBox':
+                const option = await optionBox(line.title, line.options, line.colors, line.default_option);
+                sendCommand(option);
+                break;
+        }
     }
+    renderScreen();
 }
 
 function initializeWebSocket() {
