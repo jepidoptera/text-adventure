@@ -2,6 +2,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    overflow: hidden;
 }
 
 @font-face {
@@ -29,6 +30,7 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
+    zoom: 150%;
 }
 
 #display {
@@ -44,4 +46,6 @@ span {
     overflow: hidden;
     display: block;
     caret-color: transparent;
+    margin-right: -1px;
+    margin-bottom: -1px;
 }
