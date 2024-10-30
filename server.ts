@@ -114,6 +114,7 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         // Clean up the game instance when the client disconnects
+        activeGames.get(gameId).shutdown()
         activeGames.delete(gameId);
         console.log(`Client disconnected. Game ${gameId} removed.`);
     });
