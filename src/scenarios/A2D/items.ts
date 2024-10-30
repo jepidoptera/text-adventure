@@ -1,7 +1,9 @@
 import { Item, ItemParams } from '../../game/item.ts';
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts';
 import { Player } from './player.ts';
-import { Character } from '../../game/character.ts';
+import { Character, Buff } from '../../game/character.ts';
+import { getBuff } from './buffs.ts';
+import { play, musicc$ } from './utils.ts';
 
 function equip(slot: keyof Player["equipment"]) {
     return async function (this: Item, character: Character) {
@@ -24,7 +26,7 @@ const items = {
     gold(args: ItemParams) {
         return new Item({
             name: 'gold',
-            size: 0.02,
+            size: 0.005,
             value: 1,
             quantity: args.quantity
         })
@@ -1049,6 +1051,16 @@ const items = {
             size: 0.4,
             value: 0,
             quantity: args.quantity
+        }).on_use(async function (player) {
+            if (player.location && player.location.landmarks?.map(landmark => landmark.key).includes('slash_in_the_earth')) {
+                print("You drop some of the potion into the crevice.")
+                await pause(2)
+                print("The earth shakes beneath you as the crevice seals itself shut.")
+                player.location.removeLandmark('slash_in_the_earth')
+                player.removeItem(this)
+            } else {
+                print("You aren't supposed to use that here.")
+            }
         })
     },
     enhanced_club(args: ItemParams) {
@@ -1254,6 +1266,27 @@ const items = {
             size: 0.3,
             value: 0,
             quantity: args.quantity
+        }).addAction('play lute', async function (player: Character) {
+            color(blue)
+            print("You lift the beautiful lute to your lips, and unleash a tune...")
+            if (player.attackTarget?.name.toLowerCase() == 'sift') {
+                play(musicc$(10))
+                print()
+                color(magenta)
+                print("Sift falters, entranced by the music.")
+                await pause(1)
+                print("His attack fell!")
+                await pause(1)
+                player.attackTarget.addBuff(
+                    new Buff({
+                        name: 'power drain',
+                        bonuses: { 'blunt_damage': -10, 'sharp_damage': -50 }
+                    }).onExpire(async function () {
+                        color(magenta)
+                        print("Sift shakes off the trances of the lute.")
+                    })
+                )
+            }
         })
     },
     mace(args: ItemParams) {
@@ -1406,7 +1439,13 @@ const items = {
             description: 'With this ring, you can bring dreams into reality.',
             size: 0.05,
             value: 0,
+            equipment_slot: 'ring',
             quantity: args.quantity
+        }).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- You can wear that.")
+            }
         })
     },
     ring_of_life(args: ItemParams) {
@@ -1414,7 +1453,13 @@ const items = {
             name: 'ring of life',
             size: 0.05,
             value: 800,
+            equipment_slot: 'ring',
             quantity: args.quantity
+        }).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- You can wear that.")
+            }
         })
     },
     ring_of_nature(args: ItemParams) {
@@ -1422,7 +1467,23 @@ const items = {
             name: 'ring of nature',
             size: 0.05,
             value: 0,
+            equipment_slot: 'ring',
             quantity: args.quantity
+        }).addBuff(new Buff({
+            name: 'ring_of_nature',
+            bonuses: {
+                max_hp: 50,
+                hp_recharge: 0.10,
+                sp_recharge: 0.10,
+                mp_recharge: 0.10,
+            },
+        })).addAction('use ring', async function (player) {
+            print('TODO: use ring of nature')
+        }).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- You can wear that.")
+            }
         })
     },
     ring_of_power(args: ItemParams) {
@@ -1430,7 +1491,13 @@ const items = {
             name: 'ring of power',
             size: 0.05,
             value: 700,
+            equipment_slot: 'ring',
             quantity: args.quantity
+        }).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- You can wear that.")
+            }
         })
     },
     ring_of_stone(args: ItemParams) {
@@ -1438,7 +1505,19 @@ const items = {
             name: 'ring of stone',
             size: 0.05,
             value: 0,
+            equipment_slot: 'ring',
             quantity: args.quantity
+        }).addBuff(new Buff({
+            name: 'ring_of_stone',
+            bonuses: {
+                blunt_armor: 50,
+                sharp_armor: 50,
+            },
+        })).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- You can wear that.")
+            }
         })
     },
     ring_of_strength(args: ItemParams) {
@@ -1446,7 +1525,13 @@ const items = {
             name: 'ring of strength',
             size: 0.05,
             value: 600,
+            equipment_slot: 'ring',
             quantity: args.quantity
+        }).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- You can wear that.")
+            }
         })
     },
     ring_of_time(args: ItemParams) {
@@ -1454,7 +1539,13 @@ const items = {
             name: 'ring of time',
             size: 0.05,
             value: 0,
+            equipment_slot: 'ring',
             quantity: args.quantity
+        }).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- You can wear that.")
+            }
         })
     },
     ring_of_ultimate_power(args: ItemParams) {
@@ -1462,7 +1553,13 @@ const items = {
             name: 'ring of ultimate power',
             size: 0.05,
             value: 0,
+            equipment_slot: 'ring',
             quantity: args.quantity
+        }).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- You should definitely wear that.")
+            }
         })
     },
     shovel(args: ItemParams) {
@@ -1606,6 +1703,7 @@ function getItem(itemName: ItemKey, args: number | ItemParams = 1): Item {
 const potions = new Map(
     [
         [['giraffe gizzard', 'blue liquid', 'spritzer hair'], getItem('bug_repellent')],
+        [['maple leaf', 'spritzer hair', 'ochre stone', 'music box', 'clear liquid'], getItem('earth_potion')],
     ]
 )
 
