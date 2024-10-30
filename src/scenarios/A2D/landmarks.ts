@@ -2,6 +2,7 @@ import { Landmark } from '../../game/location.ts';
 import { Item, Container } from '../../game/item.ts';
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
 import { potions } from './items.ts'
+import { Character } from '../../game/character.ts';
 
 const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
     sign(text?: string | string[]): Landmark {
@@ -94,6 +95,11 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
                     print("be alive.")
                     player.hp = 1
                     player.sp = 1
+                    if (player.flags.assistant) {
+                        color(magenta)
+                        print("Assistant -- ouch.")
+                        print("Assistant -- You need to train agility, strength and stamina.")
+                    }
                 }
             } else {
                 print("You decide that you have gone far enough and begin the descent.")
@@ -106,12 +112,14 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
         return new Landmark({
             name: 'treehouse platform',
             description: 'A Treehouse Platform',
-        }).action('climb down', async function (player) {
+        }).action('climb down', async function (player: Character) {
+            color(black)
             print("You begin your descent...")
             await pause(2)
             print("You continue to climb downwards...")
             await pause(3)
             print("After an exhausting climb you feel grateful to be on the ground again!")
+            player.relocate(player.game.locations.get(64) || null)
         })
     },
     mixing_pot(): Landmark {
@@ -190,6 +198,12 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
         return new Landmark({
             name: 'slash',
             description: 'A Jagged, Oozing Slash in the Earth'
+        }).action('e', async function (player) {
+            color(black)
+            print("You can't go that way. The slash is impassable.")
+        }).action('go east', async function (player) {
+            color(black)
+            print("You can't go that way. The slash is impassable.")
         })
     },
     dead_cleric(): Landmark {
