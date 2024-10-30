@@ -3,12 +3,15 @@ import { Character, CharacterParams, pronouns } from '../../game/character.ts';
 import { Player } from './player.ts';
 import { Item, WeaponTypes } from '../../game/item.ts';
 import { plural, caps, randomChoice } from '../../game/utils.ts';
+import { play, musicc$ } from './utils.ts';
 import { getItem } from './items.ts';
 import { getLandmark } from './landmarks.ts';
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
 import { GameState } from '../../game/game.ts';
 import { A2D } from './game.ts';
 import { abilityLevels } from './spells.ts';
+import { getBuff } from './buffs.ts';
+import { get } from 'http';
 
 interface A2dCharacterParams extends CharacterParams {
     spellChance?: ((this: A2dCharacter) => boolean) | undefined
@@ -71,9 +74,10 @@ class A2dCharacter extends Character {
     async die(cause?: any) {
         await super.die(cause);
         // go to limbo
-        await this.relocate(this.game.find_location('limbo'));
-        this.respawnCountdown = this.respawnTime;
-        console.log(`${this.name} respawning in ${this.respawnCountdown} seconds from ${this.location?.name}`);
+        if (this.respawns) {
+            await this.relocate(this.game.find_location('limbo'));
+            this.respawnCountdown = this.respawnTime;
+        }
     }
 
     fight(character: Character | null) {
@@ -343,9 +347,9 @@ const actions = {
         print(`TODO: sleep`)
     },
     growl: async function (this: A2dCharacter) {
-        if (this.attackTarget?.isPlayer) {
-            print(`TODO: growl`);
-        }
+        color(magenta)
+        print(`${caps(this.name)} growls fiercly, your attack fell.`)
+        this.attackTarget?.addBuff(getBuff('fear')({ power: Math.random() * this.magic_level, duration: 12 }));
     },
     howl: async function (this: A2dCharacter) {
         if (this.attackTarget?.isPlayer) {
@@ -552,6 +556,7 @@ const characters = {
         }).dialog(async function () {
             print("Beware... if you attack me I will call more guards to help me.");
         }).onDeath(async function () {
+            print("Ierdale has turned against you!");
             this.game.player.flags.enemy_of_ierdale = true;
         }).fightMove(async function () {
             // TODO: call troops
@@ -588,6 +593,7 @@ const characters = {
             coordination: 15,
             agility: 2,
             alignment: 'evil/areaw',
+            respawn: false,
             ...args
         });
     },
@@ -625,6 +631,7 @@ const characters = {
             blunt_armor: 15,
             sharp_armor: 25,
             aliases: ['soldier'],
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             switch (this.game.flags.ieadon) {
@@ -663,6 +670,7 @@ const characters = {
             sharp_armor: 45,
             magic_armor: 10,
             aliases: ['general'],
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             print("Back in LINE!  This is a time of seriousness.  We are planning on crushing the");
@@ -813,6 +821,7 @@ const characters = {
             blunt_armor: 30,
             aliases: ['merchant'],
             alignment: 'armor shop',
+            respawn: false,
             spellChance: () => Math.random() < 1 / 3,
             ...args
         }).dialog(async function (player: Character) {
@@ -849,6 +858,7 @@ const characters = {
             description: 'blacksmith',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             alignment: 'armor shop',
+            respawn: false,
             spellChance: () => Math.random() < 3 / 4,
             ...args
         }).dialog(async function (player: Character) {
@@ -872,6 +882,7 @@ const characters = {
             blunt_armor: 2,
             coordination: 1,
             agility: 1,
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             print("Hello SIR!  How are you on this fine day!  I love life!  Isn't this a great");
@@ -938,6 +949,7 @@ const characters = {
             agility: 20,
             aliases: ['colonel', 'arach'],
             alignment: 'ierdale',
+            respawn: false,
             spellChance: () => true,  // always heals
             ...args
         }).dialog(async function (player: Character) {
@@ -978,7 +990,7 @@ const characters = {
                     ]
                     gate_locations.forEach(location => {
                         if (location) {
-                            location.landmarks = []
+                            location.removeLandmark('locked_gate')
                             location.addLandmark(getLandmark('open_gate'))
                         }
                     })
@@ -1058,18 +1070,20 @@ const characters = {
 
     sift(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'sift',
-            pronouns: pronouns.inhuman,
+            name: 'Sift',
+            pronouns: pronouns.male,
             items: [getItem('gold', 200), getItem('ring_of_dreams')],
             hp: 580,
-            blunt_damage: 10,
-            sharp_damage: 50,
+            blunt_damage: 20,
+            sharp_damage: 100,
             weaponName: 'claws',
             weaponType: 'sword',
             description: 'Sift',
             coordination: 25,
             agility: 15,
             blunt_armor: 25,
+            attackPlayer: true,
+            respawn: false,
             ...args
         }).onDeath(async function () {
             this.game.flags.sift = true;
@@ -1092,6 +1106,8 @@ const characters = {
             coordination: 5,
             agility: 5,
             spellChance: () => Math.random() < 5 / 7,
+            magic_level: 25,
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             if (this.game.flags.cradel) {
@@ -1104,28 +1120,78 @@ const characters = {
                 print("Cradel grins at you sleepily");
                 print("'Thankyou once again friend.'");
             }
-        }).fightMove(actions.growl);
+        }).fightMove(
+            actions.growl
+        ).onDeath(async function () {
+            // open gate
+            this.location?.removeLandmark('locked_gate')
+            this.location?.addLandmark(getLandmark('open_gate'))
+            this.game.flags.cradel = true;
+            this.location?.adjacent?.set('south', this.game.locations.get(192) || this.location);
+        }).addAction('play lute', async function (player: Character) {
+            if (!player.has('lute de lomonate')) {
+                color(gray);
+                print("You don't have that.");
+                return;
+            } else {
+                color(blue)
+                print("You lift the beautiful lute to your lips, and unleash a tune...")
+                await pause(1)
+                play(musicc$(10))
+                if (!this.game.flags.cradel) {
+                    color(black)
+                    print("Cradel jerks his head suddenly...")
+                    print("He looks up at you longingly and then slowly, ever so slowly...")
+                    print("The music goes on, his head sinks twords his chest.")
+                    print()
+                    await pause(6)
+                    if (!player.has('ring of dreams')) {
+                        print("Not enough, almost, and yet I still cannot sleep.")
+                        await pause(1);
+                        return;
+                    } else {
+                        print("Cradel eyes your ring of dreams.")
+                        await pause(1)
+                        print("Cradel gasps I have lived long and seen that ring many times...")
+                        print("I never knew it would fall into the hands of one the likes of")
+                        print("you.  With the help of that I know I could sleep.")
+                        print("Help me out? [y/n]")
+                        if (await getKey(['y', 'n']) == "n") {
+                            print("Oh, I am a peaceful troll.  Now would seem a time as any though to break")
+                            print("my pasifistic nature.  I will not however it agains my beliefs.  Please re-")
+                            print("consider later.")
+                            await pause(5)
+                            return
+                        } else {
+                            print("'Thankyou, whatever do you want... You have GIVEN ME SLEEP!'")
+                            print("You seek to open these gates, and find what reality has in store on the")
+                            print("other side. I can tell, for your eyes say it aloud.")
+                            await pause(4)
+                            print()
+                            print("That is one wish I have the power to grant, Make it so? [y/n]")
+                            if (await getKey(['y', 'n']) == "y") {
+                                color(black)
+                                print("Cradel gets off of his huge rump.")
+                                print("With a shudder he opens the gates and thanks you with all his heart.")
+                                print(`'Thankyou again ${player.name}, come see me again soon!'`)
+                                player.transferItem('ring of dreams', this)
+                                this.game.flags.cradel = true;
+                                this.location?.removeLandmark('locked_gate')
+                                this.location?.addLandmark(getLandmark('open_gate'))
+                                this.location?.adjacent?.set('south', this.game.locations.get(192) || this.location);
+                            } else {
+                                print("Thankyou anyway.")
+                                print("If you change your mind play that wonderful tune again.")
+                            }
+                        }
+                    }
+                }
+            }
+        })
     },
 
     mino(args: { [key: string]: any }) {
-        function musicc$(n: number) {
-            return Array.from(
-                { length: n },
-                () => [
-                    randomChoice([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
-                    randomChoice([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
-                ]
-            )
-        }
-        function play(music: number[][]) {
-            for (let i = 0; i < music.length; i++) {
-                color(qbColors[music[i][0]], qbColors[music[i][1]]);
-                // print music note
-                print("♫", 1);
-                // Play music[i]
-            }
-            return music
-        }
+
         return new A2dCharacter({
             name: 'Mino',
             pronouns: pronouns.male,
@@ -1138,6 +1204,7 @@ const characters = {
             blunt_armor: 20,
             agility: 40,
             coordination: 12,
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             if (this.flags.won) {
@@ -1182,32 +1249,32 @@ const characters = {
                     }
                     print("Tune one, by Grogrin");
                     this.flags.tune['grogrin'] = play(musicc$(10));
-                    // Play tune$(1)
+                    print()
                     print("Press a key when finished.");
-                    // GetKey
+                    await getKey()
                     print("Tune two, by ME!");
                     this.flags.tune['mino'] = play(musicc$(10));
-                    // Play tune$(2)
+                    print()
                     print("Press a key when finished.");
-                    // GetKey
+                    await getKey()
                     print("Tune three, by Turlin");
                     this.flags.tune['turlin'] = play(musicc$(10));
-                    // Play tune$(3)
+                    print()
                     print("Press a key when finished.");
-                    // GetKey
+                    await getKey()
                     print("Tune four, by the old cat woman");
                     this.flags.tune['cat woman'] = play(musicc$(10));
-                    // Play tune$(4)
+                    print()
                     print("Press a key when finished.");
-                    // GetKey
+                    await getKey()
                     print("Tune five, by doo-dad man");
                     this.flags.tune['doo-dad man'] = play(musicc$(10));
-                    // Play tune$(5)
+                    print()
                     print("Press a key when finished.");
-                    // GetKey
+                    await getKey()
                     print("Tune six, by Ieadon");
                     this.flags.tune['ieadon'] = play(musicc$(10));
-                    // Play tune$(6)
+                    print()
                     print("Press a key when finished.");
                     await getKey()
                     clear()
@@ -1248,7 +1315,11 @@ const characters = {
                 print("To play this at any time, type 'play lute'")
                 this.transferItem('lute de lumonate', player)
                 this.flags.won = true
+            } else if (!Object.keys(this.flags.tune).includes(guess)) {
+                color(black)
+                print("I didn't play a song by them.")
             } else {
+                color(black)
                 print("I am so sorry, that is INCORRECT!")
                 color(blue)
                 print("TRY AGAIN!")
@@ -1322,6 +1393,7 @@ const characters = {
             coordination: 5,
             agility: 2,
             pronouns: pronouns.male,
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.ieadon) {
@@ -1438,6 +1510,7 @@ const characters = {
     evil_forester(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'evil forester',
+            aliases: ['forester'],
             items: [getItem('wooden_stick'), getItem('gold', 8)],
             hp: 50,
             blunt_damage: 20,
@@ -1455,6 +1528,7 @@ const characters = {
     dirty_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'dirty thief',
+            aliases: ['thief'],
             items: [getItem('dagger'), getItem('gold', 6)],
             hp: 52,
             blunt_damage: 0,
@@ -1488,6 +1562,7 @@ const characters = {
     snarling_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'snarling thief',
+            aliases: ['thief'],
             items: [getItem('flail'), getItem('gold', 7)],
             hp: 82,
             blunt_damage: 7,
@@ -1522,6 +1597,7 @@ const characters = {
     fine_gentleman(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'fine gentleman',
+            aliases: ['gentleman'],
             items: [getItem('rapier'), getItem('gold', 26)],
             hp: 103,
             blunt_damage: 4,
@@ -1539,6 +1615,7 @@ const characters = {
     little_goblin_thief(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'little goblin thief',
+            aliases: ['goblin thief', 'goblin', 'thief'],
             items: [getItem('metal_bar'), getItem('gold', 6)],
             hp: 100,
             blunt_damage: 30,
@@ -1555,6 +1632,7 @@ const characters = {
     orc_amazon(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'orc amazon',
+            aliases: ['amazon', 'orc'],
             items: [getItem('claymoore'), getItem('gold', 17)],
             hp: 250,
             blunt_armor: 5,
@@ -1575,6 +1653,7 @@ const characters = {
     orc_behemoth(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'orc behemoth',
+            aliases: ['behemoth', 'orc'],
             pronouns: pronouns.male,
             items: [getItem('mighty_warhammer')],
             hp: 300,
@@ -1629,17 +1708,18 @@ const characters = {
     rock_hydra(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'rock hydra',
+            aliases: ['hydra'],
             items: [getItem('gold', 29)],
             hp: 200,
             blunt_damage: 60,
             sharp_damage: 5,
-            weapon: getItem('fist', { name: 'his heads' }),
+            weaponName: 'his heads',
             description: 'Hydra',
             blunt_armor: 5,
             coordination: 4,
             agility: 1,
             attackPlayer: true,
-            pronouns: pronouns.inhuman,
+            pronouns: pronouns.male,
             ...args
         });
     },
@@ -1773,6 +1853,7 @@ const characters = {
             blunt_armor: 25,
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             spellChance: () => Math.random() < 1 / 5,
+            respawn: false,
             ...args
         }).fightMove(actions.max_heal)
     },
@@ -1864,6 +1945,7 @@ const characters = {
             name: 'peasant elder',
             pronouns: pronouns.female,
             items: [getItem('magic_ring')],
+            respawn: false,
             flags: { 'talk': 0 },
             ...args
         }).dialog(async function (player: Character) {
@@ -2011,6 +2093,7 @@ const characters = {
             blunt_armor: 12,
             attackPlayer: true,
             pronouns: pronouns.male,
+            respawn: false,
             ...args
         });
     },
@@ -2061,27 +2144,29 @@ const characters = {
 
     grobin(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'grobin',
+            name: 'Grobin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             description: 'N',
             hp: 6000,
             agility: 10000,
             blunt_armor: 1000,
+            respawn: false,
             ...args
         }).onAttack(actions.pish2);
     },
 
     blobin(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'blobin',
+            name: 'Blobin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             description: 'N',
             hp: 6000,
             agility: 10000,
             blunt_armor: 1000,
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
-            if (!this.game?.flags.biadon) {
+            if (!this.game.flags.biadon) {
                 print("Visit Gerard's shop for the latest equipment!");
             } else {
                 if (!this.game?.flags.orc_mission) {
@@ -2374,8 +2459,8 @@ const characters = {
             sharp_damage: 20,
             blunt_damage: 20,
             blunt_armor: 20,
-            agility: 10000,
-            coordination: 1,
+            agility: 100,
+            coordination: 10,
             ...args
         }).dialog(async function (player: Character) {
             color(red);
@@ -2551,8 +2636,7 @@ const characters = {
                 print();
                 print("We have heard that you are a great warrior, so");
                 print("if you want to check it out... <wink> <wink>");
-            }
-            if (this.game.flags.ieadon || !this.game.flags.ziatos) {
+            } else if (this.game.flags.ieadon || !this.game.flags.ziatos) {
                 print("Hello... how are you on this fine day.  We will treat you with respect, if");
                 print("you show respect to our town.  If you wish to inquire of something visit");
                 print("the security office on North Road. ", 1);
@@ -2804,6 +2888,7 @@ const characters = {
             agility: 1,
             blunt_armor: 10,
             aliases: ['orkin'],
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             print("Echoo Dakeee??  Wul you like to buy some any-mas!");
@@ -2813,17 +2898,20 @@ const characters = {
     },
 
     lion(args: { [key: string]: any }) {
+        const gender = randomChoice(['male', 'female']) as keyof typeof pronouns;
         return new A2dCharacter({
-            name: 'lion',
-            pronouns: randomChoice([pronouns.female, pronouns.male]),
+            name: gender == 'male' ? 'lion' : 'lioness',
+            pronouns: pronouns[gender],
             hp: 155,
-            blunt_damage: 30,
-            sharp_damage: 12,
+            blunt_damage: 12,
+            sharp_damage: 30,
             weaponName: 'claws',
+            weaponType: 'sword',
             description: 'Lion',
             coordination: 5,
             agility: 6,
             blunt_armor: 2,
+            magic_level: 6,
             alignment: 'nice lion',
             spellChance: () => Math.random() < 2 / 3,
             ...args
@@ -2839,7 +2927,7 @@ const characters = {
             name: 'mutant bat',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 500,
-            magic_damage: 10,
+            magic_damage: 20,
             weaponName: 'high pitched screech',
             weaponType: 'sonic',
             description: 'mutant bat',
@@ -2849,7 +2937,11 @@ const characters = {
             ...args
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
-                print('TODO: call troops')
+                this.location?.addCharacter(getCharacter(
+                    'mutant_bat', { respawn: false, persist: false }
+                ).onTurn(
+                    async function () { await this.die() }
+                ));
             }
         });
     },
@@ -2871,9 +2963,31 @@ const characters = {
             ...args
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
-                print('TODO: call troops')
+                color(magenta);
+                print("Kobalt Captain calls for reinforcements!");
+                this.location?.addCharacter(getCharacter('kobalt_soldier'));
             }
         });
+    },
+
+    kobalt_soldier(args: { [key: string]: any }) {
+        return new A2dCharacter({
+            name: 'kobalt soldier',
+            pronouns: { "subject": "he", "object": "him", "possessive": "his" },
+            hp: 50,
+            blunt_damage: 15,
+            sharp_damage: 5,
+            weaponName: 'mace',
+            items: [getItem('gold', 5), getItem('mace')],
+            description: 'kobalt soldier',
+            coordination: 2,
+            agility: 3,
+            blunt_armor: 5,
+            attackPlayer: true,
+            respawn: false,
+            persist: false,
+            ...args
+        }).onTurn(async function () { await this.die() })
     },
 
     bow_maker(args: { [key: string]: any }) {
@@ -2890,6 +3004,9 @@ const characters = {
             ...args
         }).dialog(async function (player: Character) {
             print("Hi, want some arrows... OR BOWS!");
+        }).onDeath(async function () {
+            print("The guards will have your head for this!")
+            this.game.player.flags.enemy_of_ierdale = true;
         });
     },
 
@@ -3045,6 +3162,7 @@ const characters = {
             blunt_armor: 100,
             magic_armor: 100,
             sharp_armor: 100,
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             print("I am the most renound fighter in all the Land.");
@@ -3114,6 +3232,7 @@ const characters = {
             coordination: 25,
             agility: 25,
             blunt_armor: 30,
+            respawn: false,
             spellChance: () => Math.random() < 3 / 5,
             ...args
         }).dialog(async function (player: Character) {
@@ -3191,6 +3310,7 @@ const characters = {
             blunt_armor: 29,
             magic_armor: 100,
             sharp_armor: 35,
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             print("Hello, nice to have company!!!")
@@ -3220,7 +3340,7 @@ const characters = {
             }
         }).addAction('list', async function () {
             color(black)
-            print("At the domain of Eldfarl we teach the following:")
+            print("At the domain of Eldin we teach the following:")
             print(" train mindfulness | increaces BP")
             print(" train healing     | increases healing power")
             print(" train archery     | increases archery skills")
@@ -3398,12 +3518,14 @@ const characters = {
             hp: 450,
             blunt_damage: 90,
             sharp_damage: 0,
-            weapon: getItem('fist'),
+            weaponName: 'fist',
             items: [getItem('gold', 400)],
             description: 'the respected Eldfarl',
             coordination: 12,
             agility: 4,
             blunt_armor: 29,
+            magic_level: 100,
+            respawn: false,
             spellChance: () => Math.random() < 3 / 5,
             ...args
         }).dialog(async function (player: Character) {
@@ -3442,8 +3564,17 @@ const characters = {
             blunt_armor: 4,
             coordination: 3,
             agility: 1,
+            attackPlayer: true,
+            respawn: false,
             ...args
-        });
+        }).onDeath(async function () {
+            color(green);
+            print("Defeated, the beast Turlin falls from the platform, crashing into the forest");
+            print("canopy far below.");
+            pause(2)
+            print("He leaves behind just one small item...");
+            await pause(3);
+        })
     },
 
     henge(args: { [key: string]: any }) {
@@ -3460,6 +3591,7 @@ const characters = {
             coordination: 6,
             agility: 4,
             attackPlayer: true,
+            respawn: false,
             ...args
         }).onDeath(async function () {
             this.game.flags.henge = true;
@@ -3479,9 +3611,36 @@ const characters = {
             coordination: 35,
             agility: 8,
             blunt_armor: 40,
+            respawn: false,
             ...args
         }).fightMove(async function () {
             print('TODO: time stop')
+        }).onDeath(async function () {
+            this.game.flags.ziatos = true;
+            await pause(5)
+            color(black, black)
+            clear()
+            await pause(2)
+            color(black, white)
+            print("You have defeated the holder of the 4rd ring.")
+            print()
+            print("** Suddenly out of nowhere a fairy sprite apears**")
+            // Play "o4fdadc"
+            await pause(2)
+            print("FAIRY SPRITE: Congradulations, I can give you one small hint as to the")
+            print("location of the 5th and final ring, the ring of ultimate power.")
+            print()
+            print("     The ring is located in the Forest of Thieves.")
+            print()
+            print("I must go now.")
+            this.game.player.flags.enemy_of_ierdale = false;
+            this.game.locations.get(78)?.addCharacter(getCharacter('biadon'))
+            await pause(15)
+            color(black, black)
+            clear()
+            await pause(2)
+            color(black, darkwhite)
+            clear()
         });
     },
 
@@ -3531,7 +3690,7 @@ const characters = {
 
     biadon(args: { [key: string]: any }) {
         return new A2dCharacter({
-            name: 'biadon',
+            name: 'Biadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             hp: 30000,
             blunt_damage: 10,
@@ -3541,6 +3700,7 @@ const characters = {
             coordination: 1,
             agility: 32000,
             blunt_armor: 32000,
+            respawn: false,
             ...args
         }).dialog(async function (player: Character) {
             const blobin = this.game.find_character('Blobin')
@@ -3562,8 +3722,8 @@ const characters = {
             pause((5));
             print("Can you figure out who he is?");
             print("KAKAKAKAKAKAKAKA");
-            if (this.game) this.game.flags.biadon = true;
-            if (this.game) this.game.player.flags.enemy_of_ierdale = false;
+            this.game.flags.biadon = true;
+            this.game.player.flags.enemy_of_ierdale = false;
         });
     },
 
@@ -3581,6 +3741,7 @@ const characters = {
             agility: -1,
             blunt_armor: 26,
             attackPlayer: true,
+            respawn: false,
             ...args
         }).onDeath(async function () {
             color(green);
@@ -3606,6 +3767,7 @@ const characters = {
             agility: -3,
             blunt_armor: 60,
             attackPlayer: true,
+            respawn: false,
             ...args
         }).fightMove(async function () {
             if (Math.random() < 1 / 2) {
