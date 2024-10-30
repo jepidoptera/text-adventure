@@ -1,7 +1,7 @@
 import { Buff, Character, DamageTypes } from "../../game/character.ts";
 import { brightcyan, brightred } from "./colors.ts";
 
-type BuffCreator = ({ power, duration }: { power: number, duration: number }) => Buff;
+type BuffCreator = (({ power, duration }: { power: number, duration: number }) => Buff) | (() => Buff);
 const buffs: { [key: string]: BuffCreator } = {
     shield: ({ power, duration }: { power: number, duration: number }) => {
         let shieldPower = power
@@ -48,6 +48,16 @@ const buffs: { [key: string]: BuffCreator } = {
                 color(brightred);
                 print(`Bloodlust: ${Math.ceil(this.power)}`);
             }
+        })
+    },
+    fear: ({ power, duration }: { power: number, duration: number }) => {
+        return new Buff({
+            name: 'fear',
+            duration: duration,
+            power: power,
+            bonuses: {
+                strength: -Math.ceil(power),
+            },
         })
     }
 } as const;
