@@ -102,22 +102,26 @@ class Item {
         return this._actions.get(name);
     }
 
+    get actions() {
+        return this._actions;
+    }
+
     on_drink(action: (this: Item, character: Character) => Promise<void>) {
         this._drink = action.bind(this);
         return this;
     }
 
-    on_eat(action: (character: Character) => Promise<void>) {
+    on_eat(action: (this: Item, character: Character) => Promise<void>) {
         this._eat = action.bind(this);
         return this;
     }
 
-    on_use(action: (character: Character) => Promise<void>) {
+    on_use(action: (this: Item, character: Character) => Promise<void>) {
         this._use = action.bind(this);
         return this;
     }
 
-    on_read(action: (character?: Character) => Promise<void>) {
+    on_read(action: (this: Item, character?: Character) => Promise<void>) {
         this._read = action.bind(this);
         return this;
     }
@@ -143,6 +147,10 @@ class Item {
 
     buff(key: BonusKeys) {
         return this._buff?.bonuses[key] ?? 0;
+    }
+
+    get buffs() {
+        return this._buff?.bonuses ?? {};
     }
 
     displayName(action: (this: Item) => string) {
