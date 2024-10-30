@@ -1540,7 +1540,7 @@ class GameMap {
         ])),
         282: new Location({
             name: "The Top of the Tree",
-            adjacent: {},
+            adjacent: { 'type "climb down"': 282 },
             characters: [getCharacter('turlin')]
         }).addLandmark(
             getLandmark('treehouse_platform')
