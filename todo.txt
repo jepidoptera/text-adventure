@@ -10,12 +10,19 @@ X pawn items
 X more trainers
 X buy items
 X fix gold piles (_displayName function for items)
+X batch print statements to reduce latency
+X flee from combat
+X wear rings
 / spells
 
 context switching to support multiple games at once
 robust gameState map on server
-list of existing character names, enforce uniqueness
+list of existing (player) character names, enforce uniqueness
 hunger
 use list of strings for enemies and friends (unique ID?)
 onTimer event
 pets
+bows
+key buffer in client
+monsters on the path of nod
+
