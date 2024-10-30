@@ -98,7 +98,7 @@ class A2D extends GameState {
             // await this.player.turn();
             await this.player.getInput();
             for (let character of this.characters.sort((a, b) => a === this.player ? -1 : b === this.player ? 1 : 0)) {
-                if (character.respawnCountdown == -1) {
+                if (character.respawnCountdown < 0) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
@@ -168,6 +168,11 @@ class A2D extends GameState {
         return super.characters as A2dCharacter[];
     }
 
+    shutdown() {
+        super.shutdown();
+        clearInterval(this.respawnInterval);
+    }
+
     async save(saveName: string): Promise<void> {
 
         const gameStateObj: any = {
@@ -196,14 +201,16 @@ class A2D extends GameState {
                 characters: location.characters.map((character: any) => {
                     return character.isPlayer
                         ? new Player('', '', this).load(character)
-                        : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key), {
+                        : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key, character), {
                             items: character.items?.map(
                                 (itemData: any) => isValidItemKey(itemData.key) ? getItem(itemData.key, itemData) : undefined
                             ).filter((item: any) => item),
                             flags: character.flags,
                             respawnCountdown: character.respawnCountdown,
                             respawnLocationKey: character.respawnLocationKey,
+                            _respawn: character.respawn,
                             attackPlayer: character.attackPlayer,
+                            action: character.action,
                             buffs: character.buffs ? Object.fromEntries(
                                 Object.entries(character.buffs).map(
                                     ([buffName, buffData]: [string, any]) => [buffName, getBuff(buffName as BuffNames)(buffData)]
