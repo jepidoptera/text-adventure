@@ -66,6 +66,8 @@ class Item {
     private _use: ((character: Character) => Promise<void>) | undefined = undefined;
     private _read: ((character?: Character) => Promise<void>) | undefined = undefined;
     private _acquire: ((this: Item, character: Character) => Promise<void>) | undefined = undefined;
+    private _equip: ((this: Item, character: Character) => Promise<void>) | undefined = undefined;
+    private _unequip: ((this: Item, character: Character) => Promise<void>) | undefined = undefined;
     private _displayName: ((this: Item) => string) | undefined = undefined;
     private _actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
 
@@ -132,6 +134,16 @@ class Item {
         return this;
     }
 
+    on_equip(action: (this: Item, character: Character) => Promise<void>) {
+        this._equip = action.bind(this);
+        return this;
+    }
+
+    on_remove(action: (this: Item, character: Character) => Promise<void>) {
+        this._unequip = action.bind(this);
+        return this;
+    }
+
     addBuff(buff: Buff | { [key in BonusKeys]?: number }) {
         if (buff instanceof Buff) {
             this._buff = buff;
@@ -173,6 +185,12 @@ class Item {
     }
     get acquire() {
         return this._acquire;
+    }
+    get equip() {
+        return this._equip;
+    }
+    get unequip() {
+        return this._unequip;
     }
 
     get is_weapon() {
