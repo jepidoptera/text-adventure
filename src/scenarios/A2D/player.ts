@@ -579,9 +579,15 @@ class Player extends A2dCharacter {
         if (this.equipment[slot] && this.equipment[slot].name != 'fist') {
             // put their previous weapon in their inventory
             this.giveItem(this.equipment[slot]);
+            if (this.equipment[slot].unequip) {
+                this.equipment[slot].unequip(this);
+            }
         }
         this.removeItem(item, 1)
         this.equipment[slot] = item
+        if (item.equip) {
+            item.equip(this);
+        }
     }
 
     async checkEquipment() {
@@ -623,11 +629,7 @@ class Player extends A2dCharacter {
             print(this.equipment['ring']?.name)
         } else print()
         color(black)
-        print(this.equipment['armor']?.description ?? '', 1)
-        if (this.equipment['ring']) {
-            locate(40)
-            print(this.equipment['ring']?.description ?? '')
-        } else print()
+        print()
 
         let i = 0;
         const ringBonus = Object.keys(this.equipment['ring']?.buffs || {}) as BonusKeys[]
@@ -702,6 +704,10 @@ class Player extends A2dCharacter {
             if (this.has(itemName)) {
                 color(black)
                 print(`Got ${displayName}.`)
+            }
+            if (item.equipment_slot && this.flags.assistant) {
+                color(magenta)
+                print(`Assistant -- Type \"wear ${item.name}\" to equip it.`)
             }
         }
     }
