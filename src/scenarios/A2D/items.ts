@@ -1442,11 +1442,10 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             quantity: args.quantity
-        }).on_acquire(async function (player) {
-            if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You can wear that.")
-            }
+        }).on_equip(async function (player) {
+            player.addBuff(getBuff('dreams')({ power: 120, duration: -1 }))
+        }).on_remove(async function (player) {
+            player.removeBuff('dreams')
         })
     },
     ring_of_life(args: ItemParams) {
@@ -1456,11 +1455,6 @@ const items = {
             value: 800,
             equipment_slot: 'ring',
             quantity: args.quantity
-        }).on_acquire(async function (player) {
-            if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You can wear that.")
-            }
         })
     },
     ring_of_nature(args: ItemParams) {
@@ -1480,11 +1474,6 @@ const items = {
             },
         })).addAction('use ring', async function (player) {
             print('TODO: use ring of nature')
-        }).on_acquire(async function (player) {
-            if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You can wear that.")
-            }
         })
     },
     ring_of_power(args: ItemParams) {
@@ -1494,11 +1483,6 @@ const items = {
             value: 700,
             equipment_slot: 'ring',
             quantity: args.quantity
-        }).on_acquire(async function (player) {
-            if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You can wear that.")
-            }
         })
     },
     ring_of_stone(args: ItemParams) {
@@ -1514,12 +1498,7 @@ const items = {
                 blunt_armor: 50,
                 sharp_armor: 50,
             },
-        })).on_acquire(async function (player) {
-            if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You can wear that.")
-            }
-        })
+        }))
     },
     ring_of_strength(args: ItemParams) {
         return new Item({
@@ -1528,11 +1507,6 @@ const items = {
             value: 600,
             equipment_slot: 'ring',
             quantity: args.quantity
-        }).on_acquire(async function (player) {
-            if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You can wear that.")
-            }
         })
     },
     ring_of_time(args: ItemParams) {
@@ -1542,11 +1516,6 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             quantity: args.quantity
-        }).on_acquire(async function (player) {
-            if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You can wear that.")
-            }
         })
     },
     ring_of_ultimate_power(args: ItemParams) {
@@ -1556,11 +1525,6 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             quantity: args.quantity
-        }).on_acquire(async function (player) {
-            if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You should definitely wear that.")
-            }
         })
     },
     shovel(args: ItemParams) {
