@@ -851,6 +851,29 @@ class Player extends A2dCharacter {
             if (item.name !== 'gold') print(`${character.name} drops ${item.display}`)
         }
         this.fight(null);
+        // see who's left
+        const enemies_remaining = this.location?.characters.filter(char => char !== this && char.attackTarget === this);
+        if (enemies_remaining?.length) {
+            // group them by name and list them
+            const enemy_numbers = enemies_remaining?.reduce((acc, char) => {
+                if (acc[char.name]) acc[char.name]++;
+                else acc[char.name] = 1;
+                return acc;
+            }, {} as { [key: string]: number });
+            const enemy_names = Object.keys(enemy_numbers);
+            const enemy_list = enemy_names.map(name => enemy_numbers[name] > 1 ? plural(name) : name)
+            color(black)
+            for (let i = 0; i < enemy_list.length; i++) {
+                if (enemy_numbers[enemy_names[i]] > 1) print(`${enemy_numbers[enemy_names[i]]} `, 1)
+                color(red)
+                print(i == 0 ? caps(enemy_list[i]) : enemy_list[i], 1)
+                color(black)
+                if (i < enemy_list.length - 2) print(', ', 1)
+                else if (i < enemy_list.length - 1) print(' and ', 1)
+            }
+            print(` ${enemies_remaining.length > 1 ? 'continue' : 'continues'} the attack!`)
+        }
+
         for (let enemy in this.enemies) {
             if (this.enemies[enemy] === character) {
                 delete this.enemies[enemy];
