@@ -88,6 +88,7 @@ class A2dCharacter extends Character {
                 print(this.name, 1)
                 color(black)
                 print(` takes the initiative to attack you!`);
+                console.log(`${this.name} has ${this.hp} hp`)
             } else if (!character.isPlayer && this.location?.playerPresent && !this.isPlayer) {
                 print(`${this.name} attacks ${character.name}!`);
             }
@@ -181,130 +182,147 @@ class A2dCharacter extends Character {
     ): string {
         console.log(`${this.name} attacking ${target.name} with ${weaponName} (${weaponType}): ${damage} damage`)
         const DT = (damage / target.max_hp) * 100
-        const targetName = target.isPlayer ? 'you' : target.name
-        const attackerName = this.isPlayer ? 'you' : this.name
         const s = ['you', 'they'].includes(this.pronouns.subject) ? (str: string) => str : plural
         const t_s = ['you', 'they'].includes(target.pronouns.subject) ? (str: string) => str : plural
         const t_be = ['you', 'they'].includes(target.pronouns.subject) ? 'are' : 'is'
+        if (weaponType === 'sword') weaponType = Math.random() > 0.5 ? 'spear' : 'axe'
 
         let does = ''
         let callAttack = ''
-        if (DT < 0) {
-            does = `${this.pronouns.subject} ${s('miss')} ${target.pronouns.object} with ${weaponName}!`
-        } else {
-            does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weaponName}, doing little to no damage.`
+
+
+        const num_enemies = (
+            this.isPlayer
+                ? this.location?.characters.filter(c => c.attackTarget === this).length
+                : this.location?.characters.filter(c => c.attackTarget === this.attackTarget).length
+        ) || 0
+
+        const attackerPronouns = {
+            subject: this.isPlayer ? 'you' : (num_enemies == 1 ? this.pronouns.subject : this.name),
+            object: this.isPlayer ? 'you' : (num_enemies == 1 ? this.pronouns.object : this.name),
+            possessive: this.isPlayer ? 'your' : (num_enemies == 1 ? this.pronouns.possessive : `${this.name}'s`)
+        }
+        const targetPronouns = {
+            subject: target.isPlayer ? 'you' : (num_enemies == 1 ? target.pronouns.subject : target.name),
+            object: target.isPlayer ? 'you' : (num_enemies == 1 ? target.pronouns.object : target.name),
+            possessive: target.isPlayer ? 'your' : (num_enemies == 1 ? target.pronouns.possessive : `${target.name}'s`)
         }
 
-        if (weaponType === 'sword') weaponType = Math.random() > 0.5 ? 'spear' : 'axe'
+        if (DT < 0) {
+            does = `${attackerPronouns.subject} ${s('miss')} ${targetPronouns.object} with ${weaponName}!`
+        } else {
+            does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.`
+        }
+
         switch (weaponType) {
             case ("club"):
-                if (DT >= 0) { does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weaponName}, doing little to no damage.` };
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('knock')} ${target.pronouns.object} with ${weaponName}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('whack')} ${target.pronouns.object} with ${weaponName}, making a jagged cut.` };
-                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weaponName}, knocking ${target.pronouns.object} backwards.` };
-                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('smash')} ${target.pronouns.object} with ${weaponName}, and you hear a bone break.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weaponName}, damaging organs.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('pulverise')} ${target.pronouns.object} with ${weaponName}, splintering bones.` };
-                if (DT >= 500) { does = `${caps(this.pronouns.subject)} ${s('send')} ${target.pronouns.object} FLYING backwards with ${weaponName}, and severed body parts fly in all directions!` };
+                if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
+                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('knock')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
+                if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('whack')} ${targetPronouns.object} with ${weaponName}, making a jagged cut.` };
+                if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('hit')} ${targetPronouns.object} with ${weaponName}, knocking ${targetPronouns.object} backwards.` };
+                if (DT >= 40) { does = `${caps(attackerPronouns.subject)} ${s('smash')} ${targetPronouns.object} with ${weaponName}, and you hear a bone break.` };
+                if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('crush')} ${targetPronouns.object} with ${weaponName}, damaging organs.` };
+                if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('pulverise')} ${targetPronouns.object} with ${weaponName}, splintering bones.` };
+                if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('send')} ${targetPronouns.object} FLYING backwards with ${weaponName}, and severed body parts fly in all directions!` };
                 break;
             case ("axe"):
-                if (DT >= 0) { does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weaponName}, doing little to no damage.` };
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('scratch')} ${target.pronouns.object} with ${weaponName}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weaponName}, making a deep gash.` };
-                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('slash')} ${target.pronouns.object} with ${weaponName}, inflicting a major wound.` };
-                if (DT >= 40) { does = `${caps(this.pronouns.subject)} ${s('hack')} ${target.pronouns.object} with ${weaponName}, and you hear a bone break.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('lacerate')} ${target.pronouns.object} with ${weaponName}, inflicting a mortal wound.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('hew')} ${target.pronouns.object} with ${weaponName}, severing limbs.` };
-                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('cleave')} ${target.pronouns.object} with ${weaponName}, slicing ${target.pronouns.object} in half.` };
+                if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
+                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('scratch')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
+                if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('hit')} ${targetPronouns.object} with ${weaponName}, making a deep gash.` };
+                if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('slash')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
+                if (DT >= 40) { does = `${caps(attackerPronouns.subject)} ${s('hack')} ${targetPronouns.object} with ${weaponName}, and you hear a bone break.` };
+                if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('lacerate')} ${targetPronouns.object} with ${weaponName}, inflicting a mortal wound.` };
+                if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('hew')} ${targetPronouns.object} with ${weaponName}, severing limbs.` };
+                if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('cleave')} ${targetPronouns.object} with ${weaponName}, slicing ${targetPronouns.object} in half.` };
                 break;
             case ("spear"):
-                if (DT >= 0) { does = `${caps(this.pronouns.subject)} ${s('graze')} ${target.pronouns.object} with ${weaponName}, doing little to no damage.` };
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('nick')} ${target.pronouns.object} with ${weaponName}, drawing blood.` };
-                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('jab')} ${target.pronouns.object} with ${weaponName}, inflicting a minor wound.` };
-                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('hit')} ${target.pronouns.object} with ${weaponName}, inflicting a major wound.` };
-                if (DT >= 50) { does = `${caps(this.pronouns.subject)} ${s('stab')} ${target.pronouns.object} with ${weaponName}, damaging organs.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('impale')} ${target.pronouns.object} with ${weaponName}, making vital fluids gush.` };
-                if (DT >= 200) { does = `${caps(this.pronouns.subject)} ${s('eviscerate')} ${target.pronouns.object} with ${weaponName}, and blood splatters everywhere.` };
+                if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
+                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('nick')} ${targetPronouns.object} with ${weaponName}, drawing blood.` };
+                if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('jab')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
+                if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('hit')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
+                if (DT >= 50) { does = `${caps(attackerPronouns.subject)} ${s('stab')} ${targetPronouns.object} with ${weaponName}, damaging organs.` };
+                if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('impale')} ${targetPronouns.object} with ${weaponName}, making vital fluids gush.` };
+                if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('eviscerate')} ${targetPronouns.object} with ${weaponName}, and blood splatters everywhere.` };
                 break;
             case ("fire"):
-                if (DT >= 0) does = `${caps(this.pronouns.subject)} ${weaponName} flickers against ${target.pronouns.object} without leaving a mark.`;
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('singe')} ${target.pronouns.object} with ${weaponName}, hurting ${target.pronouns.object} slightly.` };
-                if (DT >= 12) { does = `${caps(this.pronouns.subject)} ${s('scorch')} ${target.pronouns.object} with ${weaponName}, inflicting first-degree burns.` };
-                if (DT >= 25) { does = `${caps(this.pronouns.subject)} ${s('scald')} ${target.pronouns.object} with ${weaponName}, inflicting second-degree burns.` };
-                if (DT >= 50) { does = `${caps(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weaponName}, instantly blistering skin.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('roast')} ${target.pronouns.object} with ${weaponName}, making charred flesh sizzle.` };
-                if (DT >= 220) { does = `${caps(target.pronouns.subject)} ${t_be} blasted off ${target.pronouns.possessive} feet and ${t_s('land')} in a smoking heap.` };
-                if (DT >= 500) { does = `${caps(target.pronouns.possessive)} family is saved the cost of cremation, as ${target.pronouns.possessive} ashes scatter to the wind.` };
+                if (DT >= 0) does = `${caps(attackerPronouns.subject)} ${weaponName} flickers against ${targetPronouns.object} without leaving a mark.`;
+                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('singe')} ${targetPronouns.object} with ${weaponName}, hurting ${targetPronouns.object} slightly.` };
+                if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('scorch')} ${targetPronouns.object} with ${weaponName}, inflicting first-degree burns.` };
+                if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('scald')} ${targetPronouns.object} with ${weaponName}, inflicting second-degree burns.` };
+                if (DT >= 50) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, instantly blistering skin.` };
+                if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('roast')} ${targetPronouns.object} with ${weaponName}, making charred flesh sizzle.` };
+                if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} blasted off ${targetPronouns.possessive} feet and ${t_s('land')} in a smouldering heap.` };
+                if (DT >= 500) { does = `${caps(targetPronouns.possessive)} family is saved the cost of cremation, as ${targetPronouns.possessive} ashes scatter to the wind.` };
                 break;
             case ("bow"):
-                if (DT >= 0) does = `${target.name} barely ${t_s('notices')} ${this.pronouns.possessive} arrow striking ${target.pronouns.object}.`;
-                if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${s('take')} minimal damage.` };
-                if (DT >= 12) { does = `${caps(target.pronouns.subject)} ${t_be} minorly wounded.` };
-                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${s('sustain')} a major injury.` };
-                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${s('suffer')} damage to vital organs.` };
-                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} slain instantly.` };
-                if (DT >= 400) { does = `${caps(target.pronouns.subject)} ${t_be} ripped messily in half.` };
-                if (DT >= 1000) { does = `Tiny pieces of ${caps(target.pronouns.subject)} fly in all directions.` };
-                if (DT >= 2500) { does = `${caps(target.pronouns.subject)} ${t_be} VAPORIZED.` };
-                if (call_attack) callAttack = `${caps(attackerName)} ${s('shoot')} an arrow at ${targetName}!`;
+                if (DT >= 0) does = `${target.name} barely ${t_s('notices')} ${attackerPronouns.possessive} arrow striking ${targetPronouns.object}.`;
+                if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${s('take')} minimal damage.` };
+                if (DT >= 12) { does = `${caps(targetPronouns.subject)} ${t_be} minorly wounded.` };
+                if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${s('sustain')} a major injury.` };
+                if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${s('suffer')} damage to vital organs.` };
+                if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_be} slain instantly.` };
+                if (DT >= 400) { does = `${caps(targetPronouns.subject)} ${t_be} ripped messily in half.` };
+                if (DT >= 1000) { does = `Tiny pieces of ${caps(targetPronouns.subject)} fly in all directions.` };
+                if (DT >= 2500) { does = `${caps(targetPronouns.subject)} ${t_be} VAPORIZED.` };
+                if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('shoot')} an arrow at ${targetPronouns.object}!`;
                 break;
             case ("magic"):
-                if (DT >= 0) does = `${caps(target.pronouns.subject)} ${t_s('wince')} slightly, perhaps at ${this.pronouns.possessive} incompetence.`;
-                if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${t_s('flinch')}, but doesn't slow down.` };
-                if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_be} knocked back a step.` };
-                if (DT >= 25) { does = `${caps(target.pronouns.subject)} ${t_s('stagger')} under the force.` };
-                if (DT >= 50) { does = `${caps(target.pronouns.subject)} ${t_s('reel')} backwards, almost knocked off ${target.pronouns.possessive} feet.` };
-                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_be} snuffed out like a candle.` };
-                if (DT >= 220) { does = `${caps(target.pronouns.subject)} blows away like a dendelion puff in a hurricane.` };
-                if (DT >= 500) { does = `${caps(target.pronouns.subject)} ${t_be} swept off ${target.pronouns.possessive} feet and out of the time/space continuum!` };
-                if (call_attack) callAttack = `${caps(attackerName)} ${s('attack')} ${targetName} with ${weaponName}!`
+                if (DT >= 0) does = `${caps(targetPronouns.subject)} ${t_s('wince')} slightly, perhaps at ${attackerPronouns.possessive} incompetence.`;
+                if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('flinch')}, but doesn't slow down.` };
+                if (DT >= 10) { does = `${caps(targetPronouns.subject)} ${t_be} knocked back a step.` };
+                if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')} under the force.` };
+                if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${t_s('reel')} backwards, almost knocked off ${targetPronouns.possessive} feet.` };
+                if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_be} snuffed out like a candle.` };
+                if (DT >= 220) { does = `${caps(targetPronouns.subject)} blows away like a dendelion puff in a hurricane.` };
+                if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_be} swept off ${targetPronouns.possessive} feet and out of the time/space continuum!` };
+                if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
             case ("electric"):
-                if (DT >= 0) does = `${caps(target.pronouns.subject)} barely ${t_s('notice')}.`;
-                if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${t_s('twitch')} irritably.` };
-                if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_be} struck with a sizzle.` };
-                if (DT >= 20) { does = `${caps(target.pronouns.subject)} ${t_be} badly zapped.` };
-                if (DT >= 35) { does = `${caps(target.pronouns.subject)} ${t_s('stagger')}, sparking and spasming.` };
-                if (DT >= 60) { does = `${caps(target.pronouns.subject)} ${t_s('howl')}, and ${t_be} rendered briefly transparent.` };
-                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_s('fall')}, smoking, to the ground and ${t_s('twitch')} a couple of times.` };
-                if (DT >= 220) { does = `${caps(this.pronouns.subject)} ${s('ignite')} ${target.pronouns.object} with ${weaponName}, and electrical flames shoot from ${target.pronouns.possessive} blistered\neye sockets.` };
-                if (DT >= 500) { does = `${caps(target.pronouns.subject)} ${t_s('explode')} like a knot of pine sap.` };
-                if (call_attack) callAttack = `${caps(attackerName)} ${s('attack')} ${targetName} with ${weaponName}!`
+                if (DT >= 0) does = `${caps(targetPronouns.subject)} barely ${t_s('notice')}.`;
+                if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('twitch')} irritably.` };
+                if (DT >= 10) { does = `${caps(targetPronouns.subject)} ${t_be} struck with a sizzle.` };
+                if (DT >= 20) { does = `${caps(targetPronouns.subject)} ${t_be} badly zapped.` };
+                if (DT >= 35) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')}, sparking and spasming.` };
+                if (DT >= 60) { does = `${caps(targetPronouns.subject)} ${t_s('howl')}, and ${t_be} rendered briefly transparent.` };
+                if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_s('fall')}, smoking, to the ground and ${t_s('twitch')} a couple of times.` };
+                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, and electrical flames shoot from ${targetPronouns.possessive} blistered\neye sockets.` };
+                if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_s('explode')} like a knot of pine sap.` };
+                if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
             case ("blades"):
-                if (DT >= 0) does = `${caps(target.pronouns.subject)} ${t_be} only scratched.`;
-                if (DT >= 5) { does = `${caps(target.pronouns.subject)} ${t_s('suffer')} some nicks and cuts.` };
-                if (DT >= 10) { does = `${caps(target.pronouns.subject)} ${t_s('suffer')} some cuts and gashes.` };
-                if (DT >= 20) { does = `${caps(target.pronouns.subject)} ${t_be} slashed rather badly.` };
-                if (DT >= 35) { does = `${caps(target.pronouns.subject)} ${t_s('stagger')} backwards, bleeding copiously from multiple wounds.` };
-                if (DT >= 60) { does = `${caps(target.pronouns.subject)} ${t_s('scream')} as magical knives stab through ${target.pronouns.object}.` };
-                if (DT >= 100) { does = `${caps(target.pronouns.subject)} ${t_s('fall')}, streaming blood from numerous fatal wounds.` };
-                if (DT >= 220) { does = `${caps(target.pronouns.subject)} ${t_be} sliced to ribbons.` };
-                if (DT >= 500) { does = `${caps(target.pronouns.subject)} ${t_be} pureed into soup.` };
-                if (call_attack) callAttack = `${caps(attackerName)} ${s('attack')} ${targetName} with ${weaponName}!`
+                if (DT >= 0) does = `${caps(targetPronouns.subject)} ${t_be} only scratched.`;
+                if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('suffer')} some nicks and cuts.` };
+                if (DT >= 10) { does = `${caps(targetPronouns.subject)} ${t_s('suffer')} some cuts and gashes.` };
+                if (DT >= 20) { does = `${caps(targetPronouns.subject)} ${t_be} slashed rather badly.` };
+                if (DT >= 35) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')} backwards, bleeding copiously from multiple wounds.` };
+                if (DT >= 60) { does = `${caps(targetPronouns.subject)} ${t_s('scream')} as magical knives stab through ${targetPronouns.object}.` };
+                if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_s('fall')}, streaming blood from numerous fatal wounds.` };
+                if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} sliced to ribbons.` };
+                if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_be} pureed into soup.` };
+                if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
             case ("sonic"):
-                if (DT >= 5) { does = `${caps(this.pronouns.possessive)} ${weaponName} stings ${target.pronouns.object}, making ${target.pronouns.object} grit ${target.pronouns.possessive} teeth.` };
-                if (DT >= 10) { does = `${caps(this.pronouns.possessive)} ${weaponName} stabs at ${target.pronouns.possessive} ears, and ${target.pronouns.subject} ${t_s('feel')} momentarily faint.` };
-                if (DT >= 20) { does = `${caps(this.pronouns.possessive)} ${weaponName} hits ${target.pronouns.object} full in the face, making ${target.pronouns.possessive} ears ring.` };
-                if (DT >= 35) { does = `${caps(this.pronouns.possessive)} ${weaponName} strikes ${target.pronouns.object} in the gut, sucking the breath from ${target.pronouns.possessive} lungs.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.possessive)} ${weaponName} rolls through ${target.pronouns.object}, siezing in ${target.pronouns.possessive} chest, and blackness\ncreeps into the corners of ${target.pronouns.possessive} vision.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.possessive)} ${weaponName} sweeps ${target.pronouns.possessive} feet from under ${target.pronouns.object}, etching cold lines of\nfrost over ${target.pronouns.possessive} stilled heart.` };
-                if (DT >= 220) { does = `${caps(this.pronouns.possessive)} ${weaponName} pierces ${target.pronouns.object} like a sword, freezing the blood in ${target.pronouns.possessive} veins.` };
-                if (DT >= 500) { does = `${caps(this.pronouns.possessive)} ${weaponName} whips through ${target.pronouns.possessive} body, and ${target.pronouns.possessive} frozen limbs shatter like\nfine crystal."   ` };
+                if (DT >= 5) { does = `${caps(attackerPronouns.possessive)} ${weaponName} stings ${targetPronouns.object}, making ${targetPronouns.object} grit ${targetPronouns.possessive} teeth.` };
+                if (DT >= 10) { does = `${caps(attackerPronouns.possessive)} ${weaponName} stabs at ${targetPronouns.possessive} ears, and ${targetPronouns.subject} ${t_s('feel')} momentarily faint.` };
+                if (DT >= 20) { does = `${caps(attackerPronouns.possessive)} ${weaponName} hits ${targetPronouns.object} full in the face, making ${targetPronouns.possessive} ears ring.` };
+                if (DT >= 35) { does = `${caps(attackerPronouns.possessive)} ${weaponName} strikes ${targetPronouns.object} in the gut, sucking the breath from ${targetPronouns.possessive} lungs.` };
+                if (DT >= 60) { does = `${caps(attackerPronouns.possessive)} ${weaponName} rolls through ${targetPronouns.object}, siezing in ${targetPronouns.possessive} chest, and blackness\ncreeps into the corners of ${targetPronouns.possessive} vision.` };
+                if (DT >= 100) { does = `${caps(attackerPronouns.possessive)} ${weaponName} sweeps ${targetPronouns.possessive} feet from under ${targetPronouns.object}, etching cold lines of\nfrost over ${targetPronouns.possessive} stilled heart.` };
+                if (DT >= 220) { does = `${caps(attackerPronouns.possessive)} ${weaponName} pierces ${targetPronouns.object} like a sword, freezing the blood in ${targetPronouns.possessive} veins.` };
+                if (DT >= 500) { does = `${caps(attackerPronouns.possessive)} ${weaponName} whips through ${targetPronouns.possessive} body, and ${targetPronouns.possessive} frozen limbs shatter like\nfine crystal."   ` };
                 break;
             case ("teeth"):
-                if (DT >= 5) { does = `${caps(this.pronouns.subject)} ${s('nip')} ${target.pronouns.object} with ${weaponName}, inflicting a minor wound.` };
-                if (DT >= 10) { does = `${caps(this.pronouns.subject)} ${s('rake')} ${target.pronouns.object} with ${weaponName}, leaving a trail of scratches.` };
-                if (DT >= 20) { does = `${caps(this.pronouns.subject)} ${s('bite')} ${target.pronouns.object} with ${weaponName}, inflicting a major wound.` };
-                if (DT >= 35) { does = `${caps(this.pronouns.subject)} ${s('chomp')} ${target.pronouns.object} with ${weaponName}, taking a chunk from ${target.pronouns.possessive} side.` };
-                if (DT >= 60) { does = `${caps(this.pronouns.subject)} ${s('rip')} ${target.pronouns.object} with ${weaponName}, making vital fluids gush.` };
-                if (DT >= 100) { does = `${caps(this.pronouns.subject)} ${s('shred')} ${target.pronouns.object} with ${weaponName}, severing limbs.` };
-                if (DT >= 220) { does = `${caps(this.pronouns.subject)} ${s('crush')} ${target.pronouns.object} with ${weaponName}, snapping ${target.pronouns.possessive} bones like dry twigs.` };
-                if (DT >= 500) { does = `${caps(this.pronouns.subject)} ${s('snap')} ${target.pronouns.object} up and ${s('pick')} the bones from ${this.pronouns.possessive} teeth.` };
+                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('nip')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
+                if (DT >= 10) { does = `${caps(attackerPronouns.subject)} ${s('rake')} ${targetPronouns.object} with ${weaponName}, leaving a trail of scratches.` };
+                if (DT >= 20) { does = `${caps(attackerPronouns.subject)} ${s('bite')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
+                if (DT >= 35) { does = `${caps(attackerPronouns.subject)} ${s('chomp')} ${targetPronouns.object} with ${weaponName}, taking a chunk from ${targetPronouns.possessive} side.` };
+                if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('rip')} ${targetPronouns.object} with ${weaponName}, making vital fluids gush.` };
+                if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('shred')} ${targetPronouns.object} with ${weaponName}, severing limbs.` };
+                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('crush')} ${targetPronouns.object} with ${weaponName}, snapping ${targetPronouns.possessive} bones like dry twigs.` };
+                if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('snap')} ${targetPronouns.object} up and ${s('pick')} the bones from ${attackerPronouns.possessive} teeth.` };
                 break;
         }
-        if (!this.isPlayer && !target.isPlayer && !callAttack) callAttack = `${caps(attackerName)} ${s('attack')} ${targetName} with ${weaponName}!`
+        if (!this.isPlayer && !target.isPlayer && !callAttack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
         // if (DT === 0) callAttack = ''
         return callAttack ? `${callAttack}\n${does}` : does
     }
@@ -495,7 +513,7 @@ const characters = {
         return new A2dCharacter({
             name: 'ierdale forester',
             items: [getItem('long_dagger'), getItem('gold', 12)],
-            hp: 54,
+            max_hp: 54,
             blunt_damage: 6,
             sharp_damage: 20,
             weapon: getItem('long_dagger'),
@@ -542,7 +560,7 @@ const characters = {
         return new A2dCharacter({
             name: 'guard captain',
             items: [getItem('gold', 25), getItem('longsword')],
-            hp: 100,
+            max_hp: 100,
             blunt_damage: 40,
             sharp_damage: 10,
             weapon: getItem('shortsword'),
@@ -568,7 +586,7 @@ const characters = {
             name: 'ogre',
             pronouns: pronouns.male,
             items: [getItem('club')],
-            hp: 120,
+            max_hp: 120,
             blunt_damage: 20,
             sharp_damage: 0,
             weapon: getItem('club'),
@@ -585,7 +603,7 @@ const characters = {
             name: 'minotaur',
             pronouns: pronouns.male,
             items: [getItem('spiked_club')],
-            hp: 760,
+            max_hp: 760,
             blunt_damage: 280,
             sharp_damage: 13,
             weapon: getItem('spiked_club'),
@@ -603,7 +621,7 @@ const characters = {
             name: 'stone ogre',
             pronouns: pronouns.inhuman,
             items: [getItem('gold', 5), getItem('spiked_club')],
-            hp: 100,
+            max_hp: 100,
             blunt_damage: 20,
             sharp_damage: 5,
             weapon: getItem('spiked_club'),
@@ -621,7 +639,7 @@ const characters = {
             name: 'ierdale soldier',
             pronouns: pronouns.male,
             items: [getItem('gold', 50), getItem('claymoore')],
-            hp: 300,
+            max_hp: 300,
             blunt_damage: 90,
             sharp_damage: 10,
             weapon: getItem('claymoore'),
@@ -659,7 +677,7 @@ const characters = {
             name: 'ierdale general',
             pronouns: pronouns.male,
             items: [getItem('gold', 200), getItem('silver_sword')],
-            hp: 700,
+            max_hp: 700,
             blunt_damage: 120,
             sharp_damage: 50,
             weapon: getItem('silver_sword'),
@@ -688,7 +706,7 @@ const characters = {
         return new A2dCharacter({
             name: 'security page',
             items: [getItem('dagger'), getItem('gold', Math.random() * 300 + 500)],
-            hp: 21,
+            max_hp: 21,
             blunt_damage: 5,
             sharp_damage: 3,
             weapon: getItem('dagger'),
@@ -757,7 +775,7 @@ const characters = {
             name: 'toothless man',
             pronouns: pronouns.male,
             items: [getItem('battle_axe'), getItem('gold', 1000)],
-            hp: 70,
+            max_hp: 70,
             blunt_damage: 0,
             sharp_damage: 40,
             weapon: getItem('battle_axe'),
@@ -812,7 +830,7 @@ const characters = {
                 getItem('light_plate'),
                 getItem('full_plate'),
             ],
-            hp: 130,
+            max_hp: 130,
             blunt_damage: 30,
             sharp_damage: 0,
             weapon: getItem('fist'),
@@ -847,7 +865,7 @@ const characters = {
         return new A2dCharacter({
             name: 'blacksmith',
             items: [getItem('gold', 50), getItem('battle_axe')],
-            hp: 500,
+            max_hp: 500,
             blunt_damage: 40,
             sharp_damage: 100,
             weapon: getItem('battle_axe'),
@@ -874,7 +892,7 @@ const characters = {
             pronouns: pronouns.male,
             items: [getItem('gold', 4), getItem('banana')],
             description: 'worthless little bag boy',
-            hp: 30,
+            max_hp: 30,
             weaponName: 'banana',
             weaponType: 'club',
             blunt_damage: 5,
@@ -913,7 +931,7 @@ const characters = {
             pronouns: randomChoice([pronouns.male, pronouns.female]),
             items: [getItem('gold', 6), getItem('spritzer_hair')],
             description: 'potent baby spritzer',
-            hp: 25,
+            max_hp: 25,
             magic_damage: 18,
             blunt_armor: 1,
             coordination: 1,
@@ -941,7 +959,7 @@ const characters = {
             pronouns: pronouns.male,
             items: [getItem('gold', 500), getItem('longsword')],
             description: 'Arach the Terrible',
-            hp: 1500,
+            max_hp: 1500,
             sharp_damage: 500,
             weapon: getItem('longsword'),
             blunt_armor: 60,
@@ -1073,7 +1091,7 @@ const characters = {
             name: 'Sift',
             pronouns: pronouns.male,
             items: [getItem('gold', 200), getItem('ring_of_dreams')],
-            hp: 580,
+            max_hp: 580,
             blunt_damage: 20,
             sharp_damage: 100,
             weaponName: 'claws',
@@ -1098,7 +1116,7 @@ const characters = {
             pronouns: pronouns.male,
             items: [getItem('gold', 100), getItem('spiked_club')],
             description: 'Cradel the troll',
-            hp: 1000,
+            max_hp: 1000,
             blunt_damage: 250,
             sharp_damage: 150,
             weapon: getItem('spiked_club'),
@@ -1197,7 +1215,7 @@ const characters = {
             pronouns: pronouns.male,
             items: [getItem('gold', 15), getItem('long_dagger'), getItem('lute_de_lumonate')],
             description: 'musical Mino',
-            hp: 250,
+            max_hp: 250,
             blunt_damage: 0,
             sharp_damage: 40,
             weapon: getItem('long_dagger'),
@@ -1331,7 +1349,7 @@ const characters = {
         return new A2dCharacter({
             name: 'peon',
             items: [getItem('gold', 2)],
-            hp: 20,
+            max_hp: 20,
             blunt_damage: 10,
             sharp_damage: 2,
             weapon: getItem('fist'),
@@ -1361,7 +1379,7 @@ const characters = {
         return new A2dCharacter({
             name: 'dark angel',
             items: [getItem('gold', 50), getItem('dark_sword'), getItem('banana')],
-            hp: 300,
+            max_hp: 300,
             magic_damage: 40,
             sharp_damage: 40,
             weapon: getItem('dark_sword'),
@@ -1383,7 +1401,7 @@ const characters = {
         return new A2dCharacter({
             name: 'gerard',
             items: [getItem('gold', 50)],
-            hp: 200,
+            max_hp: 200,
             blunt_damage: 100,
             sharp_damage: 50,
             weaponName: 'a bomb',
@@ -1408,7 +1426,7 @@ const characters = {
         return new A2dCharacter({
             name: 'doo dad man',
             items: [getItem('gold', 150), getItem('long_dagger')],
-            hp: 90,
+            max_hp: 90,
             blunt_damage: 45,
             sharp_damage: 10,
             coordination: 3,
@@ -1426,7 +1444,7 @@ const characters = {
         return new A2dCharacter({
             name: 'farm wife',
             items: [],
-            hp: 12,
+            max_hp: 12,
             blunt_damage: 3,
             sharp_damage: 0,
             weapon: getItem('fist', { name: 'hands' }),
@@ -1458,7 +1476,7 @@ const characters = {
         return new A2dCharacter({
             name: 'clubman',
             items: [getItem('club'), getItem('gold', 5)],
-            hp: 21,
+            max_hp: 21,
             blunt_damage: 7,
             coordination: 2,
             agility: 1,
@@ -1476,7 +1494,7 @@ const characters = {
         return new A2dCharacter({
             name: 'rush lurker',
             items: [getItem('gold', 10)],
-            hp: 31,
+            max_hp: 31,
             blunt_damage: 8,
             sharp_damage: 3,
             coordination: 3,
@@ -1494,7 +1512,7 @@ const characters = {
         return new A2dCharacter({
             name: 'swordsman',
             items: [getItem('shortsword'), getItem('gold', 5)],
-            hp: 72,
+            max_hp: 72,
             blunt_damage: 14,
             sharp_damage: 8,
             weapon: getItem('shortsword'),
@@ -1512,7 +1530,7 @@ const characters = {
             name: 'evil forester',
             aliases: ['forester'],
             items: [getItem('wooden_stick'), getItem('gold', 8)],
-            hp: 50,
+            max_hp: 50,
             blunt_damage: 20,
             sharp_damage: 0,
             coordination: 5,
@@ -1530,7 +1548,7 @@ const characters = {
             name: 'dirty thief',
             aliases: ['thief'],
             items: [getItem('dagger'), getItem('gold', 6)],
-            hp: 52,
+            max_hp: 52,
             blunt_damage: 0,
             sharp_damage: 10,
             coordination: 3,
@@ -1547,7 +1565,7 @@ const characters = {
             name: 'fat merchant-thief',
             items: [getItem('whip'), getItem('gold', 20)],
             aliases: ['fat merchant', 'merchant-thief', 'merchant', 'thief'],
-            hp: 61,
+            max_hp: 61,
             blunt_damage: 12,
             sharp_damage: 0,
             coordination: 9,
@@ -1564,7 +1582,7 @@ const characters = {
             name: 'snarling thief',
             aliases: ['thief'],
             items: [getItem('flail'), getItem('gold', 7)],
-            hp: 82,
+            max_hp: 82,
             blunt_damage: 7,
             sharp_damage: 11,
             coordination: 4,
@@ -1580,7 +1598,7 @@ const characters = {
         return new A2dCharacter({
             name: 'dark rider',
             items: [getItem('hand_axe'), getItem('gold', 3)],
-            hp: 115,
+            max_hp: 115,
             blunt_damage: 20,
             sharp_damage: 10,
             coordination: 3,
@@ -1599,7 +1617,7 @@ const characters = {
             name: 'fine gentleman',
             aliases: ['gentleman'],
             items: [getItem('rapier'), getItem('gold', 26)],
-            hp: 103,
+            max_hp: 103,
             blunt_damage: 4,
             sharp_damage: 12,
             coordination: 5,
@@ -1617,7 +1635,7 @@ const characters = {
             name: 'little goblin thief',
             aliases: ['goblin thief', 'goblin', 'thief'],
             items: [getItem('metal_bar'), getItem('gold', 6)],
-            hp: 100,
+            max_hp: 100,
             blunt_damage: 30,
             sharp_damage: 10,
             coordination: 2,
@@ -1634,7 +1652,7 @@ const characters = {
             name: 'orc amazon',
             aliases: ['amazon', 'orc'],
             items: [getItem('claymoore'), getItem('gold', 17)],
-            hp: 250,
+            max_hp: 250,
             blunt_armor: 5,
             sharp_armor: 30,
             magic_armor: 15,
@@ -1656,7 +1674,7 @@ const characters = {
             aliases: ['behemoth', 'orc'],
             pronouns: pronouns.male,
             items: [getItem('mighty_warhammer')],
-            hp: 300,
+            max_hp: 300,
             blunt_armor: 11,
             sharp_armor: 12,
             magic_armor: 13,
@@ -1674,7 +1692,7 @@ const characters = {
         return new A2dCharacter({
             name: 'peddler',
             items: [getItem('spy_o_scope'), getItem('gold', 100)],
-            hp: 100,
+            max_hp: 100,
             weapon: getItem('dagger'),
             coordination: 2,
             agility: 5,
@@ -1710,7 +1728,7 @@ const characters = {
             name: 'rock hydra',
             aliases: ['hydra'],
             items: [getItem('gold', 29)],
-            hp: 200,
+            max_hp: 200,
             blunt_damage: 60,
             sharp_damage: 5,
             weaponName: 'his heads',
@@ -1728,7 +1746,7 @@ const characters = {
         return new A2dCharacter({
             name: 'nightmare',
             items: [getItem('gold', 50), getItem('longsword')],
-            hp: 450,
+            max_hp: 450,
             blunt_damage: 112,
             sharp_damage: 21,
             weapon: getItem('longsword'),
@@ -1748,7 +1766,7 @@ const characters = {
         return new A2dCharacter({
             name: 'mogrim',
             items: [getItem('gold', Math.random() * 30), getItem('hardened_club')],
-            hp: 490,
+            max_hp: 490,
             blunt_damage: 56,
             sharp_damage: 20,
             weapon: getItem('hardened_club'),
@@ -1766,7 +1784,7 @@ const characters = {
         return new A2dCharacter({
             name: 'reaper',
             items: [getItem('scythe'), getItem('gold', Math.random() * 50)],
-            hp: 150,
+            max_hp: 150,
             blunt_damage: 0,
             sharp_damage: 250,
             weapon: getItem('scythe'),
@@ -1784,7 +1802,7 @@ const characters = {
         return new A2dCharacter({
             name: 'goblin hero',
             items: [getItem('jagged_polearm'), getItem('gold', Math.random() * 56)],
-            hp: 230,
+            max_hp: 230,
             blunt_damage: 120,
             sharp_damage: 70,
             weapon: getItem('jagged_polearm'),
@@ -1802,7 +1820,7 @@ const characters = {
         return new A2dCharacter({
             name: 'stone golem',
             items: [getItem('warhammer'), getItem('gold', 19)],
-            hp: 120,
+            max_hp: 120,
             blunt_damage: 45,
             sharp_damage: 15,
             weapon: getItem('warhammer'),
@@ -1820,7 +1838,7 @@ const characters = {
             name: 'wood troll',
             pronouns: pronouns.male,
             items: [getItem('club')],
-            hp: 250,
+            max_hp: 250,
             blunt_damage: 52,
             sharp_damage: 1,
             weapon: getItem('club'),
@@ -1843,7 +1861,7 @@ const characters = {
         return new A2dCharacter({
             name: 'cat woman',
             items: [getItem('axe_of_the_cat'), getItem('gold', 25)],
-            hp: 400,
+            max_hp: 400,
             blunt_damage: 75,
             sharp_damage: 100,
             weapon: getItem('axe_of_the_cat'),
@@ -1863,7 +1881,7 @@ const characters = {
             name: 'megara',
             pronouns: pronouns.inhuman,
             items: [getItem('megarian_club'), getItem('gold', 50)],
-            hp: 300,
+            max_hp: 300,
             blunt_damage: 200,
             sharp_damage: 10,
             weapon: getItem('megarian_club'),
@@ -1880,7 +1898,7 @@ const characters = {
         return new A2dCharacter({
             name: 'cow',
             items: [getItem('side_of_meat')],
-            hp: 51,
+            max_hp: 51,
             blunt_damage: 4,
             sharp_damage: 4,
             weaponName: 'horns',
@@ -1904,7 +1922,7 @@ const characters = {
             name: 'bull',
             pronouns: pronouns.male,
             items: [getItem('side_of_meat')],
-            hp: 55,
+            max_hp: 55,
             blunt_damage: 8,
             sharp_damage: 5,
             weaponName: 'horns',
@@ -1921,7 +1939,7 @@ const characters = {
         return new A2dCharacter({
             name: 'jury member',
             items: [getItem('gold', 1)],
-            hp: 20,
+            max_hp: 20,
             blunt_damage: 3,
             sharp_damage: 0,
             coordination: 2,
@@ -2047,7 +2065,7 @@ const characters = {
         return new A2dCharacter({
             name: 'scarecrow gaurd',
             items: [getItem('pitchfork'), getItem('gold', 10)],
-            hp: 210,
+            max_hp: 210,
             blunt_damage: 31,
             sharp_damage: 57,
             weapon: getItem('pitchfork'),
@@ -2065,7 +2083,7 @@ const characters = {
         return new A2dCharacter({
             name: 'scarecrow worker',
             items: [getItem('pitchfork')],
-            hp: 130,
+            max_hp: 130,
             blunt_damage: 25,
             sharp_damage: 48,
             weapon: getItem('pitchfork'),
@@ -2083,7 +2101,7 @@ const characters = {
         return new A2dCharacter({
             name: 'scarecrow king',
             items: [getItem('golden_pitchfork'), getItem('gold', 38)],
-            hp: 260,
+            max_hp: 260,
             blunt_damage: 43,
             sharp_damage: 75,
             weapon: getItem('golden_pitchfork'),
@@ -2127,7 +2145,7 @@ const characters = {
         return new A2dCharacter({
             name: 'old woman',
             pronouns: pronouns.female,
-            hp: 1000,
+            max_hp: 1000,
             ...args
         }).dialog(async function (player: Character) {
             print("Hello little one...");
@@ -2147,7 +2165,7 @@ const characters = {
             name: 'Grobin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             description: 'N',
-            hp: 6000,
+            max_hp: 6000,
             agility: 10000,
             blunt_armor: 1000,
             respawn: false,
@@ -2160,7 +2178,7 @@ const characters = {
             name: 'Blobin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             description: 'N',
-            hp: 6000,
+            max_hp: 6000,
             agility: 10000,
             blunt_armor: 1000,
             respawn: false,
@@ -2291,7 +2309,7 @@ const characters = {
         return new A2dCharacter({
             name: 'beggar',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 35,
+            max_hp: 35,
             coordination: 3,
             agility: 2,
             blunt_damage: 5,
@@ -2327,7 +2345,7 @@ const characters = {
             name: 'cleric tendant',
             pronouns: pronouns.male,
             agility: 2,
-            hp: 100,
+            max_hp: 100,
             blunt_armor: 10,
             weapon: getItem('fist'),
             coordination: 3,
@@ -2396,7 +2414,7 @@ const characters = {
             name: 'blind hermit',
             pronouns: pronouns.male,
             agility: 1,
-            hp: 30,
+            max_hp: 30,
             description: 'blind hermit',
             aliases: ['hermit'],
             ...args
@@ -2455,7 +2473,7 @@ const characters = {
         return new A2dCharacter({
             name: 'butcher',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 1000,
+            max_hp: 1000,
             sharp_damage: 20,
             blunt_damage: 20,
             blunt_armor: 20,
@@ -2494,7 +2512,7 @@ const characters = {
         return new A2dCharacter({
             name: 'adder',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 32,
+            max_hp: 32,
             blunt_damage: 2,
             sharp_damage: 10,
             weaponName: 'fangs',
@@ -2513,7 +2531,7 @@ const characters = {
         return new A2dCharacter({
             name: 'bridge troll',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 61,
+            max_hp: 61,
             blunt_damage: 16,
             sharp_damage: 2,
             coordination: 3,
@@ -2536,7 +2554,7 @@ const characters = {
         return new A2dCharacter({
             name: 'swamp thing',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 46,
+            max_hp: 46,
             blunt_damage: 15,
             sharp_damage: 1,
             coordination: 4,
@@ -2552,7 +2570,7 @@ const characters = {
         return new A2dCharacter({
             name: 'dryad',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 130,
+            max_hp: 130,
             blunt_damage: 12,
             sharp_damage: 5,
             coordination: 3,
@@ -2567,7 +2585,7 @@ const characters = {
         return new A2dCharacter({
             name: 'goblin solider',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 21,
+            max_hp: 21,
             blunt_damage: 15,
             sharp_damage: 3,
             coordination: 2,
@@ -2584,7 +2602,7 @@ const characters = {
         return new A2dCharacter({
             name: 'goblin captain',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 48,
+            max_hp: 48,
             blunt_damage: 29,
             sharp_damage: 10,
             weapon: getItem('broadsword'),
@@ -2602,7 +2620,7 @@ const characters = {
         return new A2dCharacter({
             name: 'security guard',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 35,
+            max_hp: 35,
             blunt_damage: 17,
             sharp_damage: 7,
             coordination: 3,
@@ -2677,7 +2695,7 @@ const characters = {
         return new A2dCharacter({
             name: 'snotty page',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 1,
+            max_hp: 1,
             blunt_damage: 6,
             sharp_damage: 5,
             coordination: 5,
@@ -2705,7 +2723,7 @@ const characters = {
         return new A2dCharacter({
             name: 'police chief',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 150,
+            max_hp: 150,
             blunt_damage: 65,
             sharp_damage: 30,
             weapon: getItem('silver_sword'),
@@ -2736,7 +2754,7 @@ const characters = {
         return new A2dCharacter({
             name: 'sandworm',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 450,
+            max_hp: 450,
             blunt_damage: 18,
             sharp_damage: 0,
             weapon: getItem('fist', { name: 'sand he throws' }),
@@ -2752,7 +2770,7 @@ const characters = {
         return new A2dCharacter({
             name: 'sand scout',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 45,
+            max_hp: 45,
             blunt_damage: 0,
             sharp_damage: 40,
             weapon: getItem('long_rapier'),
@@ -2769,7 +2787,7 @@ const characters = {
         return new A2dCharacter({
             name: 'hen',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 5,
+            max_hp: 5,
             blunt_damage: 2,
             sharp_damage: 0,
             coordination: 1,
@@ -2786,7 +2804,7 @@ const characters = {
         return new A2dCharacter({
             name: 'large rooster',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 5,
+            max_hp: 5,
             blunt_damage: 7,
             sharp_damage: 2,
             weaponName: 'claws',
@@ -2804,7 +2822,7 @@ const characters = {
         return new A2dCharacter({
             name: 'chief judge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 30,
+            max_hp: 30,
             blunt_damage: 9,
             sharp_damage: 0,
             coordination: 4,
@@ -2829,7 +2847,7 @@ const characters = {
         return new A2dCharacter({
             name: 'elite guard',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 50,
+            max_hp: 50,
             blunt_damage: 22,
             sharp_damage: 10,
             weapon: getItem('broadsword'),
@@ -2855,7 +2873,7 @@ const characters = {
         return new A2dCharacter({
             name: 'dreaugar dwarf',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 175,
+            max_hp: 175,
             blunt_damage: 90,
             sharp_damage: 10,
             weapon: getItem('axe'),
@@ -2878,7 +2896,7 @@ const characters = {
         return new A2dCharacter({
             name: 'Orkin the animal trainer',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 220,
+            max_hp: 220,
             blunt_damage: 20,
             sharp_damage: 10,
             weapon: getItem('fist'),
@@ -2902,7 +2920,7 @@ const characters = {
         return new A2dCharacter({
             name: gender == 'male' ? 'lion' : 'lioness',
             pronouns: pronouns[gender],
-            hp: 155,
+            max_hp: 155,
             blunt_damage: 12,
             sharp_damage: 30,
             weaponName: 'claws',
@@ -2926,7 +2944,7 @@ const characters = {
         return new A2dCharacter({
             name: 'mutant bat',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 500,
+            max_hp: 500,
             magic_damage: 20,
             weaponName: 'high pitched screech',
             weaponType: 'sonic',
@@ -2950,7 +2968,7 @@ const characters = {
         return new A2dCharacter({
             name: 'kobalt captain',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 240,
+            max_hp: 240,
             blunt_damage: 10,
             sharp_damage: 30,
             weapon: getItem('spear'),
@@ -2974,7 +2992,7 @@ const characters = {
         return new A2dCharacter({
             name: 'kobalt soldier',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 50,
+            max_hp: 50,
             blunt_damage: 15,
             sharp_damage: 5,
             weaponName: 'mace',
@@ -2994,7 +3012,7 @@ const characters = {
         return new A2dCharacter({
             name: 'bow maker',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 65,
+            max_hp: 65,
             blunt_damage: 20,
             sharp_damage: 20,
             weapon: getItem('ballista_bolt'),
@@ -3014,7 +3032,7 @@ const characters = {
         return new A2dCharacter({
             name: 'peasant man',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 100,
+            max_hp: 100,
             sharp_damage: 25,
             weapon: getItem('sickle'),
             items: [getItem('sickle'), getItem('gold', 3)],
@@ -3042,7 +3060,7 @@ const characters = {
         return new A2dCharacter({
             name: 'peasant woman',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 90,
+            max_hp: 90,
             blunt_damage: 10,
             sharp_damage: 0,
             weapon: getItem('fist'),
@@ -3064,7 +3082,7 @@ const characters = {
         return new A2dCharacter({
             name: 'dog',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            hp: 45,
+            max_hp: 45,
             blunt_damage: 10,
             sharp_damage: 15,
             weaponName: 'teeth',
@@ -3096,7 +3114,7 @@ const characters = {
                     const evil_you = new A2dCharacter({
                         name: `evil ${player.name}`,
                         pronouns: player.pronouns,
-                        hp: player.hp,
+                        max_hp: player.hp,
                         weapon: player.equipment['right hand'] || getItem('fist'),
                         blunt_armor: player.blunt_armor,
                         sharp_armor: player.sharp_armor,
@@ -3130,7 +3148,7 @@ const characters = {
         return new A2dCharacter({
             name: 'peasant worker',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 190,
+            max_hp: 190,
             blunt_damage: 0,
             sharp_damage: 70,
             weapon: getItem('sickle'),
@@ -3151,7 +3169,7 @@ const characters = {
         return new A2dCharacter({
             name: 'Ieadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 1000,
+            max_hp: 1000,
             blunt_damage: 120,
             sharp_damage: 200,
             weapon: getItem('mighty_excalabor'),
@@ -3222,7 +3240,7 @@ const characters = {
         return new A2dCharacter({
             name: 'Mythin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 550,
+            max_hp: 550,
             blunt_damage: 40,
             sharp_damage: 120,
             magic_damage: 40,
@@ -3300,7 +3318,7 @@ const characters = {
         return new A2dCharacter({
             name: 'Eldin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 450,
+            max_hp: 450,
             magic_damage: 180,
             weapon: getItem('lightning_staff'),
             items: [getItem('lightning_staff'), getItem('gold', 300), getItem('maple_leaf')],
@@ -3515,7 +3533,7 @@ const characters = {
         return new A2dCharacter({
             name: 'Eldfarl',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 450,
+            max_hp: 450,
             blunt_damage: 90,
             sharp_damage: 0,
             weaponName: 'fist',
@@ -3555,7 +3573,7 @@ const characters = {
         return new A2dCharacter({
             name: 'Turlin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 250,
+            max_hp: 250,
             blunt_damage: 60,
             sharp_damage: 0,
             weaponName: 'huge fists',
@@ -3581,7 +3599,7 @@ const characters = {
         return new A2dCharacter({
             name: 'Henge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 320,
+            max_hp: 320,
             blunt_damage: 50,
             sharp_damage: 40,
             weapon: getItem('longsword'),
@@ -3602,7 +3620,7 @@ const characters = {
         return new A2dCharacter({
             name: 'ziatos',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 750,
+            max_hp: 750,
             magic_damage: 50,
             sharp_damage: 150,
             weapon: getItem('blade_of_time'),
@@ -3650,7 +3668,7 @@ const characters = {
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             items: [getItem('gold', 25), getItem('long_dagger')],
             description: 'orc official',
-            hp: 200,
+            max_hp: 200,
             blunt_damage: 60,
             sharp_damage: 100,
             weapon: getItem('long_dagger'),
@@ -3673,7 +3691,7 @@ const characters = {
         return new A2dCharacter({
             name: 'wisp',
             pronouns: { "subject": "It", "object": "it", "possessive": "its" },
-            hp: 220,
+            max_hp: 220,
             blunt_damage: 10,
             magic_damage: 150,
             magic_level: 500,
@@ -3692,7 +3710,7 @@ const characters = {
         return new A2dCharacter({
             name: 'Biadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 30000,
+            max_hp: 30000,
             blunt_damage: 10,
             sharp_damage: 0,
             weapon: getItem('fist'),
@@ -3731,7 +3749,7 @@ const characters = {
         return new A2dCharacter({
             name: 'cyclops',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 860,
+            max_hp: 860,
             blunt_damage: 174,
             sharp_damage: 5,
             weaponName: 'uprooted tree',
@@ -3756,7 +3774,7 @@ const characters = {
         return new A2dCharacter({
             name: 'dragon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 1300,
+            max_hp: 1300,
             blunt_damage: 40,
             sharp_damage: 166,
             weaponName: "sharp claws",
@@ -3785,7 +3803,7 @@ const characters = {
         return new A2dCharacter({
             name: 'giant scorpion',
             pronouns: { "subject": "It", "object": "it", "possessive": "its" },
-            hp: 100,
+            max_hp: 100,
             blunt_damage: 15,
             sharp_damage: 6,
             weapon: getItem('spear', { name: 'poison stinger' }),
@@ -3801,7 +3819,7 @@ const characters = {
         return new A2dCharacter({
             name: 'mutant hedgehog',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 100,
+            max_hp: 100,
             blunt_damage: 6,
             sharp_damage: 15,
             weaponName: 'horns',
@@ -3822,7 +3840,7 @@ const characters = {
         return new A2dCharacter({
             name: 'grizzly bear',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 350,
+            max_hp: 350,
             blunt_damage: 60,
             sharp_damage: 6,
             weapon: getItem('fist', { name: 'massive paws' }),
@@ -3840,7 +3858,7 @@ const characters = {
         return new A2dCharacter({
             name: 'striped bear',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 250,
+            max_hp: 250,
             blunt_damage: 42,
             sharp_damage: 5,
             weapon: getItem('fist', { name: 'heavy paws' }),
@@ -3861,7 +3879,7 @@ const characters = {
         return new A2dCharacter({
             name: 'tiger',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 400,
+            max_hp: 400,
             blunt_damage: 40,
             sharp_damage: 30,
             weaponName: 'sharp claws',
@@ -3882,7 +3900,7 @@ const characters = {
         return new A2dCharacter({
             name: 'wolf',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 80,
+            max_hp: 80,
             blunt_damage: 12,
             sharp_damage: 35,
             weaponName: 'teeth',
@@ -3903,7 +3921,7 @@ const characters = {
         return new A2dCharacter({
             name: 'rabid wolf',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 60,
+            max_hp: 60,
             blunt_damage: 12,
             sharp_damage: 45,
             weaponName: 'teeth',
@@ -3924,7 +3942,7 @@ const characters = {
         return new A2dCharacter({
             name: 'gryphon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            hp: 64,
+            max_hp: 64,
             blunt_armor: 9,
             coordination: 5,
             agility: 8,
