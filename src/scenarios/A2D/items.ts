@@ -371,7 +371,7 @@ const items = {
             size: 2.0,
             value: 43,
             weapon_stats: {
-                type: 'axe',
+                type: 'slice',
                 sharp_damage: 4.5,
             },
             quantity: args.quantity
@@ -662,7 +662,7 @@ const items = {
             size: 1.5,
             value: 22,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 sharp_damage: 3.5,
             },
             quantity: args.quantity
@@ -674,7 +674,7 @@ const items = {
             size: 0.5,
             value: 5,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 sharp_damage: 2.0,
             },
             quantity: args.quantity
@@ -686,7 +686,7 @@ const items = {
             size: 1,
             value: 59,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 blunt_damage: 1.0,
                 sharp_damage: 4.0,
             },
@@ -699,7 +699,7 @@ const items = {
             size: 0.8,
             value: 8,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 sharp_damage: 2.5,
             },
             quantity: args.quantity
@@ -711,7 +711,7 @@ const items = {
             size: 1,
             value: 1350,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 blunt_damage: 1.9,
                 sharp_damage: 7.44,
                 magic_damage: 2.4,
@@ -725,7 +725,7 @@ const items = {
             size: 1,
             value: 125,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 sharp_damage: 6.2,
             },
             quantity: args.quantity
@@ -737,7 +737,7 @@ const items = {
             size: 1,
             value: 460,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 blunt_damage: 3.1,
                 sharp_damage: 5.0,
                 magic_damage: 1.0,
@@ -751,7 +751,7 @@ const items = {
             size: 2.5,
             value: 35,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 blunt_damage: 1.0,
                 sharp_damage: 3.2,
             },
@@ -764,7 +764,7 @@ const items = {
             size: 1,
             value: 83,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 sharp_damage: 5.0,
             },
             quantity: args.quantity
@@ -776,7 +776,7 @@ const items = {
             size: 2.0,
             value: 32,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 sharp_damage: 4.0,
             },
             quantity: args.quantity
@@ -788,7 +788,7 @@ const items = {
             size: 1.0,
             value: 14,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 sharp_damage: 3.0,
             },
             quantity: args.quantity
@@ -800,7 +800,7 @@ const items = {
             size: 3.0,
             value: 58,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 blunt_damage: 1.5,
                 sharp_damage: 3.5,
             },
@@ -813,7 +813,7 @@ const items = {
             size: 2.0,
             value: 764,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 sharp_damage: 3.0,
                 magic_damage: 3.0,
             },
@@ -826,7 +826,7 @@ const items = {
             size: 2.0,
             value: 17,
             weapon_stats: {
-                type: 'spear',
+                type: 'stab',
                 blunt_damage: 0.9,
                 sharp_damage: 2.44,
             },
@@ -1576,7 +1576,11 @@ const items = {
             name: 'sickle',
             size: 2.0,
             value: 36,
-            quantity: args.quantity
+            quantity: args.quantity,
+            weapon_stats: {
+                type: 'slice',
+                sharp_damage: 3.0,
+            },
         })
     },
     soul(args: ItemParams) {

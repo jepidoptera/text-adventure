@@ -26,13 +26,14 @@ type ItemParams = {
     fungible?: boolean;
     immovable?: boolean;
 }
-type WeaponTypes = 'club' | 'axe' | 'spear' | 'sword' | 'fire' | 'bow' | 'magic' | 'electric' | 'blades' | 'sonic' | 'teeth'
+type WeaponTypes = 'club' | 'axe' | 'slice' | 'stab' | 'sword' | 'fire' | 'bow' | 'magic' | 'electric' | 'blades' | 'sonic' | 'teeth'
 
 const weapon_conversions: { [key in WeaponTypes]: DamageTypes } = {
     'club': 'blunt',
-    'axe': 'sharp',
-    'spear': 'sharp',
+    'slice': 'sharp',
+    'stab': 'sharp',
     'sword': 'sharp',
+    'axe': 'sharp',
     'fire': 'fire',
     'bow': 'sharp',
     'magic': 'magic',

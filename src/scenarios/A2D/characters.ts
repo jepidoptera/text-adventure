@@ -185,7 +185,8 @@ class A2dCharacter extends Character {
         const s = ['you', 'they'].includes(this.pronouns.subject) ? (str: string) => str : plural
         const t_s = ['you', 'they'].includes(target.pronouns.subject) ? (str: string) => str : plural
         const t_be = ['you', 'they'].includes(target.pronouns.subject) ? 'are' : 'is'
-        if (weaponType === 'sword') weaponType = Math.random() > 0.5 ? 'spear' : 'axe'
+        if (weaponType === 'sword') weaponType = randomChoice(['stab', 'slice'])
+        if (weaponType === 'axe') weaponType = randomChoice(['slice', 'club'])
 
         let does = ''
         let callAttack = ''
@@ -225,24 +226,24 @@ class A2dCharacter extends Character {
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('pulverise')} ${targetPronouns.object} with ${weaponName}, splintering bones.` };
                 if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('send')} ${targetPronouns.object} FLYING backwards with ${weaponName}, and severed body parts fly in all directions!` };
                 break;
-            case ("axe"):
+            case ("slice"):
                 if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
                 if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('scratch')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
-                if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('hit')} ${targetPronouns.object} with ${weaponName}, making a deep gash.` };
-                if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('slash')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
-                if (DT >= 40) { does = `${caps(attackerPronouns.subject)} ${s('hack')} ${targetPronouns.object} with ${weaponName}, and you hear a bone break.` };
+                if (DT >= 10) { does = `${caps(attackerPronouns.subject)} ${s('cut')} ${targetPronouns.object} with ${weaponName}, making a deep gash.` };
+                if (DT >= 20) { does = `${caps(attackerPronouns.subject)} ${s('slash')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
+                if (DT >= 35) { does = `${caps(attackerPronouns.subject)} ${s('slice')} ${targetPronouns.object} with ${weaponName}, and blood sprays the ground.` };
                 if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('lacerate')} ${targetPronouns.object} with ${weaponName}, inflicting a mortal wound.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('hew')} ${targetPronouns.object} with ${weaponName}, severing limbs.` };
                 if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('cleave')} ${targetPronouns.object} with ${weaponName}, slicing ${targetPronouns.object} in half.` };
                 break;
-            case ("spear"):
+            case ("stab"):
                 if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
                 if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('nick')} ${targetPronouns.object} with ${weaponName}, drawing blood.` };
                 if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('jab')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
                 if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('hit')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
                 if (DT >= 50) { does = `${caps(attackerPronouns.subject)} ${s('stab')} ${targetPronouns.object} with ${weaponName}, damaging organs.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('impale')} ${targetPronouns.object} with ${weaponName}, making vital fluids gush.` };
-                if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('eviscerate')} ${targetPronouns.object} with ${weaponName}, and blood splatters everywhere.` };
+                if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('eviscerate')} ${targetPronouns.object} with ${weaponName}. Blood splatters everywhere.` };
                 break;
             case ("fire"):
                 if (DT >= 0) does = `${caps(attackerPronouns.subject)} ${weaponName} flickers against ${targetPronouns.object} without leaving a mark.`;
@@ -1095,7 +1096,7 @@ const characters = {
             blunt_damage: 20,
             sharp_damage: 100,
             weaponName: 'claws',
-            weaponType: 'sword',
+            weaponType: 'slice',
             description: 'Sift',
             coordination: 25,
             agility: 15,
@@ -1500,7 +1501,7 @@ const characters = {
             coordination: 3,
             agility: 2,
             weaponName: 'claws',
-            weaponType: 'sword',
+            weaponType: 'slice',
             description: 'rush lurker',
             attackPlayer: true,
             pronouns: pronouns.inhuman,
@@ -1902,7 +1903,7 @@ const characters = {
             blunt_damage: 4,
             sharp_damage: 4,
             weaponName: 'horns',
-            weaponType: 'spear',
+            weaponType: 'stab',
             description: 'cow',
             coordination: 3,
             agility: 0,
@@ -1926,7 +1927,7 @@ const characters = {
             blunt_damage: 8,
             sharp_damage: 5,
             weaponName: 'horns',
-            weaponType: 'spear',
+            weaponType: 'stab',
             description: 'bull',
             coordination: 4,
             agility: 1,
@@ -2516,7 +2517,7 @@ const characters = {
             blunt_damage: 2,
             sharp_damage: 10,
             weaponName: 'fangs',
-            weaponType: 'spear',
+            weaponType: 'stab',
             coordination: 6,
             agility: 4,
             description: 'poisonus adder',
@@ -2793,7 +2794,7 @@ const characters = {
             coordination: 1,
             agility: 3,
             weaponName: 'beak',
-            weaponType: 'spear',
+            weaponType: 'stab',
             items: [getItem('chicken_leg')],
             description: 'clucking hen',
             ...args
@@ -2808,7 +2809,7 @@ const characters = {
             blunt_damage: 7,
             sharp_damage: 2,
             weaponName: 'claws',
-            weaponType: 'sword',
+            weaponType: 'slice',
             items: [getItem('chicken_leg')],
             description: 'furious rooster',
             coordination: 4,
@@ -2919,12 +2920,12 @@ const characters = {
         const gender = randomChoice(['male', 'female']) as keyof typeof pronouns;
         return new A2dCharacter({
             name: gender == 'male' ? 'lion' : 'lioness',
-            pronouns: pronouns[gender],
+            pronouns: gender == 'male' ? pronouns.male : pronouns.female,
             max_hp: 155,
             blunt_damage: 12,
             sharp_damage: 30,
             weaponName: 'claws',
-            weaponType: 'sword',
+            weaponType: 'slice',
             description: 'Lion',
             coordination: 5,
             agility: 6,
@@ -3823,7 +3824,7 @@ const characters = {
             blunt_damage: 6,
             sharp_damage: 15,
             weaponName: 'horns',
-            weaponType: 'spear',
+            weaponType: 'stab',
             description: 'mutant hedgehog',
             coordination: 0,
             agility: 18,
@@ -3883,7 +3884,7 @@ const characters = {
             blunt_damage: 40,
             sharp_damage: 30,
             weaponName: 'sharp claws',
-            weaponType: 'sword',
+            weaponType: 'slice',
             description: 'ferocious tiger',
             coordination: 25,
             agility: 18,
@@ -3904,7 +3905,7 @@ const characters = {
             blunt_damage: 12,
             sharp_damage: 35,
             weaponName: 'teeth',
-            weaponType: 'sword',
+            weaponType: 'teeth',
             description: 'wolf',
             coordination: 15,
             agility: 11,
@@ -3925,7 +3926,7 @@ const characters = {
             blunt_damage: 12,
             sharp_damage: 45,
             weaponName: 'teeth',
-            weaponType: 'sword',
+            weaponType: 'teeth',
             description: 'rabid wolf',
             coordination: 5,
             agility: 0,
@@ -3949,7 +3950,7 @@ const characters = {
             blunt_damage: 19,
             sharp_damage: 16,
             weaponName: 'talons',
-            weaponType: 'sword',
+            weaponType: 'slice',
             ...args
         });
     },
