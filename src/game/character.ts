@@ -90,11 +90,11 @@ interface CharacterParams {
     pronouns?: { subject: string, object: string, possessive: string };
     items?: Item[];
     exp?: number;
-    hp?: number;
+    max_hp?: number;
     hp_recharge?: number;
-    mp?: number;
+    max_mp?: number;
     mp_recharge?: number;
-    sp?: number;
+    max_sp?: number;
     sp_recharge?: number;
     strength?: number;
     coordination?: number;
@@ -199,11 +199,11 @@ class Character {
         pronouns = { subject: "they", object: "them", possessive: "their" },
         items = [],
         exp = 0,
-        hp = 1,
+        max_hp: hp = 1,
         hp_recharge = 0.01, // 1% per turn by default
-        mp = 1,
+        max_mp: mp = 1,
         mp_recharge = 0,
-        sp = 1,
+        max_sp: sp = 1,
         sp_recharge = 0,
         strength = 1,
         coordination = 1,
