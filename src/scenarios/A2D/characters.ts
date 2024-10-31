@@ -173,6 +173,11 @@ class A2dCharacter extends Character {
         return this._spellChance?.() || true
     }
 
+    async attack(target: Character | null = null, weapon: Item | null = null) {
+        color(black)
+        await super.attack(target, weapon);
+    }
+
     describeAttack(
         target: Character,
         weaponName: string,
@@ -326,10 +331,6 @@ class A2dCharacter extends Character {
         if (!this.isPlayer && !target.isPlayer && !callAttack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
         // if (DT === 0) callAttack = ''
         return callAttack ? `${callAttack}\n${does}` : does
-    }
-    async attack(target: Character | null = null, weapon: Item | null = null) {
-        color(black)
-        await super.attack(target, weapon);
     }
     save() {
         const saveObj = Object.assign(super.save(), { key: this.key });
@@ -1129,7 +1130,7 @@ const characters = {
             respawn: false,
             ...args
         }).dialog(async function (player: Character) {
-            if (this.game.flags.cradel) {
+            if (!this.game.flags.cradel) {
                 print("mumble mumble");
                 print("Oh to be able to sleep.");
                 print("I lay long hours at trying to sleep.");
@@ -1148,7 +1149,7 @@ const characters = {
             this.game.flags.cradel = true;
             this.location?.adjacent?.set('south', this.game.locations.get(192) || this.location);
         }).addAction('play lute', async function (player: Character) {
-            if (!player.has('lute de lomonate')) {
+            if (!player.has('lute de lumonate')) {
                 color(gray);
                 print("You don't have that.");
                 return;
