@@ -295,7 +295,8 @@ class Character {
         this._buffs[buff.name] = buff;
     }
 
-    removeBuff(buff: Buff) {
+    removeBuff(buff: string | Buff) {
+        if (typeof buff === 'string') buff = this._buffs[buff];
         delete this._buffs[buff.name];
     }
 
