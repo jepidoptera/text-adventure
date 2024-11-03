@@ -1,9 +1,12 @@
 import { WebSocket } from 'ws';
-import { Location } from './location.ts';
-import { Item } from './item.ts'
-import { Character } from './character.ts'
+import { Location } from './location.js';
+import { Item } from './item.js'
+import { Character } from './character.js'
 
 class GameState {
+    static current: GameState | null = null;
+    private static contextLock: Promise<void> = Promise.resolve();
+    private static contextRelease: (() => void) | null = null;
     flags: { [key: string]: any } = {};
     private _locations: Map<string | number, Location> = new Map();
     private batchCommands: { [key: string]: string | number | undefined }[] = [];
@@ -17,6 +20,8 @@ class GameState {
         load: (saveName: string) => Promise<object | null>
     ) {
         this.send = (output: object) => wss.send(JSON.stringify(output));
+        this._save = save;
+        this._load = load;
         (global as any).print = this.quote.bind(this);
         (global as any).input = this.query.bind(this);
         (global as any).getKey = this.getKey.bind(this);
@@ -25,14 +30,13 @@ class GameState {
         (global as any).locate = this.locate.bind(this);
         (global as any).optionBox = this.optionBox.bind(this);
         (global as any).clear = this.clear.bind(this);
-        this._save = save;
-        this._load = load;
     }
     loadScenario(locations: { [key: string | number]: Location }) {
         this._locations = new Map(Object.entries(locations).map(([k, v]) => [isNaN(Number(k)) ? k : Number(k), v]));
         for (let [key, location] of this.locations.entries()) {
             // since we have to link locations by id initially, we now link to the actual location object
             location.key = key;
+            location.game = this;
             location.adjacent = new Map(Object.entries(location.adjacent_ids).map(([direction, id]) => [direction, this.locations.get(id) || location]));
             // link characters to locations
             for (let character of location.characters) {
@@ -164,8 +168,8 @@ class GameState {
         player.addAction('s', async function () { await player.go('south') });
         player.addAction('e', async function () { await player.go('east') });
         player.addAction('w', async function () { await player.go('west') });
-        player.addAction('get', player.getItem)
-        player.addAction('drop', player.dropItem)
+        player.addAction('get', (itemName) => player.getItem(itemName || ''));
+        player.addAction('drop', (itemName) => player.dropItem(itemName || ''));
         player.location = this.locations.values().next().value || null;
         let command = ''
         while (command != 'exit') {
@@ -187,10 +191,45 @@ class GameState {
         // clear intervals or whatever
         return;
     }
+    async enterContext() {
+        // Wait for any existing context to be released
+        await GameState.contextLock;
+
+        // Create a new lock
+        GameState.contextLock = new Promise(resolve => {
+            GameState.contextRelease = resolve;
+        });
+
+        GameState.current = this;
+        (global as any).print = this.quote.bind(this);
+        (global as any).input = this.query.bind(this);
+        (global as any).getKey = this.getKey.bind(this);
+        (global as any).pause = this.pause.bind(this);
+        (global as any).color = this.color.bind(this);
+        (global as any).locate = this.locate.bind(this);
+        (global as any).optionBox = this.optionBox.bind(this);
+        (global as any).clear = this.clear.bind(this);
+    }
+
+    exitContext() {
+        if (GameState.current === this) {
+            GameState.current = null;
+            if (GameState.contextRelease) {
+                GameState.contextRelease();
+                GameState.contextRelease = null;
+            }
+        }
+    }
+
+    // Modify your process_input method
     async process_input(input: string = '') {
-        if (this.on_input) {
-            this.on_input(input);
-            return;
+        this.enterContext();
+        try {
+            if (this.on_input) {
+                this.on_input(input);
+            }
+        } finally {
+            this.exitContext();
         }
     }
     animate_characters() {
@@ -228,4 +267,23 @@ class GameState {
     }
 }
 
-export { GameState };
+function withGameState<This, Args extends any[], Return>(
+    target: (this: This, ...args: Args) => Return,
+    context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>
+) {
+    return function (this: This, ...args: Args): Return {
+        const gameState = (this as any).game
+
+        if (!gameState) {
+            throw new Error('No GameState found for object');
+        }
+
+        gameState.enterContext();
+        try {
+            return target.apply(this, args);
+        } finally {
+            gameState.exitContext();
+        }
+    }
+}
+export { GameState, withGameState };
