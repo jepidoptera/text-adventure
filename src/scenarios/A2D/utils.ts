@@ -1,5 +1,5 @@
-import { qbColors, black, darkwhite } from "./colors.ts";
-import { randomChoice } from "../../game/utils.ts";
+import { qbColors, black, darkwhite } from "./colors.js";
+import { randomChoice } from "../../game/utils.js";
 
 function musicc$(n: number) {
     return Array.from(

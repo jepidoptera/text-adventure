@@ -1,5 +1,5 @@
-import { Buff, Character, DamageTypes } from "../../game/character.ts";
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
+import { Buff, Character, DamageTypes } from "../../game/character.js";
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js";
 
 type BuffCreator = (({ power, duration }: { power: number, duration: number }) => Buff) | (() => Buff);
 const buffs: { [key: string]: BuffCreator } = {
@@ -79,7 +79,7 @@ const buffs: { [key: string]: BuffCreator } = {
                 //transport to alternate plane?
 
             } else if (vis > 100) { // glimpsing an alternate plane of existence
-                const wh = Math.floor(Math.random() * 21) + 1
+                const wh = Math.floor(Math.random() * 22) + 1
                 switch (wh) {
                     case (1):
                         print("A Voice - I don't know what to do with you.  I really don't.")
@@ -117,9 +117,6 @@ const buffs: { [key: string]: BuffCreator } = {
                     case (12):
                         print("A Voice - What do you think you're doing?  Can't you take a hint?")
                         break;
-                    case (12):
-                        print("A Voice - Come on.  I DARE you.")
-                        break;
                     case (13):
                         print("A Voice - Oh, hohoho.  Ah, hahahaha.  Ha.  You crack me up, princess.")
                         break;
@@ -146,6 +143,10 @@ const buffs: { [key: string]: BuffCreator } = {
                         break;
                     case (21):
                         print("A Voice - BE WARNED IT IS TOO FAR YOU MUST STOP YOU WILL DIE GO OUT")
+                    case (22):
+                        print("A Voice - Come on.  I DARE you.")
+                        break;
+
                 }
 
             } else if (vis > 80) { // losing touch with reality, freaking out
@@ -827,7 +828,7 @@ const buffs: { [key: string]: BuffCreator } = {
                     case (46):
                         print("You don't need that old 5")
                         break;
-                    case (46):
+                    case (47):
                         print("frinnin, my frin, like a bar in henhouse, for a star")
                         break;
                     case (48):

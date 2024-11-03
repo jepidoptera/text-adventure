@@ -1,8 +1,8 @@
-import { Landmark } from '../../game/location.ts';
-import { Item, Container } from '../../game/item.ts';
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
-import { potions } from './items.ts'
-import { Character } from '../../game/character.ts';
+import { Landmark } from "../../game/location.js";
+import { Item, Container } from "../../game/item.js";
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
+import { potions } from "./items.js"
+import { Character } from "../../game/character.js";
 
 const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
     sign(text?: string | string[]): Landmark {

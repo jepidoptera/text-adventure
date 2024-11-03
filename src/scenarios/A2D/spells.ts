@@ -1,8 +1,8 @@
-import { Character, DamageTypes } from '../../game/character';
-import { A2dCharacter } from './characters';
-import { brightred, black, gray, magenta } from './colors';
-import { getBuff } from './buffs';
-import { WeaponTypes } from '../../game/item';
+import { Character, DamageTypes } from '../../game/character.js';
+import { A2dCharacter } from './characters.js';
+import { brightred, black, gray, magenta } from './colors.js';
+import { getBuff } from './buffs.js';
+import { WeaponTypes } from '../../game/item.js';
 type AttackAction = (this: A2dCharacter, target: Character) => Promise<void>;
 const abilityLevels = ["Novice", "Ameteur", "Competent", "Proficient", "Adept", "Expert", "Master", "Grand Master"]
 const spellPower = 1.0860331325016919
@@ -104,6 +104,7 @@ const spells: Record<string, AttackAction> = {
                 color(magenta)
                 print("Assistant -- You don't have enough magic to cast bloodlust at full power.")
             }
+            magicCost = this.mp;
         } else magicCost = maxCost
         if (this.mp < magicCost) {
             if (this.isPlayer) print("You are too bored!");

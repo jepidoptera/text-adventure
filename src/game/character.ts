@@ -1,7 +1,7 @@
-import { Container, Item } from "./item.ts";
-import { Location } from "./location.ts";
-import { GameState } from "./game.ts";
-import { WeaponTypes, weapon_conversions } from "./item.ts";
+import { Container, Item } from "./item.js";
+import { Location } from "./location.js";
+import { GameState, withGameState } from "./game.js";
+import { WeaponTypes, weapon_conversions } from "./item.js";
 
 const pronouns = {
     'male': { subject: "he", object: "him", possessive: "his" },
@@ -45,16 +45,16 @@ class Buff {
         this._onApply = action.bind(this);
         return this;
     }
-    apply(character: Character) {
+    async apply(character: Character) {
         this.character = character;
-        this._onApply?.();
+        await this._onApply?.();
     }
     onExpire(action: (this: Buff) => Promise<void>) {
         this._onExpire = action.bind(this);
         return this;
     }
     async expire() {
-        this._onExpire?.();
+        await this._onExpire?.();
         this.character.removeBuff(this);
     }
     onTurn(action: (this: Buff) => Promise<void>) {
@@ -69,7 +69,9 @@ class Buff {
             this.character.removeBuff(this);
         }
     }
-
+    get game() {
+        return this.character.game;
+    }
     save(): object {
         return {
             name: this.name,
@@ -290,8 +292,8 @@ class Character {
         this.game = game;
     }
 
-    addBuff(buff: Buff) {
-        buff.apply(this);
+    async addBuff(buff: Buff) {
+        await buff.apply(this);
         this._buffs[buff.name] = buff;
     }
 
@@ -490,6 +492,7 @@ class Character {
         return damage;
     }
 
+
     async slay(character: Character) {
         // gloat or whatever
         await this._onSlay?.(character);
@@ -499,6 +502,7 @@ class Character {
     }
 
     has = (item_name: string, quantity?: number) => this.inventory.has(item_name, quantity);
+
 
     async getItem(itemName: string, location?: Container, quantity?: number) {
         const item = (location || this.location)?.item(itemName);
@@ -510,12 +514,14 @@ class Character {
         if (item.acquire) item.acquire(this);
     }
 
+
     async dropItem(itemName: string, quantity: number = 1) {
         const item = this.inventory.item(itemName);
         if (item) {
             this.inventory.transfer(item, this.location ?? this.inventory, quantity);
         }
     }
+
 
     async transferItem(item: string | Item | undefined, character: Character, quantity?: number) {
         if (typeof item === 'string') item = this.inventory.item(item);
@@ -525,16 +531,19 @@ class Character {
         }
     }
 
+
     async transferAllItems(character: Character) {
         for (let item of this.inventory.items) {
-            this.transferItem(item, character);
+            await this.transferItem(item, character);
         }
     }
+
 
     async giveItem(item: Item, quantity?: number) {
         this.inventory.add(item, quantity);
         if (item.acquire) await item.acquire(this);
     }
+
 
     async removeItem(item: string | Item | undefined, quantity?: number) {
         if (typeof item === 'string') item = this.inventory.item(item);
@@ -563,6 +572,7 @@ class Character {
         return this.inventory.item(itemName);
     }
 
+
     async go(direction: string): Promise<boolean> {
         if (!this.location?.adjacent?.has(direction)) {
             return false;
@@ -574,7 +584,7 @@ class Character {
         }
         const newLocation = this.location.adjacent.get(direction);
         if (newLocation) {
-            this.relocate(newLocation);
+            await this.relocate(newLocation);
             return true;
         } else {
             console.log(`Unexpected error: ${direction} exists but location is undefined.`);
@@ -582,11 +592,12 @@ class Character {
         }
     }
 
+
     async relocate(newLocation: Location | null, direction?: string) {
-        this.location?.exit(this, direction);
+        await this.location?.exit(this, direction);
         if (this.location) this.exit(this.location);
         this.location = newLocation;
-        newLocation?.enter(this);
+        await newLocation?.enter(this);
         if (newLocation) this.enter(newLocation);
         for (let character of newLocation?.characters ?? []) {
             if (character !== this) {
@@ -595,6 +606,7 @@ class Character {
             }
         }
     }
+
 
     async die(cause?: any) {
         this.dead = true;
@@ -620,6 +632,7 @@ class Character {
     get respawns() {
         return this._respawn;
     }
+
 
     async respawn() {
         if (!this._respawn) return;
@@ -701,8 +714,17 @@ class Character {
         return this;
     }
 
-    addAction(name: string, action: (this: Character, ...args: any[]) => Promise<void>) {
-        this.actions.set(name, action.bind(this));
+    addAction(name: string, fn: (args?: string) => Promise<void>) {
+        // wrap the action function to ensure correct game context
+        const wrappedFn = async function (this: Character, args?: string) {
+            await this.game.enterContext();
+            try {
+                return fn.apply(this, [args]);
+            } finally {
+                this.game.exitContext();
+            }
+        };
+        this.actions.set(name, wrappedFn.bind(this));
         return this;
     }
 
@@ -728,6 +750,7 @@ class Character {
         return this;
     }
 
+
     async encounter(character: Character) {
         await this._onEncounter?.(character);
         if (this.enemies.includes(character)) {
@@ -737,9 +760,11 @@ class Character {
         }
     }
 
+
     async enter(location: Location) {
         await this._onEnter?.(location);
     }
+
 
     async exit(location: Location) {
         await this._onLeave?.(location);
@@ -752,6 +777,7 @@ class Character {
     get accuracy() {
         return this.coordination * Math.random()
     }
+
 
     async attack(target: Character | null = null, weapon: Item | null = null) {
         if (!target) target = this.attackTarget;
@@ -805,6 +831,7 @@ class Character {
         }
     }
 
+
     async hurt(damage: number, type: DamageTypes | null = null, cause: any): Promise<number> {
         if (type) damage = Math.max(this.damage_modifier(damage, type), 0)
         this.hp -= damage;
@@ -826,6 +853,7 @@ class Character {
         return does;
     }
 
+
     async defend(attacker: Character) {
         if (!this.enemies.includes(attacker)) {
             this.enemies.push(attacker);
@@ -844,6 +872,7 @@ class Character {
             console.log(this.name, 'decides to attack', this.attackTarget?.name)
         }
     }
+
 
     async turn(game: GameState) {
         // onTurn only happens if the character is not fighting.

@@ -1,5 +1,6 @@
-import { Container, Item } from "./item.ts";
-import { Character } from "./character.ts";
+import { Container, Item } from "./item.js";
+import { Character } from "./character.js";
+import { GameState } from "./game.js";
 
 class Landmark {
     name: string;
@@ -36,6 +37,7 @@ class Landmark {
 class Location extends Container {
     unique_id!: string | number;
     name: string;
+    game!: GameState;
     key!: string | number;
     adjacent: Map<string, Location> | undefined;
     adjacent_ids: { [key: string]: string | number } = {};
