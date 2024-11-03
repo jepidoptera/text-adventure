@@ -13,8 +13,11 @@ X fix gold piles (_displayName function for items)
 X batch print statements to reduce latency
 X flee from combat
 X wear rings
-/ spells
+X combat drains stamina
+/ spells (trance, transport and vanish)
 
+offhand
+put Henge in a slot canyon
 context switching to support multiple games at once
 robust gameState map on server
 list of existing (player) character names, enforce uniqueness
@@ -24,5 +27,7 @@ onTimer event
 pets
 bows
 key buffer in client
-monsters on the path of nod
+random monsters on the path of nod (and caves)
+strictly separate code files from content files
+Orc town
 
