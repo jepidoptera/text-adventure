@@ -1,9 +1,9 @@
-import { Item, ItemParams } from '../../game/item.ts';
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts';
-import { Player } from './player.ts';
-import { Character, Buff } from '../../game/character.ts';
-import { getBuff } from './buffs.ts';
-import { play, musicc$ } from './utils.ts';
+import { Item, ItemParams } from "../../game/item.js";
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js";
+import { Player } from "./player.js";
+import { Character, Buff } from "../../game/character.js";
+import { getBuff } from "./buffs.js";
+import { play, musicc$ } from "./utils.js";
 
 function equip(slot: keyof Player["equipment"]) {
     return async function (this: Item, character: Character) {
@@ -75,12 +75,11 @@ const items = {
             name: 'corn ear',
             description: 'an ear of corn',
             value: 1,
-            eat: async (player) => {
-                player.hunger -= 8.5
-                player.sp += 12
-                if (player.isPlayer) (player as Player).checkHP()
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 8.5
+            player.sp += 12
+            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     satchel_of_peas(args: ItemParams) {
@@ -88,12 +87,11 @@ const items = {
             name: 'satchel of peas',
             description: 'a satchel of peas',
             value: 11,
-            eat: async (player) => {
-                player.hunger -= 10
-                player.sp += 10
-                if (player.isPlayer) (player as Player).checkHP()
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 10
+            player.sp += 10
+            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     banana(args: ItemParams) {
@@ -101,12 +99,11 @@ const items = {
             name: 'banana',
             description: 'a banana',
             value: 4,
-            eat: async (player) => {
-                player.hunger -= 8
-                player.sp += 8
-                if (player.isPlayer) (player as Player).checkHP()
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 8
+            player.sp += 8
+            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     side_of_meat(args: ItemParams) {
@@ -114,12 +111,11 @@ const items = {
             name: 'side of meat',
             description: 'a side of meat',
             value: 18,
-            eat: async (player) => {
-                player.hunger -= 80
-                player.sp += 60
-                if (player.isPlayer) (player as Player).checkHP()
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 80
+            player.sp += 60
+            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     chicken_leg(args: ItemParams) {
@@ -127,12 +123,11 @@ const items = {
             name: 'chicken leg',
             size: 0.2,
             value: 8,
-            eat: async (player) => {
-                player.hunger -= 10
-                player.sp += 20
-                if (player.isPlayer) (player as Player).checkHP()
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 10
+            player.sp += 20
+            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     dog_steak(args: ItemParams) {
@@ -140,10 +135,10 @@ const items = {
             name: 'dog steak',
             size: 0.8,
             value: 0,
-            eat: async (player) => {
-                print('TODO: eat this')
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 40
+            player.sp += 40
         })
     },
     full_ration(args: ItemParams) {
@@ -151,12 +146,11 @@ const items = {
             name: 'full ration',
             size: 0.8,
             value: 22,
-            eat: async (player) => {
-                player.sp += 40;
-                player.hunger -= 40;
-                if (player.isPlayer) (player as Player).checkHP()
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.sp += 40;
+            player.hunger -= 40;
+            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     giraffe_gizzard(args: ItemParams) {
@@ -164,19 +158,18 @@ const items = {
             name: 'giraffe gizzard',
             size: 1,
             value: 0,
-            eat: async (player) => {
-                print('You gobble down the disgusting, slimy organ.  It tastes like a mix of')
-                print('rotten fish and old socks, but something compels you to eat it, and')
-                print('eat it all.  You feel a little sick.')
-                await pause(5)
-                print("Too late, you realize: GIRAFFES DON'T HAVE GIZZARDS!")
-                print("What did you just eat??")
-                await pause(3)
-                print("Whatever it was, it was poisonous.")
-                await pause(2)
-                player.die('giraffe gizzard')
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            print('You gobble down the disgusting, slimy organ.  It tastes like a mix of')
+            print('rotten fish and old socks, but something compels you to eat it, and')
+            print('eat it all.  You feel a little sick.')
+            await pause(5)
+            print("Too late, you realize: GIRAFFES DON'T HAVE GIZZARDS!")
+            print("What did you just eat??")
+            await pause(3)
+            print("Whatever it was, it was poisonous.")
+            await pause(2)
+            player.die('giraffe gizzard')
         })
     },
     loaf_of_bread(args: ItemParams) {
@@ -184,11 +177,10 @@ const items = {
             name: 'loaf of bread',
             size: 0.5,
             value: 10,
-            eat: async (player) => {
-                player.sp += 10
-                player.hunger -= 20
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.sp += 10
+            player.hunger -= 20
         })
     },
     mushroom(args: ItemParams) {
@@ -196,10 +188,9 @@ const items = {
             name: 'mushroom',
             size: 0.2,
             value: 50,
-            eat: async (player) => {
-                player.hunger -= 5
-            },
             quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 5
         })
     },
     bug_repellent(args: ItemParams) {
@@ -207,21 +198,20 @@ const items = {
             name: 'bug repellent',
             size: 0.1,
             value: 0,
-            drink: async (player) => {
-                print("hmmm... that bug repellent tasted surprisingly good.")
-                await pause(2)
-                print("suddenly you feel an itching in you chest.")
-                await pause(1.5)
-                print("Now it has become a bubbling.")
-                await pause(1.5)
-                print("Oh no it is...")
-                await pause(1.5)
-                color('red')
-                print("THE DREADED LUNG BOIL DISEASE!!!")
-                await pause(2)
-                player.die('bug repellent')
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            print("hmmm... that bug repellent tasted surprisingly good.")
+            await pause(2)
+            print("suddenly you feel an itching in you chest.")
+            await pause(1.5)
+            print("Now it has become a bubbling.")
+            await pause(1.5)
+            print("Oh no it is...")
+            await pause(1.5)
+            color('red')
+            print("THE DREADED LUNG BOIL DISEASE!!!")
+            await pause(2)
+            player.die('bug repellent')
         })
     },
     full_healing_potion(args: ItemParams) {
@@ -229,10 +219,9 @@ const items = {
             name: 'full healing potion',
             size: 0.4,
             value: 30,
-            drink: async (player) => {
-                player.hp = player.max_hp
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.hp = player.max_hp;
         })
     },
     keg_of_wine(args: ItemParams) {
@@ -240,11 +229,10 @@ const items = {
             name: 'keg of wine',
             size: 1.5,
             value: 45,
-            drink: async (player) => {
-                player.mp += 40;
-                if (player.isPlayer) (player as Player).checkHP()
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.mp += 40;
+            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     mostly_healing_potion(args: ItemParams) {
@@ -252,10 +240,9 @@ const items = {
             name: 'mostly healing potion',
             size: 0.4,
             value: 10,
-            drink: async (player) => {
-                print('TODO: drink this')
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.hp += player.max_hp / 2;
         })
     },
     partial_healing_potion(args: ItemParams) {
@@ -263,10 +250,9 @@ const items = {
             name: 'partial healing potion',
             size: 0.4,
             value: 5,
-            drink: async (player) => {
-                print('TODO: drink this')
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.hp += player.max_hp / 4;
         })
     },
     poison(args: ItemParams) {
@@ -274,21 +260,19 @@ const items = {
             name: 'poison',
             size: 0.4,
             value: 0,
-            drink: async (player) => {
-                print('You die.')
-                player.die('poison')
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            print('You die.')
+            player.die('poison')
         })
     },
     flask_of_wine(args: ItemParams) {
         return new Item({
             name: 'flask of wine',
             value: 25,
-            drink: async (player) => {
-                player.mp += 20;
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.mp += 20;
         })
     },
     healing_potion(args: ItemParams) {
@@ -296,11 +280,10 @@ const items = {
             name: 'healing potion',
             description: '',
             value: 25,
-            drink: async (player) => {
-                player.hp += 10;
-            },
             size: 0.4,
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.hp += 10;
         })
     },
     clear_liquid(args: ItemParams) {
@@ -309,10 +292,9 @@ const items = {
             description: 'a clear liquid',
             value: 1,
             size: 0.5,
-            drink: async (player) => {
-                player.die('clear liquid');
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.die('clear liquid');
         })
     },
     red_liquid(args: ItemParams) {
@@ -321,10 +303,9 @@ const items = {
             description: 'a red liquid',
             value: 1,
             size: 0.5,
-            drink: async (player) => {
-                player.die('red liquid');
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.die('red liquid');
         })
     },
     blue_liquid(args: ItemParams) {
@@ -333,10 +314,9 @@ const items = {
             description: 'a blue liquid',
             value: 1,
             size: 0.5,
-            drink: async (player) => {
-                player.die('blue liquid');
-            },
             quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.die('blue liquid');
         })
     },
     dark_sword(args: ItemParams) {
@@ -1443,18 +1423,9 @@ const items = {
             equipment_slot: 'ring',
             quantity: args.quantity
         }).on_equip(async function (player) {
-            player.addBuff(getBuff('dreams')({ power: 120, duration: -1 }))
+            player.addBuff(getBuff('dreams')({ power: 100, duration: -1 }))
         }).on_remove(async function (player) {
             player.removeBuff('dreams')
-        })
-    },
-    ring_of_life(args: ItemParams) {
-        return new Item({
-            name: 'ring of life',
-            size: 0.05,
-            value: 800,
-            equipment_slot: 'ring',
-            quantity: args.quantity
         })
     },
     ring_of_nature(args: ItemParams) {
@@ -1476,15 +1447,6 @@ const items = {
             print('TODO: use ring of nature')
         })
     },
-    ring_of_power(args: ItemParams) {
-        return new Item({
-            name: 'ring of power',
-            size: 0.05,
-            value: 700,
-            equipment_slot: 'ring',
-            quantity: args.quantity
-        })
-    },
     ring_of_stone(args: ItemParams) {
         return new Item({
             name: 'ring of stone',
@@ -1499,15 +1461,6 @@ const items = {
                 sharp_armor: 50,
             },
         }))
-    },
-    ring_of_strength(args: ItemParams) {
-        return new Item({
-            name: 'ring of strength',
-            size: 0.05,
-            value: 600,
-            equipment_slot: 'ring',
-            quantity: args.quantity
-        })
     },
     ring_of_time(args: ItemParams) {
         return new Item({
