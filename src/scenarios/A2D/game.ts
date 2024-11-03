@@ -1,19 +1,20 @@
-import { GameState } from '../../game/game.ts'
-import { Location } from '../../game/location.ts'
-import { Character } from '../../game/character.ts'
-import { Container } from '../../game/item.ts'
-import { getItem, isValidItemKey, ItemKey } from './items.ts'
-import { getLandmark } from './landmarks.ts'
-import { GameMap } from './map.ts'
-import { Player } from './player.ts'
-import { A2dCharacter, getCharacter, isValidCharacter } from './characters.ts'
-import { BuffNames, getBuff, } from './buffs.ts'
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
+import { GameState } from "../../game/game.js"
+import { Location } from "../../game/location.js"
+import { Character } from "../../game/character.js"
+import { Container } from "../../game/item.js"
+import { getItem, isValidItemKey, ItemKey } from "./items.js"
+import { getLandmark } from "./landmarks.js"
+import { GameMap } from "./map.js"
+import { Player } from "./player.js"
+import { A2dCharacter, getCharacter, isValidCharacter } from "./characters.js"
+import { BuffNames, getBuff, } from "./buffs.js"
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
 
 class A2D extends GameState {
     respawnInterval!: ReturnType<typeof setInterval>;
     player!: Player;
     flags: {
+        cleric: boolean,
         ieadon: boolean,
         soldiers_remaining: number,
         colonel_arach: boolean,
@@ -25,6 +26,7 @@ class A2D extends GameState {
         orc_mission: boolean,
         sift: boolean
     } = {
+            cleric: false,
             ieadon: false,
             soldiers_remaining: 0,
             colonel_arach: false,
@@ -66,7 +68,7 @@ class A2D extends GameState {
         this.clear();
         console.log('chose', opt);
         if (opt === 0) {
-            this.loadScenario(new GameMap().locations);
+            this.loadScenario(new GameMap(this).locations);
             this.player = await this.newCharacter();
             this.player.location?.addCharacter(this.player);
         } else if (opt === 1) {
@@ -201,7 +203,7 @@ class A2D extends GameState {
                 characters: location.characters.map((character: any) => {
                     return character.isPlayer
                         ? new Player('', '', this).load(character)
-                        : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key, character), {
+                        : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key, this, character), {
                             items: character.items?.map(
                                 (itemData: any) => isValidItemKey(itemData.key) ? getItem(itemData.key, itemData) : undefined
                             ).filter((item: any) => item),
