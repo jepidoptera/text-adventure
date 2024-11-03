@@ -1,15 +1,15 @@
-import { Location } from '../../game/location.ts'
-import { Item } from '../../game/item.ts'
-import { Character, BonusKeys } from '../../game/character.ts'
-import { A2dCharacter } from './characters.ts'
-import { getItem, isValidItemKey, ItemKey } from './items.ts'
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
-import { GameState } from '../../game/game.ts';
-import { caps, plural, randomChoice } from '../../game/utils.ts';
-import { spells, abilityLevels } from './spells.ts';
-import { BuffNames, getBuff } from './buffs.ts'
-import { getLandmark } from './landmarks.ts'
-import { GameMap } from './map.ts'
+import { Location } from "../../game/location.js"
+import { Item } from "../../game/item.js"
+import { Character, BonusKeys } from "../../game/character.js"
+import { A2dCharacter } from "./characters.js"
+import { getItem, isValidItemKey, ItemKey } from "./items.js"
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
+import { GameState } from "../../game/game.js";
+import { caps, plural, randomChoice } from "../../game/utils.js";
+import { spells, abilityLevels } from "./spells.js";
+import { BuffNames, getBuff } from "./buffs.js"
+import { getLandmark } from "./landmarks.js"
+import { GameMap } from "./map.js"
 import { dir } from 'console'
 
 class Player extends A2dCharacter {
@@ -42,14 +42,16 @@ class Player extends A2dCharacter {
         murders: number,
         forest_pass: boolean,
         orc_pass: boolean,
-        earplugs: boolean
+        earplugs: boolean,
+        hungry: boolean
     } = {
             assistant: false,
             enemy_of_ierdale: false,
             murders: 0,
             forest_pass: false,
             orc_pass: false,
-            earplugs: false
+            earplugs: false,
+            hungry: false
         }
     constructor(characterName: string, className: string, game: GameState) {
         super({ name: characterName, game: game });
@@ -308,7 +310,7 @@ class Player extends A2dCharacter {
     }
 
     get max_sp() {
-        return this._max_sp * (1 - this.hungerPenalty)
+        return Math.max(this._max_sp * (1 - this.hungerPenalty), 1)
     }
 
     set max_sp(value) {
@@ -317,6 +319,32 @@ class Player extends A2dCharacter {
 
     get max_carry() {
         return this.strength * 2
+    }
+
+    autoheal() {
+        console.log('autohealing')
+        const prevstats = { hp: this.hp, sp: this.sp, mp: this.mp }
+        this.recoverStats({ hp: this.hp_recharge * this.max_hp, sp: this.sp_recharge * this.max_sp, mp: this.mp_recharge * this.max_mp });
+        const diff = - prevstats.hp + this.hp - prevstats.sp + this.sp - prevstats.mp + this.mp
+        console.log(`healed ${diff} points`)
+        this.hunger += diff / 10
+        color(magenta)
+        if (this.hungerPenalty >= 1) {
+            this.hurt(this.hunger - this._max_sp, null, 'hunger')
+            print('You are starving!')
+        } else if (this.flags.hungry) {
+            print('You are hungry.')
+        } else if (this.hungerPenalty > 0 && !this.flags.hungry) {
+            print('Your stomach begins to grumble.')
+            this.flags.hungry = true;
+        } else {
+            this.flags.hungry = false;
+        }
+        this.healed = true;
+        setTimeout(() => {
+            this.healed = false;
+            console.log('time to heal again!')
+        }, 25000);
     }
 
     target(target?: Character) {
@@ -332,14 +360,18 @@ class Player extends A2dCharacter {
         console.log(`player encountered "${character.name}", "${character.description}"`)
     }
 
-    autoheal() {
-        console.log('autohealing')
-        this.recoverStats({ hp: this.hp_recharge * this.max_hp, sp: this.sp_recharge * this.max_sp, mp: this.mp_recharge * this.max_mp });
-        this.healed = true;
-        setTimeout(() => {
-            this.healed = false;
-            console.log('time to heal again!')
-        }, 25000);
+    async relocate(location: Location | null) {
+        await super.relocate(location);
+        if (location && this.flags.assistant) {
+            color(magenta)
+            switch (location.key) {
+                case 0:
+                    if (!this.game.flags.cleric)
+                        print("   --ASSISTANT:--  Go east to learn about the plot.")
+                    break;
+                case 1:
+            }
+        }
     }
 
     async look(target?: string) {
@@ -368,9 +400,10 @@ class Player extends A2dCharacter {
 
     async heal() {
         color(black)
-        const healed = Math.min(this.healing, this.max_hp - this.hp, this.sp - 3);
-        if (this._sp < 3) {
-            print("You are too weak!");
+        const healed = Math.min(this.healing, this.max_hp - this.hp, this.sp);
+        if (healed == 0) {
+            if (this.sp == 0) print("You are too weak!");
+            else print("You are already at full health.");
             return;
         }
         this.recoverStats({ hp: healed, sp: -healed });
@@ -379,11 +412,16 @@ class Player extends A2dCharacter {
 
     async go(direction: string) {
         color(black)
+        if (this.sp <= 0) {
+            print("You are too weak!");
+            return false;
+        }
         const lastLocation = this.location;
         if (await super.go(direction)) {
             if (this.location?.adjacent?.keys) {
                 this.backDirection = Array.from(this.location?.adjacent?.keys()).find(key => this.location?.adjacent?.get(key) === lastLocation) || '';
             }
+            this.recoverStats({ sp: -0.5 });
             return true;
         }
         else {
@@ -579,9 +617,7 @@ class Player extends A2dCharacter {
         if (this.equipment[slot] && this.equipment[slot].name != 'fist') {
             // put their previous weapon in their inventory
             this.giveItem(this.equipment[slot]);
-            if (this.equipment[slot].unequip) {
-                this.equipment[slot].unequip(this);
-            }
+            this.equipment[slot].unequip(this);
         }
         this.removeItem(item, 1)
         this.equipment[slot] = item
@@ -631,30 +667,20 @@ class Player extends A2dCharacter {
         color(black)
         print()
 
+        const equipment_stats = []
         let i = 0;
         const ringBonus = Object.keys(this.equipment['ring']?.buffs || {}) as BonusKeys[]
         for (let i = 0; i < Math.max(ringBonus.length, 3); i++) {
             color(black)
+            if (!this.equipment['armor'] && !ringBonus[i]) break;
             if (this.equipment['armor']) {
-                if (i == 0) {
-                    const extraBuff = this.buff('blunt_armor') - this.equipment['armor'].buff('blunt_armor')
-                    print(`  Blunt Damage AC: `, 1)
+                const armorType = ['blunt', 'sharp', 'magic'][i]
+                const armorKey = `${armorType}_armor` as BonusKeys
+                if (i < 3) {
+                    const extraBuff = this.buff(armorKey) - this.equipment['armor'].buff(armorKey)
+                    print(`  ${caps(armorType)} Damage AC: `, 1)
                     if (extraBuff) color(blue)
-                    print(`${this.buff('blunt_armor')}`, 1)
-                    if (extraBuff) print(` (+${extraBuff})`, 1)
-                    color(black)
-                } else if (i == 1) {
-                    const extraBuff = this.buff('sharp_armor') - this.equipment['armor'].buff('sharp_armor')
-                    print(`  Sharp Damage AC: `, 1)
-                    if (extraBuff > 0) color(blue)
-                    print(`${this.buff('sharp_armor')}`, 1)
-                    if (extraBuff) print(` (+${extraBuff})`, 1)
-                    color(black)
-                } else if (i == 2) {
-                    const extraBuff = this.buff('magic_armor') - this.equipment['armor'].buff('magic_armor')
-                    print(`  Magic Damage AC: `, 1)
-                    if (extraBuff) color(blue)
-                    print(`${this.buff('magic_armor')}`, 1)
+                    print(`${this.buff(armorKey)}`, 1)
                     if (extraBuff) print(` (+${extraBuff})`, 1)
                     color(black)
                 } else print('', 1)
@@ -727,6 +753,8 @@ class Player extends A2dCharacter {
         print(`  BP: ${Math.ceil(this.mp)}/`, 1)
         if (this.buff('max_mp') > 0) color(blue); else color(black);
         print(`${Math.ceil(this.max_mp)} ]`)
+        color(black)
+        print(`[ Hunger: ${Math.ceil(this.hunger)}/${Math.ceil(this._max_sp)} ]`)
     }
 
     statName(key: BonusKeys) {
@@ -820,6 +848,7 @@ class Player extends A2dCharacter {
         else {
             if (character.actions.has('talk')) {
                 console.log(character.getAction('talk'));
+                color(black)
                 await character.getAction('talk')?.(this);
             } else {
                 print("They don't want to talk.")
@@ -891,9 +920,14 @@ class Player extends A2dCharacter {
 
     async turn() {
         this.enemies = this.enemies.filter(enemy => enemy);
-        if (this.attackTarget?.location === this.location) {
+        if (this.fighting) {
             // console.log(`${this.name} attacks ${this.attackTarget.name}!`)
             await this.attack(this.attackTarget, this.equipment['right hand']);
+            this.sp -= 1;
+            if (this.sp < 0) {
+                this.hp -= 1;
+                this.sp = 0;
+            }
         }
     }
 
@@ -980,7 +1014,7 @@ class Player extends A2dCharacter {
                     print(`deleted ${value}`)
                     break;
                 case ('regen'):
-                    this.game.loadScenario(new GameMap().locations)
+                    this.game.loadScenario(new GameMap(this.game).locations)
                     this.relocate(this.game.find_location(this.location?.name || 'start'))
                     print('map regenerated.')
                     break;
