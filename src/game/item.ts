@@ -1,9 +1,10 @@
-import { GameState } from "./game.ts";
-import { Character, DamageTypes, Buff, BonusKeys } from "./character.ts";
-import { plural } from "./utils.ts";
+import { GameState, withGameState } from "./game.js";
+import { Character, DamageTypes, Buff, BonusKeys } from "./character.js";
+import { plural } from "./utils.js";
 
 type ItemParams = {
     name: string;
+    game?: GameState;
     description?: string;
     value?: number;
     size?: number;
@@ -18,11 +19,6 @@ type ItemParams = {
     }
     equipment_slot?: string;
     forSale?: boolean;
-    drink?: (character: Character) => Promise<void>;
-    eat?: (character: Character) => Promise<void>;
-    use?: (character: Character) => Promise<void>;
-    read?: (character?: Character) => Promise<void>;
-    acquire?: (character: Character) => Promise<void>;
     fungible?: boolean;
     immovable?: boolean;
 }
@@ -46,6 +42,7 @@ const weapon_conversions: { [key in WeaponTypes]: DamageTypes } = {
 class Item {
     key: string = '';
     name: string;
+    game!: GameState;
     display_name: string = '';
     description: string;
     value: number = 0;
@@ -73,16 +70,16 @@ class Item {
 
     constructor({
         name,
+        game,
         description = "",
         value = 0,
         size = 1,
         quantity = 1,
         weapon_stats,
         equipment_slot,
-        eat,
-        drink,
     }: ItemParams) {
         this.name = name;
+        if (game) this.game = game;
         this.description = description;
         this.value = value;
         this.size = size;
@@ -92,8 +89,6 @@ class Item {
         if (this.weapon_stats && !this.weapon_stats.damage_type) {
             this.weapon_stats.damage_type = weapon_conversions[this.weapon_stats.type] ?? 'blunt';
         }
-        this._eat = eat;
-        this._drink = drink;
     }
 
     addAction(name: string, action: (this: Item, ...args: any[]) => Promise<void>) {
@@ -170,27 +165,26 @@ class Item {
         this._displayName = action.bind(this);
         return this;
     }
-
-    get drink() {
-        return this._drink;
+    async drink(character: Character) {
+        await this._drink?.(character);
     }
-    get eat() {
-        return this._eat;
+    async eat(character: Character) {
+        await this._eat?.(character);
     }
-    get use() {
-        return this._use;
+    async use(character: Character) {
+        await this._use?.(character);
     }
-    get read() {
-        return this._read;
+    async read(character?: Character) {
+        await this._read?.(character);
     }
-    get acquire() {
-        return this._acquire;
+    async acquire(character: Character) {
+        await this._acquire?.(character);
     }
-    get equip() {
-        return this._equip;
+    async equip(character: Character) {
+        await this._equip?.(character);
     }
-    get unequip() {
-        return this._unequip;
+    async unequip(character: Character) {
+        await this._unequip?.(character);
     }
 
     get is_weapon() {
