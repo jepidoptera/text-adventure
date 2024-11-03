@@ -1,16 +1,16 @@
-import { Location } from '../../game/location.ts';
-import { Character, CharacterParams, pronouns } from '../../game/character.ts';
-import { Player } from './player.ts';
-import { Item, WeaponTypes } from '../../game/item.ts';
-import { plural, caps, randomChoice } from '../../game/utils.ts';
-import { play, musicc$ } from './utils.ts';
-import { getItem } from './items.ts';
-import { getLandmark } from './landmarks.ts';
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from './colors.ts'
-import { GameState } from '../../game/game.ts';
-import { A2D } from './game.ts';
-import { abilityLevels } from './spells.ts';
-import { getBuff } from './buffs.ts';
+import { Location } from "../../game/location.js";
+import { Character, CharacterParams, pronouns } from "../../game/character.js";
+import { Player } from "./player.js";
+import { Item, WeaponTypes } from "../../game/item.js";
+import { plural, caps, randomChoice } from "../../game/utils.js";
+import { play, musicc$ } from "./utils.js";
+import { getItem } from "./items.js";
+import { getLandmark } from "./landmarks.js";
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
+import { GameState } from "../../game/game.js";
+import { A2D } from "./game.js";
+import { abilityLevels } from "./spells.js";
+import { getBuff } from "./buffs.js";
 import { get } from 'http';
 
 interface A2dCharacterParams extends CharacterParams {
@@ -346,10 +346,11 @@ const actions = {
         if (this.attackTarget) return;
         if (randomChoice([true, false])) { this.go(randomChoice(Array.from(this.location?.adjacent?.keys() || []))) }
     },
-    pish2: async function (character: Character) {
+    pish2: async function (this: A2dCharacter, character: Character) {
         // usage: character.onAttack(actions.pish2)
         if (character.isPlayer) print("I don't want to fight.");
         character.fight(null);
+        this.fight(null);
     },
     heal: async function (this: A2dCharacter) {
         if (this.spellChance) {
@@ -2278,10 +2279,10 @@ const characters = {
                             ieadon.attackPlayer = true;
                         }
                     }
-                    this.location?.addCharacter(getCharacter('gryphon').onDeath(soldierDown));
-                    this.location?.addCharacter(getCharacter('orc_behemoth').onDeath(soldierDown));
-                    this.location?.addCharacter(getCharacter('orc_behemoth').onDeath(soldierDown));
-                    this.location?.addCharacter(getCharacter('orc_amazon').onDeath(soldierDown));
+                    this.location?.addCharacter(getCharacter('gryphon', this.game).onDeath(soldierDown));
+                    this.location?.addCharacter(getCharacter('orc_behemoth', this.game).onDeath(soldierDown));
+                    this.location?.addCharacter(getCharacter('orc_behemoth', this.game).onDeath(soldierDown));
+                    this.location?.addCharacter(getCharacter('orc_amazon', this.game).onDeath(soldierDown));
 
                     // Fight 157
                     // print("Ieadon is hiding in a mysterious place know as ", 1);
@@ -2408,7 +2409,10 @@ const characters = {
                 player.max_mp += 5;
                 print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player.max_mp}`);
             }
-        }));
+        })).addAction('train', async function (player) {
+            color(black)
+            print('That class is not taught here.')
+        });
     },
 
     blind_hermit(args: { [key: string]: any }) {
@@ -2424,36 +2428,36 @@ const characters = {
             print("'The sight of a blind man probes beyond visual perceptions'");
             print("           - Vershi, tempest shaman");
             print();
-            pause(4);
+            await pause(4);
             print("Hey, whats up?");
             print("Though I am blind I may see things you do not.");
             print("I am in desperate need of the head of Mythin the forester.  He is a traitor");
             print("to Ierdale and deserves no other fate than death.  If you could tell me the");
             print("whereabouts of Mythin this would be yours.");
             color(blue);
-            pause(6);
+            await pause(6);
             print("<blind hermit reveals 10000gp>");
-            pause(3);
+            await pause(3);
             color(black);
             print("Take it or leave it? [y/n]");
             if (await getKey(['y', 'n']) == "y") {
                 color(blue);
                 print("<Something moves in the shadows>");
                 print("<blind hermit turns twords you:>");
-                pause(4);
+                await pause(4);
                 color(black);
                 print("Mythin,");
                 print("He is the one, kill him");
-                pause(4);
+                await pause(4);
                 color(blue);
                 print("<Mythin leaps from the shadows and just as you see him, you feel cold steel>");
                 print("<in your chest>");
-                pause(3);
+                await pause(3);
                 print("MYTHIN:", 1);
                 color(black);
                 print("The dark lord has naught a chance now that the one is dead");
                 print("A normal human would not take such a risky bribe.");
-                pause(7);
+                await pause(7);
                 await player.die(this.game.find_character('Mythin'));
             } else {
                 print("Fine, but 10000gp will cover most any expense");
@@ -2958,7 +2962,7 @@ const characters = {
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
                 this.location?.addCharacter(getCharacter(
-                    'mutant_bat', { respawn: false, persist: false }
+                    'mutant_bat', this.game, { respawn: false, persist: false }
                 ).onTurn(
                     async function () { await this.die() }
                 ));
@@ -2985,7 +2989,7 @@ const characters = {
             if (Math.random() < 2 / 3) {
                 color(magenta);
                 print("Kobalt Captain calls for reinforcements!");
-                this.location?.addCharacter(getCharacter('kobalt_soldier'));
+                this.location?.addCharacter(getCharacter('kobalt_soldier', this.game));
             }
         });
     },
@@ -3175,7 +3179,7 @@ const characters = {
             blunt_damage: 120,
             sharp_damage: 200,
             weapon: getItem('mighty_excalabor'),
-            items: [getItem('gold', 1000), getItem('mighty_excalabor'), getItem('ring_of_power')],
+            items: [getItem('gold', 1000), getItem('mighty_excalabor'), getItem('ring_of_ultimate_power')],
             description: 'the ledgendary Ieadon',
             coordination: 35,
             agility: 15,
@@ -3231,10 +3235,13 @@ const characters = {
             color(black);
             print("At the domain of Ieadon we teach the following:");
             print(" train toughness   | increaces HP");
-            print(" train skill       | increases dammage");
-            print(" train strength    | increases left-hand weapon power");
+            print(" train strength    | increases attack damage");
+            print(" train stamina     | increases SP");
             print(" To train any of these, please type 'train' then");
             print(" type what to train.");
+        }).addAction('train', async function (player) {
+            color(black)
+            print('That class is not taught here.')
         })
     },
 
@@ -3305,12 +3312,15 @@ const characters = {
                 player.offhand += Math.max(Math.floor(((1 - player.offhand) / 4) * 100 + 1.5) / 100, 1);
                 if (player.isPlayer) print(`Your left-handed capabilities increased.  Congradulations, offhand is now: ${Math.floor(player.offhand * 100)}%`);
             }
-        })).addAction('list', async function () {
+        })).addAction('train', async function (player) {
+            color(black)
+            print('That class is not taught here.')
+        }).addAction('list', async function () {
             color(black)
             print("At the domain of Mythin we teach the following:");
             print(" train coordination | increaces to-hit");
             print(" train agility      | decreases enemy to-hit");
-            print(" train offhand      | increases SP");
+            print(" train offhand      | increases left-hand weapon power");
             print(" To train any of these, please type 'train' then");
             print(" type what to train.");
         }).fightMove(actions.heal);
@@ -3458,6 +3468,7 @@ const characters = {
                 const reqs = {
                     xp: 2000 + 1000 * (player.abilities['powermaxout'] || 0),
                     gold: 150 + 50 * (player.abilities['powermaxout'] || 0),
+                    magic_level: 20 + 4 * (player.abilities['powermaxout'] || 0)
                 }
                 if (player.abilities['powermaxout'] >= 7) {
                     if (player.isPlayer) print("You have already mastered that spell.");
@@ -3528,6 +3539,9 @@ const characters = {
             print("Goodbye!")
             await pause(1)
             player.relocate(this.game.find_location("Eldin's house"))
+        }).addAction('train', async function (player) {
+            color(black)
+            print('That class is not taught here.')
         })
     },
 
@@ -3642,7 +3656,7 @@ const characters = {
             clear()
             await pause(2)
             color(black, white)
-            print("You have defeated the holder of the 4rd ring.")
+            print("You have defeated the holder of the 4th ring.")
             print()
             print("** Suddenly out of nowhere a fairy sprite apears**")
             // Play "o4fdadc"
@@ -3654,7 +3668,7 @@ const characters = {
             print()
             print("I must go now.")
             this.game.player.flags.enemy_of_ierdale = false;
-            this.game.locations.get(78)?.addCharacter(getCharacter('biadon'))
+            this.game.locations.get(78)?.addCharacter(getCharacter('biadon', this.game))
             await pause(15)
             color(black, black)
             clear()
@@ -3994,13 +4008,13 @@ function isValidCharacter(key: string): key is CharacterKey {
     return key in characters;
 }
 
-function getCharacter(charName: CharacterKey, args?: any): A2dCharacter {
+function getCharacter(charName: CharacterKey, game: GameState, args?: any): A2dCharacter {
     if (!characters[charName]) {
         console.log(`Character "${charName}" not found`);
         throw new Error(`Character "${charName}" not found`);
     }
     // console.log(`Creating character: ${charName}`);
-    const char = characters[charName](args);
+    const char = characters[charName]({ game: game, ...args });
     char.key = charName;
     return char
 }
