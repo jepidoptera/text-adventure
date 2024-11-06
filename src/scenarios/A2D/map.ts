@@ -31,7 +31,6 @@ class GameMap {
         2: new Location({
             name: "North Road",
             adjacent: { 'north': 3, 'east': 21, 'south': 12 },
-            items: [getItem("shortsword", 2), getItem("pile_of_gold", { quantity: 50, name: 'bag of loot' })]
         }).addLandmark(getLandmark('sign', [
             "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&",
             "@  Ierdale Merchant Settlement  @",
@@ -49,7 +48,7 @@ class GameMap {
         3: new Location({
             name: "North Road",
             adjacent: { 'north': 4, 'east': 20, 'south': 2, 'west': 19 },
-            items: [getItem("shortsword"), getItem("pile_of_gold", 32)]
+            characters: [getCharacter('wandering_clubman', this.game)]
         }),
         4: new Location({
             name: "North Road",
@@ -109,7 +108,7 @@ class GameMap {
         12: new Location({
             name: "Center of Town",
             adjacent: { 'north': 2, 'east': 8, 'south': 5, 'west': 11 },
-            characters: [getCharacter('clubman', this.game, { action: 'wander' }), getCharacter('clubman', this.game, { action: 'wander' }), getCharacter('colonel_arach', this.game), getCharacter('guard_captain', this.game)]
+            characters: [getCharacter('wandering_clubman', this.game), getCharacter('wandering_clubman', this.game), getCharacter('colonel_arach', this.game), getCharacter('guard_captain', this.game)]
         }).addLandmark(getLandmark('sign', [
             "/\\\\------------------------\\   ",
             "\\// The Town of Ierdale    /   ",
@@ -144,7 +143,8 @@ class GameMap {
         ])),
         16: new Location({
             name: "Vegtable Garden",
-            adjacent: { 'east': 15, 'south': 17 }
+            adjacent: { 'east': 15, 'south': 17 },
+            characters: [getCharacter('wandering_clubman', this.game)]
         }),
         17: new Location({
             name: "Vegtable Garden",
@@ -418,7 +418,7 @@ class GameMap {
         }),
         56: new Location({
             name: "Forest of Thieves",
-            adjacent: { 'north': 57, 'west': 55 },
+            adjacent: { 'north': 57, 'west': 55, 'southeast': 334 },
             characters: [getCharacter('swordsman', this.game)]
         }),
         57: new Location({
@@ -467,7 +467,6 @@ class GameMap {
         66: new Location({
             name: "Forest of Thieves",
             adjacent: { 'east': 334, 'south': 65, 'west': 51 },
-            characters: [getCharacter('snarling_thief', this.game)]
         }),
         67: new Location({
             name: "Forest of Thieves",
@@ -526,7 +525,7 @@ class GameMap {
         78: new Location({
             name: "Hideout of Mythin the Forester",
             adjacent: { 'north': 77, 'east': 79 },
-            characters: [getCharacter('biadon', this.game), getCharacter('mythin', this.game)]
+            characters: [getCharacter('mythin', this.game)]
         }).addLandmark(getLandmark('sign', [
             "(____)-----(----------)---^--------/\\",
             "/                                    =",
@@ -770,13 +769,24 @@ class GameMap {
         }),
         113: new Location({
             name: "Mountain Valley",
-            adjacent: { 'south': 114, 'west': 105 },
+            adjacent: { 'west': 105, 'down': 114 },
             characters: [getCharacter('stone_ogre', this.game)]
-        }),
+        }).addLandmark(getLandmark('slot_canyon')),
         114: new Location({
-            name: "Mountain Valley",
-            adjacent: { 'north': 113 },
-            characters: [getCharacter('henge', this.game)]
+            name: "Slot Canyon, Littered with Bones",
+            description: "Some of the bones are human. You feel a shudder.",
+            adjacent: { 'up': 113, 'south': 114.1 }
+        }),
+        114.1: new Location({
+            name: "Slot Canyon",
+            description: "From the east emanate a smell like burnt paper and a slow, methodical gnashing. The pieces of bone diminish progressively in size until they become dust.",
+            adjacent: { 'north': 114, 'east': 114.2 },
+        }),
+        114.2: new Location({
+            name: "Henge's Lair",
+            adjacent: { 'west': 114.1 },
+            characters: [getCharacter('henge', this.game)],
+            items: [getItem('pile_of_gold', 1418)]
         }),
         115: new Location({
             name: "Mountain Valley",
@@ -922,7 +932,8 @@ class GameMap {
         }),
         144: new Location({
             name: "Path of Nod",
-            adjacent: { 'north': 143, 'south': 145 }
+            adjacent: { 'north': 143, 'south': 145 },
+            characters: [getCharacter('path_demon', this.game)]
         }),
         145: new Location({
             name: "Path of Nod",
@@ -962,7 +973,8 @@ class GameMap {
         }),
         154: new Location({
             name: "Path of Nod",
-            adjacent: { 'north': 153, 'south': 155 }
+            adjacent: { 'north': 153, 'south': 155 },
+            characters: [getCharacter('path_demon', this.game)]
         }),
         155: new Location({
             name: "Path of Nod",
@@ -1022,7 +1034,8 @@ class GameMap {
         }),
         169: new Location({
             name: "Path of Nod",
-            adjacent: { 'north': 168, 'south': 170 }
+            adjacent: { 'north': 168, 'south': 170 },
+            characters: [getCharacter('path_demon', this.game)]
         }),
         170: new Location({
             name: "Path of Nod",
@@ -1058,7 +1071,8 @@ class GameMap {
         }),
         178: new Location({
             name: "Path of Nod",
-            adjacent: { 'north': 177, 'south': 179 }
+            adjacent: { 'north': 177, 'south': 179 },
+            characters: [getCharacter('path_demon', this.game)]
         }),
         179: new Location({
             name: "Path of Nod",
@@ -1082,7 +1096,8 @@ class GameMap {
         }),
         184: new Location({
             name: "Path of Nod",
-            adjacent: { 'north': 183, 'south': 185 }
+            adjacent: { 'north': 183, 'south': 185 },
+            characters: [getCharacter('path_demon', this.game)]
         }),
         185: new Location({
             name: "Path of Nod",
@@ -1899,15 +1914,10 @@ class GameMap {
         ),
         334: new Location({
             name: "Hidden Track",
-            adjacent: { 'east': 335, 'west': 66 },
+            adjacent: { 'east': 335, 'northwest': 56 },
         }).addLandmark(getLandmark('sign', [
             "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
-            "~    Secret Passage to the Path of Nod      ~",
-            "~                ~~~~~~~~~                  ~",
-            "~                                           ~",
-            "~  Maintained by the thieves of The Forest  ~",
-            "~ of Theives.  Do not tell ANYONE about this~",
-            "~               secret path.                ~",
+            "~    KEEP OUT                               ~",
             "~                                           ~",
             "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
         ])),
@@ -1940,8 +1950,20 @@ class GameMap {
             adjacent: { 'north': 340, 'south': 342 }
         }),
         342: new Location({
-            name: "Path",
-            adjacent: { 'north': 341, 'south': 142 },
+            name: "Thieves' Hideout",
+            adjacent: { 'north': 341 },
+            characters: [
+                getCharacter('snarling_thief', this.game, { attackPlayer: true, chase: true }),
+                getCharacter('dirty_thief', this.game, { attackPlayer: true, chase: true }),
+                getCharacter('fat_merchant_thief', this.game, { attackPlayer: true, chase: true }),
+                getCharacter('little_goblin_thief', this.game, { attackPlayer: true, chase: true }),
+            ],
+            items: [getItem("pile_of_gold", { quantity: 501, name: 'bag of loot' })]
+        }),
+        343: new Location({
+            name: "Grobin Gates",
+            adjacent: { 'east': 344, 'west': 320 },
+            characters: [getCharacter('official', this.game)]
         }).addLandmark(getLandmark('sign', [
             "/\\\\-------------------\\   ",
             "\\// Hear Ye, Hear Ye: /   ",
@@ -1953,11 +1975,6 @@ class GameMap {
             "/\\\\ to buy,type 'pass'\\   ",
             "\\//-------------------/   "
         ])),
-        343: new Location({
-            name: "Grobin Gates",
-            adjacent: { 'east': 344, 'west': 320 },
-            characters: [getCharacter('official', this.game)]
-        }),
         344: new Location({
             name: "Grobin Square",
             adjacent: { 'north': 355, 'east': 345, 'south': 350, 'west': 343 },
@@ -2067,15 +2084,18 @@ class GameMap {
         }),
         364: new Location({
             name: "Barracks",
-            adjacent: { 'north': 363 }
+            adjacent: { 'north': 363 },
+            characters: [getCharacter('orcish_soldier', this.game), getCharacter('orcish_soldier', this.game)]
         }),
         365: new Location({
             name: "Barracks",
-            adjacent: { 'south': 363 }
+            adjacent: { 'south': 363 },
+            characters: [getCharacter('orcish_soldier', this.game), getCharacter('orcish_soldier', this.game)]
         }),
         366: new Location({
             name: "Barracks",
-            adjacent: { 'west': 363 }
+            adjacent: { 'west': 363 },
+            characters: [getCharacter('orcish_soldier', this.game), getCharacter('orcish_soldier', this.game)]
         }),
         367: new Location({
             name: "Gerard's General Store",
@@ -2102,8 +2122,9 @@ class GameMap {
             adjacent: { 'west': 351 }
         }),
         369: new Location({
-            name: "Peon House",
-            adjacent: { 'south': 353 }
+            name: "Orcish Grocery",
+            adjacent: { 'south': 353 },
+            characters: [getCharacter('orcish_grocer', this.game)]
         }),
         370: new Location({
             name: "Orckish Armory",
@@ -2113,31 +2134,38 @@ class GameMap {
         ),
         371: new Location({
             name: "House",
-            adjacent: { 'north': 354 }
+            adjacent: { 'north': 354 },
+            characters: [getCharacter('orcish_citizen', this.game), getCharacter('orcish_child', this.game)]
         }),
         372: new Location({
             name: "Peon House",
-            adjacent: { 'south': 346 }
+            adjacent: { 'south': 346 },
+            characters: [getCharacter('peon', this.game)]
         }),
         373: new Location({
             name: "Orc House",
-            adjacent: { 'south': 345 }
+            adjacent: { 'south': 345 },
+            characters: [getCharacter('orcish_citizen', this.game), getCharacter('orcish_child', this.game)]
         }),
         374: new Location({
             name: "Orc House",
-            adjacent: { 'north': 347, 'east': 378 }
+            adjacent: { 'north': 347, 'east': 378 },
+            characters: [getCharacter('orcish_citizen', this.game)]
         }),
         375: new Location({
             name: "Peon House",
-            adjacent: { 'east': 360 }
+            adjacent: { 'east': 360 },
+            characters: [getCharacter('peon', this.game)]
         }),
         376: new Location({
             name: "Peon House",
-            adjacent: { 'east': 349 }
+            adjacent: { 'east': 349 },
+            characters: [getCharacter('peon', this.game)]
         }),
         377: new Location({
             name: "Peon House",
-            adjacent: { 'west': 349 }
+            adjacent: { 'west': 349 },
+            characters: [getCharacter('peon', this.game)]
         }),
         378: new Location({
             name: "Drawing Room",
