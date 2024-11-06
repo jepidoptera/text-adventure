@@ -14,20 +14,23 @@ X batch print statements to reduce latency
 X flee from combat
 X wear rings
 X combat drains stamina
+X put bounds on action.wander (and don't backtrack)
+X random monsters on the path of nod (and caves)
+X put Henge in a slot canyon
+X hunger
 / spells (trance, transport and vanish)
 
 offhand
-put Henge in a slot canyon
-context switching to support multiple games at once
+two-handed weapons
+/ context switching to support multiple games at once
 robust gameState map on server
 list of existing (player) character names, enforce uniqueness
-hunger
 use list of strings for enemies and friends (unique ID?)
 onTimer event
 pets
 bows
 key buffer in client
-random monsters on the path of nod (and caves)
 strictly separate code files from content files
-Orc town
+/ Orc town
+implement aStar pathfinding
 
