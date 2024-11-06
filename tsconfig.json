@@ -3,24 +3,37 @@
         "module": "ESNext",
         "target": "ESNext",
         "esModuleInterop": true,
-        "moduleResolution": "node",
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
         "skipLibCheck": true,
         "resolveJsonModule": true,
         "strict": true,
         "allowImportingTsExtensions": true,
         "noEmit": true,
-        "types": ["node"],
+        "types": [
+            "node"
+        ],
         "noImplicitAny": true,
         "strictNullChecks": true,
         "strictFunctionTypes": true,
         "strictBindCallApply": true,
         "noImplicitThis": true,
         "alwaysStrict": true,
+        "moduleResolution": "bundler",
+        "outDir": "dist",
+        "lib": [
+            "esnext"
+        ],
+        "baseUrl": "./",
     },
     "ts-node": {
         "transpileOnly": true,
         "esm": true
     },
-    "include": ["**/*.ts"],
-    "exclude": ["node_modules"]
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
 }
