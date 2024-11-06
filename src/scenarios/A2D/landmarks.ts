@@ -235,6 +235,26 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             player.relocate(player.game.find_location("Eldin's Mountain Cottage"))
         })
     },
+    slot_canyon(): Landmark {
+        async function go_down(this: Landmark, player: Character) {
+            if (player.isPlayer) {
+                color(black)
+                print("You climb carefully down the steep canyon, picking your way among the rocks.")
+                await pause(2)
+                player.relocate(this.location?.adjacent?.get('down') || null)
+            }
+        }
+        return new Landmark({
+            name: 'slot canyon',
+            description: "A Steep, Narrow Slot Canyon Descending into Twilight"
+        }).action(
+            'go down', go_down
+        ).action(
+            'climb down', go_down
+        ).action(
+            'down', go_down
+        )
+    },
     unknown(n?: number): Landmark {
         return new Landmark({
             name: `Unknown Landscape Item ${n}`,
