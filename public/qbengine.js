@@ -243,8 +243,11 @@ async function processResponse(batch) {
 }
 
 function initializeWebSocket() {
-    socket = new WebSocket('ws://localhost:3000');
+    const socketUrl = window.location.hostname === 'localhost'
+        ? 'ws://localhost:3000'
+        : `wss://${window.location.hostname}`;
 
+    socket = new WebSocket(socketUrl);
     socket.onopen = function (event) {
         console.log('Connected to WebSocket server');
         clearInterval(keepAliveInterval);
