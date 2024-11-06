@@ -28,7 +28,11 @@ const items = {
             name: 'gold',
             size: 0.005,
             value: 1,
-            quantity: args.quantity
+            quantity: args.quantity || 1
+        }).displayName(function () {
+            return `${this.quantity} GP`
+        }).on_acquire(async function (player) {
+            color(yellow)
         })
     },
     pile_of_gold(args: ItemParams) {
@@ -52,6 +56,19 @@ const items = {
             name: 'arrows',
             value: 1,
             quantity: args.quantity,
+        })
+    },
+    toy_sword(args: ItemParams) {
+        return new Item({
+            name: 'toy sword',
+            value: 1,
+            size: 0.5,
+            weapon_stats: {
+                type: 'club',
+                blunt_damage: 0.5,
+                sharp_damage: 0
+            },
+            quantity: args.quantity
         })
     },
     shortsword(args: ItemParams) {
@@ -79,7 +96,6 @@ const items = {
         }).on_eat(async function (player) {
             player.hunger -= 8.5
             player.sp += 12
-            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     satchel_of_peas(args: ItemParams) {
@@ -91,7 +107,6 @@ const items = {
         }).on_eat(async function (player) {
             player.hunger -= 10
             player.sp += 10
-            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     banana(args: ItemParams) {
@@ -103,7 +118,6 @@ const items = {
         }).on_eat(async function (player) {
             player.hunger -= 8
             player.sp += 8
-            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     side_of_meat(args: ItemParams) {
@@ -115,7 +129,6 @@ const items = {
         }).on_eat(async function (player) {
             player.hunger -= 80
             player.sp += 60
-            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     chicken_leg(args: ItemParams) {
@@ -127,18 +140,52 @@ const items = {
         }).on_eat(async function (player) {
             player.hunger -= 10
             player.sp += 20
-            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     dog_steak(args: ItemParams) {
         return new Item({
             name: 'dog steak',
             size: 0.8,
-            value: 0,
+            value: 15,
             quantity: args.quantity
         }).on_eat(async function (player) {
             player.hunger -= 40
             player.sp += 40
+        })
+    },
+    asparagus(args: ItemParams) {
+        return new Item({
+            name: 'asparagus',
+            size: 0.1,
+            value: 11,
+            quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 30
+            player.sp += 30
+            player.hp += 5
+        })
+    },
+    muffin(args: ItemParams) {
+        return new Item({
+            name: 'muffin',
+            size: 0.3,
+            value: 6,
+            quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 15
+            player.sp += 15
+        })
+    },
+    wheel_of_cheese(args: ItemParams) {
+        return new Item({
+            name: 'wheel of cheese',
+            size: 1.5,
+            value: 20,
+            quantity: args.quantity
+        }).on_eat(async function (player) {
+            player.hunger -= 40
+            player.sp += 40
+            player.mp += 5
         })
     },
     full_ration(args: ItemParams) {
@@ -150,7 +197,6 @@ const items = {
         }).on_eat(async function (player) {
             player.sp += 40;
             player.hunger -= 40;
-            if (player.isPlayer) (player as Player).checkHP()
         })
     },
     giraffe_gizzard(args: ItemParams) {
@@ -224,6 +270,15 @@ const items = {
             player.hp = player.max_hp;
         })
     },
+    flask_of_wine(args: ItemParams) {
+        return new Item({
+            name: 'flask of wine',
+            value: 25,
+            quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.mp += 20;
+        })
+    },
     keg_of_wine(args: ItemParams) {
         return new Item({
             name: 'keg of wine',
@@ -232,7 +287,26 @@ const items = {
             quantity: args.quantity
         }).on_drink(async function (player) {
             player.mp += 40;
-            if (player.isPlayer) (player as Player).checkHP()
+        })
+    },
+    nip_of_gin(args: ItemParams) {
+        return new Item({
+            name: 'nip of gin',
+            size: 0.4,
+            value: 37,
+            quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.mp += 30;
+        })
+    },
+    barrel_of_grog(args: ItemParams) {
+        return new Item({
+            name: 'barrel of grog',
+            size: 3.5,
+            value: 100,
+            quantity: args.quantity
+        }).on_drink(async function (player) {
+            player.mp += 100;
         })
     },
     mostly_healing_potion(args: ItemParams) {
@@ -264,15 +338,6 @@ const items = {
         }).on_drink(async function (player) {
             print('You die.')
             player.die('poison')
-        })
-    },
-    flask_of_wine(args: ItemParams) {
-        return new Item({
-            name: 'flask of wine',
-            value: 25,
-            quantity: args.quantity
-        }).on_drink(async function (player) {
-            player.mp += 20;
         })
     },
     healing_potion(args: ItemParams) {
@@ -525,6 +590,18 @@ const items = {
             quantity: args.quantity
         })
     },
+    cudgel(args: ItemParams) {
+        return new Item({
+            name: 'club',
+            size: 1.5,
+            value: 7,
+            weapon_stats: {
+                type: 'club',
+                blunt_damage: 2.7,
+            },
+            quantity: args.quantity
+        })
+    },
     hardened_club(args: ItemParams) {
         return new Item({
             name: 'hardened club',
@@ -691,7 +768,7 @@ const items = {
             size: 1,
             value: 1350,
             weapon_stats: {
-                type: 'stab',
+                type: 'axe',
                 blunt_damage: 1.9,
                 sharp_damage: 7.44,
                 magic_damage: 2.4,
@@ -731,7 +808,7 @@ const items = {
             size: 2.5,
             value: 35,
             weapon_stats: {
-                type: 'stab',
+                type: 'axe',
                 blunt_damage: 1.0,
                 sharp_damage: 3.2,
             },
@@ -780,12 +857,15 @@ const items = {
             size: 3.0,
             value: 58,
             weapon_stats: {
-                type: 'stab',
+                type: 'axe',
                 blunt_damage: 1.5,
                 sharp_damage: 3.5,
             },
             quantity: args.quantity
-        })
+        }).addBuff(new Buff({
+            name: 'reach',
+            bonuses: { coordination: 2 }
+        }))
     },
     psionic_dagger(args: ItemParams) {
         return new Item({
@@ -800,18 +880,21 @@ const items = {
             quantity: args.quantity
         })
     },
-    polearm(args: ItemParams) {
+    halberd(args: ItemParams) {
         return new Item({
             name: 'polearm',
             size: 2.0,
-            value: 17,
+            value: 67,
             weapon_stats: {
-                type: 'stab',
-                blunt_damage: 0.9,
-                sharp_damage: 2.44,
+                type: 'axe',
+                blunt_damage: 1.9,
+                sharp_damage: 3.44,
             },
             quantity: args.quantity
-        })
+        }).addBuff(new Buff({
+            name: 'reach',
+            bonuses: { coordination: 2 }
+        }))
     },
     crystal_ultima_blade(args: ItemParams) {
         return new Item({
@@ -1033,7 +1116,7 @@ const items = {
             quantity: args.quantity
         }).on_use(async function (player) {
             if (player.location && player.location.landmarks?.map(landmark => landmark.key).includes('slash_in_the_earth')) {
-                print("You drop some of the potion into the crevice.")
+                print("You drop the potion into the crevice.")
                 await pause(2)
                 print("The earth shakes beneath you as the crevice seals itself shut.")
                 player.location.removeLandmark('slash_in_the_earth')
@@ -1261,10 +1344,10 @@ const items = {
                     new Buff({
                         name: 'power drain',
                         duration: Math.floor(Math.random() * 5) + 1,
-                        bonuses: { 'blunt_damage': -10, 'sharp_damage': -50 }
+                        bonuses: { 'blunt_damage': -10, 'sharp_damage': -50, 'agility': -10 }
                     }).onExpire(async function () {
                         color(magenta)
-                        print("Sift shakes off the trances of the lute.")
+                        print("Sift shakes off the trance of the lute.")
                     })
                 )
             }
@@ -1275,7 +1358,11 @@ const items = {
             name: 'mace',
             size: 1,
             value: 20,
-            quantity: args.quantity
+            quantity: args.quantity,
+            weapon_stats: {
+                type: 'club',
+                blunt_damage: 3.7,
+            }
         })
     },
     magic_ring(args: ItemParams) {
@@ -1457,8 +1544,8 @@ const items = {
         }).addBuff(new Buff({
             name: 'ring_of_stone',
             bonuses: {
-                blunt_armor: 50,
-                sharp_armor: 50,
+                blunt_armor: 30,
+                sharp_armor: 30,
             },
         }))
     },
