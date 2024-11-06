@@ -2,6 +2,7 @@ import { Container, Item } from "./item.js";
 import { Location } from "./location.js";
 import { GameState, withGameState } from "./game.js";
 import { WeaponTypes, weapon_conversions } from "./item.js";
+import { highRandom } from "./utils.js";
 
 const pronouns = {
     'male': { subject: "he", object: "him", possessive: "his" },
@@ -16,12 +17,11 @@ type BonusKeys = (
     'blunt_damage' | 'sharp_damage' | 'magic_damage' | 'blunt_armor' | 'sharp_armor' | 'magic_armor' |
     'archery' | 'hp_recharge' | 'mp_recharge' | 'sp_recharge'
 )
-type DamageTypes = 'blunt' | 'sharp' | 'magic' | 'fire' | 'electric' | 'cold' | 'sonic'
+type DamageTypes = 'blunt' | 'sharp' | 'magic' | 'fire' | 'electric' | 'cold' | 'sonic' | 'poison'
 class Buff {
     private _onApply: ((this: Buff) => Promise<void>) | null = null;
     private _onExpire: ((this: Buff) => Promise<void>) | null = null;
     private _onTurn: ((this: Buff) => Promise<void>) | null = null;
-    private _save: ((this: Buff) => object) | null = null;
     public character!: Character;
     public name: string;
     public power: number;
@@ -120,6 +120,7 @@ interface CharacterParams {
     magic_armor?: number;
     damage_modifier?: { [key in DamageTypes]?: (damage: number) => number };
     attackPlayer?: boolean;
+    chase?: boolean;
     flags?: { [key: string]: any };
     respawn_time?: number;
     respawn?: boolean;
@@ -135,7 +136,6 @@ class Character {
     alignment: string = "";
     pronouns: { subject: string, object: string, possessive: string } = { subject: "they", object: "them", possessive: "their" };
     isPlayer: boolean;
-    dead: boolean = false;
     private inventory: Container;
     _hp: number;
     _max_hp: number;
@@ -148,7 +148,7 @@ class Character {
     _sp_recharge: number = 0;
     experience: number = 0;
     exp_value: number = 0;
-    hunger: number = 0;
+    _hunger: number = 0;
     _strength: number;
     _coordination: number;
     _agility: number;
@@ -171,6 +171,7 @@ class Character {
     _damage_modifier: { [key in DamageTypes]?: (damage: number) => number } = {};
     _buffs: { [key: string]: Buff } = {};
     location: Location | null = null;
+    backDirection: string = '';
     abilities: { [key: string]: number };
     flags: { [key: string]: any } = {};
     private _attackTarget: Character | null = null;
@@ -186,6 +187,7 @@ class Character {
     private _onRespawn: Action | undefined;
     private _actions: Map<string, (...args: any[]) => Promise<void>> = new Map()
     attackPlayer: boolean = false;
+    chase: boolean = false;
     respawnTime: number = 0;
     respawnCountdown: number = 0;
     respawnLocationKey: string | number | undefined;
@@ -202,7 +204,7 @@ class Character {
         items = [],
         exp = 0,
         max_hp: hp = 1,
-        hp_recharge = 0.01, // 1% per turn by default
+        hp_recharge = 0.05, // 5% per turn by default
         max_mp: mp = 1,
         mp_recharge = 0,
         max_sp: sp = 1,
@@ -228,6 +230,7 @@ class Character {
         damage_modifier = {},
         armor = {},
         attackPlayer = false,
+        chase = false,
         respawn = true,
         flags = {},
         persist = true
@@ -285,6 +288,7 @@ class Character {
         this._sharp_damage = sharp_damage;
         this._magic_damage = magic_damage;
         this.attackPlayer = attackPlayer;
+        this.chase = chase;
         this.flags = flags;
     }
 
@@ -346,7 +350,7 @@ class Character {
     }
 
     fight(character: Character | null = null) {
-        console.log(`${this.name} fights ${character?.name || 'nobody'}.`)
+        console.log(`${this.name} fights ${character?.name || 'nobody'} at ${this.location?.key}.`)
         if (character === null) {
             this._attackTarget = null;
             this.enemies = [];
@@ -365,6 +369,10 @@ class Character {
 
     get attackTarget() {
         return this._attackTarget;
+    }
+
+    get dead() {
+        return this._hp <= 0 || this.respawnCountdown > 0 || this.location?.key == 0;
     }
 
     get max_hp(): number {
@@ -420,6 +428,12 @@ class Character {
     }
     set sp_recharge(value: number) {
         this._sp_recharge = value - this.buff('sp_recharge');
+    }
+    get hunger(): number {
+        return this._hunger;
+    }
+    set hunger(value: number) {
+        this._hunger = Math.max(value, 0);
     }
     blunt_damage(weapon: Item | null = null) {
         return (this._blunt_damage || this.strength * (weapon?.weapon_stats?.blunt_damage || 0)) + this.buff('blunt_damage');
@@ -509,7 +523,7 @@ class Character {
         if (!item) return;
         if (!location) location = this.location || undefined;
         if (!location) return;
-        console.log(`${this.name} gets ${item.name} (quantity ${item.quantity}) from ${location}`);
+        console.log(`${this.name} gets ${item.name} (quantity ${item.quantity})`);
         location.transfer(item, this.inventory, quantity ?? item.quantity);
         if (item.acquire) item.acquire(this);
     }
@@ -578,13 +592,17 @@ class Character {
             return false;
         }
         for (let character of this.location.characters) {
-            if (character._onDeparture && !await character._onDeparture(this, direction)) {
+            if (!await character.allowDepart(this, direction)) {
                 return false;
             }
         }
         const newLocation = this.location.adjacent.get(direction);
+        const lastLocation = this.location;
         if (newLocation) {
             await this.relocate(newLocation);
+            if (this.location?.adjacent?.keys) {
+                this.backDirection = Array.from(this.location?.adjacent?.keys()).find(key => this.location?.adjacent?.get(key) === lastLocation) || '';
+            }
             return true;
         } else {
             console.log(`Unexpected error: ${direction} exists but location is undefined.`);
@@ -609,8 +627,8 @@ class Character {
 
 
     async die(cause?: any) {
-        this.dead = true;
-        await this._onDeath?.(this.game);
+        this.hp = Math.min(this.hp, 0);
+        await this._onDeath?.(cause);
         if (!this.dead) return;
         // if (this.location) this.inventory.transferAll(this.location);
         if (this.location) {
@@ -623,7 +641,7 @@ class Character {
         if (this.respawns) {
             this.respawnCountdown = this.respawnTime;
             console.log(`${this.name} respawning in ${this.respawnCountdown} seconds from ${this.location?.name}`);
-            this.respawnLocation = this.location;
+            // this.respawnLocation = this.location;
         }
         this.location?.removeCharacter(this);
         this.location = null;
@@ -646,9 +664,7 @@ class Character {
             this.hp = this.max_hp;
             this.mp = this.max_mp;
             this.sp = this.max_sp;
-            this.dead = false;
-        }
-        else {
+        } else {
             console.log(`${this.name} is lost forever.`)
         }
     }
@@ -694,7 +710,7 @@ class Character {
         return this;
     }
 
-    onDeath(action: (this: Character, gameState?: GameState) => Promise<void>) {
+    onDeath(action: (this: Character, cause: any) => Promise<void>) {
         this._onDeath = action.bind(this);
         return this;
     }
@@ -750,7 +766,6 @@ class Character {
         return this;
     }
 
-
     async encounter(character: Character) {
         await this._onEncounter?.(character);
         if (this.enemies.includes(character)) {
@@ -760,11 +775,19 @@ class Character {
         }
     }
 
+    async allowDepart(character: Character, direction: string) {
+        const allow = await this._onDeparture?.(character, direction) || true;
+        if (allow && this.attackTarget == character && this.chase) {
+            // give chase
+            console.log(`${this.name} chases ${character.name} ${direction}!`)
+            this.onTurn(async () => { await this.go(direction) });
+        }
+        return allow;
+    }
 
     async enter(location: Location) {
         await this._onEnter?.(location);
     }
-
 
     async exit(location: Location) {
         await this._onLeave?.(location);
@@ -778,12 +801,11 @@ class Character {
         return this.coordination * Math.random()
     }
 
-
     async attack(target: Character | null = null, weapon: Item | null = null) {
         if (!target) target = this.attackTarget;
         if (!target) return;
         await target?.defend(this)
-        if (!target || this.attackTarget != target) return;
+        if (!target || this.attackTarget != target || this.attackTarget.dead || this.dead) return;
 
         const weaponName = weapon?.name || this.weaponName;
         const weaponType = weapon?.weapon_stats?.type || this.weaponType;
@@ -795,24 +817,25 @@ class Character {
         console.log(`${this.name} coordination ${this.coordination} attempts to hit ${target.name} agility ${target.agility}`)
         if (accuracy < evasion || (target.invisible > 0 && Math.random() * 4 > 1)) {
             console.log(`${this.name} misses ${target.name} (${accuracy} < ${evasion})!`);
-            print(this.describeAttack(target, weaponName, weaponType, -1));
+            if (this.location?.playerPresent)
+                print(this.describeAttack(target, weaponName, weaponType, -1));
             return;
         }
         console.log(`${this.name} hits ${target.name} (${accuracy} > ${evasion})!`);
 
         //Normal damage
-        let dam = Math.sqrt(Math.random()) * this.blunt_damage(weapon)
-        dam -= Math.random() * (target.blunt_armor)
+        let dam = highRandom() * this.blunt_damage(weapon)
+        dam -= highRandom() * (target.blunt_armor)
         dam = dam < 0 ? 0 : dam
 
         //Piercing damage
-        let pdam = Math.sqrt(Math.random()) * this.sharp_damage(weapon)
-        pdam -= Math.sqrt(Math.random()) * target.sharp_armor
+        let pdam = highRandom() * this.sharp_damage(weapon)
+        pdam -= highRandom() * target.sharp_armor
         pdam = pdam < 0 ? 0 : pdam
 
         //Magic damage
-        let mdam = Math.sqrt(Math.random()) * this.magic_damage(weapon)
-        mdam -= Math.sqrt(Math.random()) * target.magic_armor
+        let mdam = highRandom() * this.magic_damage(weapon)
+        mdam -= highRandom() * target.magic_armor
         mdam = mdam < 0 ? 0 : mdam
 
         //Damage total
@@ -820,7 +843,8 @@ class Character {
         tdam = Math.max(this.damage_modifier(tdam, damageType), 0)
 
         //Output screen
-        print(this.describeAttack(target, weaponName, weaponType, tdam))
+        if (this.location?.playerPresent)
+            print(this.describeAttack(target, weaponName, weaponType, tdam))
         await target.hurt(tdam, null, this)
 
         if (target.dead) {
@@ -830,7 +854,6 @@ class Character {
             await this._fightMove?.()
         }
     }
-
 
     async hurt(damage: number, type: DamageTypes | null = null, cause: any): Promise<number> {
         if (type) damage = Math.max(this.damage_modifier(damage, type), 0)
@@ -911,8 +934,10 @@ class Character {
             name: this.name,
             hp: this.hp,
             hp_recharge: this.hp_recharge,
+            dead: this.dead,
             enemies: this.enemies.map(enemy => enemy?.name).filter(name => name),
             attackPlayer: this.attackPlayer || this.enemies.some(enemy => enemy.isPlayer),
+            chase: this.chase,
             respawnTime: this.respawnTime,
             respawnCountdown: this.respawnCountdown,
             respawnLocationKey: this.respawnLocationKey,
