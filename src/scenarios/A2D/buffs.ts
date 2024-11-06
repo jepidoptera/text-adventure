@@ -18,13 +18,14 @@ const buffs: { [key: string]: BuffCreator } = {
                 'sharp': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
                 'cold': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
                 'sonic': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
+                'poison': (damage) => damage
             }
         }).onTurn(async function () {
             // declines linearly
             this.power *= this.duration / (this.duration + 1);
             shieldPower = this.power;
             console.log('shield:', shieldPower)
-            if (this.character.isPlayer) {
+            if (this.character.isPlayer && this.power > 0) {
                 color(brightcyan);
                 print(`Shield: ${Math.ceil(shieldPower)}`);
             }
@@ -44,7 +45,7 @@ const buffs: { [key: string]: BuffCreator } = {
             this.power *= this.duration / (this.duration + 1);
             this.bonuses.strength = Math.ceil(this.power);
             this.bonuses.coordination = this.power / 4;
-            if (this.character.isPlayer) {
+            if (this.character.isPlayer && this.power > 0) {
                 color(brightred);
                 print(`Bloodlust: ${Math.ceil(this.power)}`);
             }
@@ -58,6 +59,20 @@ const buffs: { [key: string]: BuffCreator } = {
             bonuses: {
                 strength: -Math.ceil(power),
             },
+        })
+    },
+    poison: ({ power, duration }: { power: number, duration: number }) => {
+        return new Buff({
+            name: 'poison',
+            duration: duration,
+            power: power
+        }).onTurn(async function () {
+            this.character.hurt(Math.ceil(this.power), "poison", "poison");
+            this.power *= this.duration / (this.duration + 1);
+            if (this.character.isPlayer && this.power > 0) {
+                color(brightgreen);
+                print(`Poison: ${Math.ceil(this.power)}`);
+            }
         })
     },
     dreams: ({ power, duration }: { power: number, duration: number }) => {
