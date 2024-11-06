@@ -72,6 +72,7 @@ class Location extends Container {
         return this;
     }
     addCharacter(character: Character) {
+        character.respawnLocation = this;
         character.relocate(this);
         return this;
     }
@@ -86,6 +87,7 @@ class Location extends Container {
         landmark._actions.forEach((action, name) => {
             this.actions.set(name, action)
         });
+        landmark.location = this;
         this._landmarks.push(landmark);
         return this;
     }
@@ -130,6 +132,7 @@ class Location extends Container {
     save() {
         return {
             name: this.name,
+            description: this.description,
             characters: [...this._characters].filter(char => char.persist).map(char => (
                 char.save()
             )),
