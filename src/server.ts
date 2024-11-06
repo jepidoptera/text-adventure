@@ -84,7 +84,7 @@ const gameSaver = new GameSaver(mongo_url ?? '', 'save-games');
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, '..', 'public')));
