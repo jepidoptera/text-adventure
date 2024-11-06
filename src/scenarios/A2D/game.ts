@@ -200,6 +200,7 @@ class A2D extends GameState {
             const location = gamestate.locations[key];
             const newLocation = new Location({
                 name: location.name,
+                description: location.description,
                 characters: location.characters.map((character: any) => {
                     return character.isPlayer
                         ? new Player('', '', this).load(character)
@@ -212,7 +213,7 @@ class A2D extends GameState {
                             respawnLocationKey: character.respawnLocationKey,
                             _respawn: character.respawn,
                             attackPlayer: character.attackPlayer,
-                            action: character.action,
+                            chase: character.chase,
                             buffs: character.buffs ? Object.fromEntries(
                                 Object.entries(character.buffs).map(
                                     ([buffName, buffData]: [string, any]) => [buffName, getBuff(buffName as BuffNames)(buffData)]
