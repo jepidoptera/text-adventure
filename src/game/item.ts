@@ -83,7 +83,7 @@ class Item {
         this.description = description;
         this.value = value;
         this.size = size;
-        this.quantity = Math.floor(quantity);
+        this.quantity = Math.max(Math.floor(quantity), 1); // Ensure quantity is an integer and at least 1
         this.weapon_stats = weapon_stats;
         this.equipment_slot = equipment_slot;
         if (this.weapon_stats && !this.weapon_stats.damage_type) {
