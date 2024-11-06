@@ -45,14 +45,14 @@ class Player extends A2dCharacter {
         earplugs: boolean,
         hungry: boolean
     } = {
-            assistant: false,
-            enemy_of_ierdale: false,
-            murders: 0,
-            forest_pass: false,
-            orc_pass: false,
-            earplugs: false,
-            hungry: false
-        }
+        assistant: false,
+        enemy_of_ierdale: false,
+        murders: 0,
+        forest_pass: false,
+        orc_pass: false,
+        earplugs: false,
+        hungry: false
+    } as const
     constructor(characterName: string, className: string, game: GameState) {
         super({ name: characterName, game: game });
         this.giveItem(getItem("banana"))
@@ -157,9 +157,15 @@ class Player extends A2dCharacter {
         this.addAction('s', async () => this.go('south'));
         this.addAction('e', async () => this.go('east'));
         this.addAction('w', async () => this.go('west'));
-        this.addAction('flee', async () => { if (this.backDirection) this.go(this.backDirection); else { color(black); print('you are cornered!') } });
-        this.addAction('i', async () => this.listInventory());
+        this.addAction('ne', async () => this.go('northeast'));
+        this.addAction('se', async () => this.go('southeast'));
+        this.addAction('sw', async () => this.go('southwest'));
+        this.addAction('nw', async () => this.go('northwest'));
+        this.addAction('down', async () => this.go('down'));
+        this.addAction('up', async () => this.go('up'));
         this.addAction('go', this.go);
+        this.addAction('flee', async () => { if (this.backDirection) await this.go(this.backDirection); else { color(black); print('you are cornered!') } });
+        this.addAction('i', async () => this.listInventory());
         this.addAction('look', this.look);
         this.addAction('read', this.read);
         this.addAction('eat', this.eat);
@@ -171,7 +177,7 @@ class Player extends A2dCharacter {
         this.addAction('ready', async (weapon: string) => this.equip(weapon, 'bow'));
         this.addAction('drop', this.drop);
         this.addAction('get', this.get);
-        this.addAction('hp', async () => { this.checkHP(); this.checkXP() });
+        this.addAction('hp', async () => { this.checkHP(); this.checkHunger(); this.checkXP() });
         this.addAction('stats', this.checkStats);
         this.addAction('equipment', this.checkEquipment);
         this.addAction('heal', this.heal);
@@ -218,7 +224,7 @@ class Player extends A2dCharacter {
                 print("<A@+-/~2~\-+@D>")
             }
         }
-        console.log(`commands disabled: ${Object.keys(this.disabledCommands)}`)
+        color(black, darkwhite)
         command = command.toLowerCase().trim();
         // block disabled commands
         if (this.disabledCommands[command]) {
@@ -275,7 +281,7 @@ class Player extends A2dCharacter {
                     }
                 }
                 if (this.actions.has(verb)) {
-                    console.log(`player action ${verb}, ${args}`)
+                    console.log(`player action ${verb} ${args}`)
                     await this.actions.get(verb)?.(args);
                     return;
                 }
@@ -286,7 +292,6 @@ class Player extends A2dCharacter {
     }
 
     disableCommands(commands: string[], message: string) {
-        console.log(`disabling commands: ${commands}`)
         commands.forEach(command => {
             this.disabledCommands[command] = message
         })
@@ -314,7 +319,8 @@ class Player extends A2dCharacter {
     }
 
     set max_sp(value) {
-        this._max_sp = value
+        // if we don't account for it in this way, and they train stamina while hungry, they will lose max sp permanently
+        this._max_sp = Math.round(this._max_sp + value - this.max_sp)
     }
 
     get max_carry() {
@@ -332,9 +338,9 @@ class Player extends A2dCharacter {
         if (this.hungerPenalty >= 1) {
             this.hurt(this.hunger - this._max_sp, null, 'hunger')
             print('You are starving!')
-        } else if (this.flags.hungry) {
+        } else if (this.hungerPenalty && this.flags.hungry) {
             print('You are hungry.')
-        } else if (this.hungerPenalty > 0 && !this.flags.hungry) {
+        } else if (this.hungerPenalty * this.max_sp > 1 && !this.flags.hungry) {
             print('Your stomach begins to grumble.')
             this.flags.hungry = true;
         } else {
@@ -378,6 +384,25 @@ class Player extends A2dCharacter {
         color(black)
         print()
         print(this.location?.name)
+        if (this.location?.description) {
+            console.log('location description', this.location?.description)
+            color(magenta)
+            let lineLength = 0;
+            let words = this.location?.description.split(' ')
+            let lastWord = words[words.length - 1]
+            for (let word of words) {
+                if (lineLength + word.length + 1 > 80) {
+                    if (word != lastWord) print()
+                    lineLength = 0;
+                } else if (lineLength > 0) {
+                    print(' ', 1)
+                    lineLength += 1;
+                }
+                print(word, 1)
+                lineLength += word.length;
+            }
+            print()
+        }
         color(gray)
         this.location?.landmarks.forEach(item => {
             print('    *' + item.description)
@@ -416,11 +441,7 @@ class Player extends A2dCharacter {
             print("You are too weak!");
             return false;
         }
-        const lastLocation = this.location;
         if (await super.go(direction)) {
-            if (this.location?.adjacent?.keys) {
-                this.backDirection = Array.from(this.location?.adjacent?.keys()).find(key => this.location?.adjacent?.get(key) === lastLocation) || '';
-            }
             this.recoverStats({ sp: -0.5 });
             return true;
         }
@@ -530,6 +551,8 @@ class Player extends A2dCharacter {
             this.removeItem(item, 1);
             color(orange)
             print(`${item.name} was consumed.`)
+            this.checkHP();
+            this.checkHunger();
         }
         else {
             color(gray)
@@ -548,6 +571,8 @@ class Player extends A2dCharacter {
             this.removeItem(item, 1);
             color(orange)
             print(`${item.name} was consumed.`)
+            this.checkHP();
+            this.checkHunger();
         }
         else {
             color(gray)
@@ -721,14 +746,12 @@ class Player extends A2dCharacter {
     async get(itemName: string) {
         const item = this.location?.item(itemName);
         if (!item) {
-            color(black)
             print("That's not here.")
         }
         else {
             let displayName = item.display
             this.getItem(itemName);
             if (this.has(itemName)) {
-                color(black)
                 print(`Got ${displayName}.`)
             }
             if (item.equipment_slot && this.flags.assistant) {
@@ -745,16 +768,38 @@ class Player extends A2dCharacter {
         print(`${Math.ceil(this.max_hp)}`, 1);
         color(black);
         print("  SP: ", 1);
-        if (this.hungerPenalty) color(brightred);
+        if (this.hungerPenalty * this.max_sp > 1) color(brightred);
         print(`${Math.ceil(this.sp)}/`, 1);
-        if (this.buff('max_sp') > 0) color(blue); else color(black);
+        if (this.buff('max_sp') > 0) color(blue); else if (this.buff('max_sp') < 0) color(brightred);
         print(`${Math.ceil(this.max_sp)}`, 1);
         color(black);
         print(`  BP: ${Math.ceil(this.mp)}/`, 1)
         if (this.buff('max_mp') > 0) color(blue); else color(black);
         print(`${Math.ceil(this.max_mp)} ]`)
         color(black)
-        print(`[ Hunger: ${Math.ceil(this.hunger)}/${Math.ceil(this._max_sp)} ]`)
+    }
+
+    set hunger(value: number) {
+        // allow hunger to go somewhat negative
+        this._hunger = Math.max(value, -this.max_sp / 4);
+    }
+
+    get hunger() {
+        return this._hunger
+    }
+
+    checkHunger() {
+        print(`[ Hunger: `, 1)
+        const barLength = 26;
+        const barColor = red; // this.hunger / this.max_sp > 1 / 4 ? (this.hunger > this.max_sp / 2 ? brightred : red) : green
+        for (let i = 0; i < barLength; i++) {
+            if (this.hunger / this.max_sp * barLength > i) color(darkwhite, barColor)
+            else color(darkwhite, black)
+            print('▂', 1)
+        }
+        color(black, darkwhite)
+        print(' ]')
+        // print(this.hunger.toString())
     }
 
     statName(key: BonusKeys) {
@@ -847,7 +892,6 @@ class Player extends A2dCharacter {
         }
         else {
             if (character.actions.has('talk')) {
-                console.log(character.getAction('talk'));
                 color(black)
                 await character.getAction('talk')?.(this);
             } else {
@@ -857,7 +901,7 @@ class Player extends A2dCharacter {
     }
 
     async die(cause: any) {
-        this.dead = true;
+        this.hp = Math.min(this.hp, 0);
         color(brightred, gray)
         if (cause instanceof Character) {
             print(`You go limply unconscious as ${cause.name} stands triumphantly over you.                      `)
@@ -921,7 +965,6 @@ class Player extends A2dCharacter {
     async turn() {
         this.enemies = this.enemies.filter(enemy => enemy);
         if (this.fighting) {
-            // console.log(`${this.name} attacks ${this.attackTarget.name}!`)
             await this.attack(this.attackTarget, this.equipment['right hand']);
             this.sp -= 1;
             if (this.sp < 0) {
@@ -934,7 +977,6 @@ class Player extends A2dCharacter {
     buff(key: BonusKeys): number {
         const buff = Object.values(this.equipment || {}).reduce(
             (total, item) => {
-                // console.log(`item: ${item?.name}, ${total}`)
                 return (item?.buff(key) || 0) + total
             },
             super.buff(key)
@@ -1015,14 +1057,8 @@ class Player extends A2dCharacter {
                     break;
                 case ('regen'):
                     this.game.loadScenario(new GameMap(this.game).locations)
-                    this.relocate(this.game.find_location(this.location?.name || 'start'))
+                    this.relocate(this.game.locations.get(this.location?.key || '') || null);
                     print('map regenerated.')
-                    break;
-                case ('biadon'):
-                    this.game.flags['biadon'] = false;
-                    const biadon = this.game.find_character('biadon');
-                    if (biadon) this.game.locations.get(78)?.removeCharacter(biadon);
-                    print('Biadon has been removed.')
                     break;
                 case ('enable'):
                     this.enableCommands();
@@ -1031,6 +1067,17 @@ class Player extends A2dCharacter {
                 case ('landmark'):
                     this.location?.addLandmark(getLandmark(value));
                     print(`landmark ${value} added.`)
+                    break;
+                case ('flag'):
+                    switch (value) {
+                        case ('cradel'):
+                            this.game.flags.cradel = !this.game.flags.cradel;
+                            break;
+                        case ('cleric'):
+                            this.game.flags.cleric = !this.game.flags.cleric;
+                            break;
+                    }
+                    print(`flag ${value} set.`)
                     break;
             }
         }
@@ -1057,6 +1104,7 @@ class Player extends A2dCharacter {
             _healing: this._healing,
             _magic_level: this._magic_level,
             _archery: this._archery,
+            hunger: this.hunger,
             offhand: this.offhand,
             abilities: this.abilities,
             max_pets: this.max_pets,
