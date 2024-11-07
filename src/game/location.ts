@@ -43,7 +43,7 @@ class Location extends Container {
     adjacent_ids: { [key: string]: string | number } = {};
     description: string | undefined;
     private _characters: Set<Character> = new Set();
-    private _landmarks: Landmark[] = [];
+    landmarks: Landmark[] = [];
     _onEnter?: (player: Character) => void;
     actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
     constructor({
@@ -88,24 +88,22 @@ class Location extends Container {
             this.actions.set(name, action)
         });
         landmark.location = this;
-        this._landmarks.push(landmark);
+        this.landmarks.push(landmark);
         return this;
     }
     removeLandmark(landmark: Landmark | string) {
         if (typeof landmark === 'string') {
             landmark = (
-                this._landmarks.find(l => l.name === landmark) as Landmark
-                || this._landmarks.find(l => l.key === landmark) as Landmark
+                this.landmarks.find(l => l.name === landmark) as Landmark
+                || this.landmarks.find(l => l.key === landmark) as Landmark
             )
         }
-        this._landmarks = this._landmarks.filter(l => l !== landmark);
+        if (!landmark) return this;
+        this.landmarks = this.landmarks.filter(l => l !== landmark);
         landmark._actions.forEach((_, name) => {
             this.actions.delete(name)
         });
         return this;
-    }
-    get landmarks(): Landmark[] {
-        return this._landmarks;
     }
     enter(character: Character) {
         this._characters.add(character);
@@ -144,10 +142,12 @@ class Location extends Container {
                 name: item.name,
                 quantity: item.quantity
             })),
-            adjacent: this.adjacent_ids,
+            adjacent: Array.from(this.adjacent?.entries() || []).reduce((acc: Record<string | number, any>, [key, loc]) => {
+                acc[key] = loc.key;
+                return acc;
+            }, {} as Record<string | number, any>)
         }
     }
 }
-
 
 export { Location, Landmark, Container };
