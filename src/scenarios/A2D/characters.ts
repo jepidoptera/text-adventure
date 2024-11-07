@@ -12,7 +12,6 @@ import { A2D } from "./game.js";
 import { abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js";
 import { spells } from "./spells.js";
-import { get } from 'http';
 
 interface A2dCharacterParams extends CharacterParams {
     spellChance?: ((this: A2dCharacter) => boolean) | undefined
@@ -132,8 +131,8 @@ class A2dCharacter extends Character {
         return toHit
     }
 
-    dialog(talk: (this: A2dCharacter, player: Character) => Promise<void>) {
-        return this.addAction('talk', this.bindMethod(talk));
+    dialog(action: (this: A2dCharacter, player: Character) => Promise<void>) {
+        return super.onDialog(this.bindMethod(action));
     }
 
     onAttack(action: (this: A2dCharacter, target: Character) => Promise<void>): this {
@@ -1213,12 +1212,11 @@ const characters = {
                                 print(`'Thankyou again ${player.name}, come see me again soon!'`)
                                 player.transferItem('ring of dreams', this)
                                 this.game.flags.cradel = true;
-                                this.location?.removeLandmark('locked_gate')
-                                this.location?.addLandmark(getLandmark('open_gate'))
+                                this.location!.landmarks = [getLandmark('open_gate')];
                                 this.location?.adjacent?.set('south', this.game.locations.get(192) || this.location);
                             } else {
-                                print("Thankyou anyway.")
-                                print("If you change your mind play that wonderful tune again.")
+                                print("Thankyou anyway.");
+                                print("If you change your mind play that wonderful tune again.");
                             }
                         }
                     }
@@ -1401,7 +1399,7 @@ const characters = {
         }).dialog(async function (player: Character) {
             print("Ierdale will stop at nothing to destroy us!");
             print("Join us against them, brother!");
-        }).onTurn(actions.wander({ bounds: ['grobin gates'] }));
+        }).onTurn(actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 }));
     },
 
     orcish_child(args: { [key: string]: any }) {
@@ -1419,7 +1417,7 @@ const characters = {
             pronouns: randomChoice([pronouns.male, pronouns.female]),
         }).dialog(async function (player: Character) {
             print('Kill humans! Weeeee!')
-        }).onTurn(actions.wander({ bounds: ['grobin gates'] }));
+        }).onTurn(actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 }));
     },
 
     orcish_soldier(args: { [key: string]: any }) {
@@ -1438,7 +1436,9 @@ const characters = {
             alignment: 'orc',
         }).onTurn(
             actions.wander({ bounds: ['grobin gates', 'peon house', 'orc house', 'house', 'orcish grocery'] })
-        );
+        ).dialog(async function (player: Character) {
+            print("Ten-hut! The humans will find no quarter with me!");
+        })
     },
 
     dark_angel(args: { [key: string]: any }) {

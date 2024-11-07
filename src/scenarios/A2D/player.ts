@@ -7,21 +7,18 @@ import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, bright
 import { GameState } from "../../game/game.js";
 import { caps, plural, randomChoice } from "../../game/utils.js";
 import { spells, abilityLevels } from "./spells.js";
-import { BuffNames, getBuff } from "./buffs.js"
+import { getBuff } from "./buffs.js"
 import { getLandmark } from "./landmarks.js"
 import { GameMap } from "./map.js"
-import { dir } from 'console'
 
 class Player extends A2dCharacter {
     class_name: string = '';
     max_pets: number = 0;
     offhand: number = 0;
     healed: boolean = false;
-    poison: number = 0;
     isPlayer: boolean = true;
     cheatMode: boolean = false;
     pronouns = { subject: 'you', object: 'you', possessive: 'your' };
-    backDirection: string = '';
     disabledCommands: { [key: string]: string } = {};
     equipment: {
         'right hand': Item | null,
@@ -53,6 +50,8 @@ class Player extends A2dCharacter {
         earplugs: false,
         hungry: false
     } as const
+    assistantHintsUsed: string[] = []
+
     constructor(characterName: string, className: string, game: GameState) {
         super({ name: characterName, game: game });
         this.giveItem(getItem("banana"))
@@ -181,7 +180,7 @@ class Player extends A2dCharacter {
         this.addAction('stats', this.checkStats);
         this.addAction('equipment', this.checkEquipment);
         this.addAction('heal', this.heal);
-        this.addAction('talk', this.talk);
+        this.addAction('talk', this.talkTo);
         this.addAction('attack', async (name: string) => this.target(this.location?.character?.(name)));
         this.addAction('\\', async (name: string) => this.attack(this.location?.character?.(name) || this.attackTarget, this.equipment['left hand']));
         this.addAction('cast', this.spell);
@@ -884,19 +883,14 @@ class Player extends A2dCharacter {
         print(`EXP: ${this.experience}`)
     }
 
-    async talk(characterName: string) {
+    async talkTo(characterName: string) {
         const character = this.location?.character(characterName);
         color(black)
         if (!character) {
             print("They're not here.")
         }
         else {
-            if (character.actions.has('talk')) {
-                color(black)
-                await character.getAction('talk')?.(this);
-            } else {
-                print("They don't want to talk.")
-            }
+            character.talk(this);
         }
     }
 
@@ -1075,6 +1069,9 @@ class Player extends A2dCharacter {
                             break;
                         case ('cleric'):
                             this.game.flags.cleric = !this.game.flags.cleric;
+                            break;
+                        case ('ierdale'):
+                            this.flags.enemy_of_ierdale = !this.flags.enemy_of_ierdale;
                             break;
                     }
                     print(`flag ${value} set.`)

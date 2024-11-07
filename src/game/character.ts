@@ -185,6 +185,7 @@ class Character {
     private _onTurn: Action | undefined;
     private _fightMove: Action | undefined;
     private _onRespawn: Action | undefined;
+    private _onDialog: Action | undefined = async () => { print("They don't want to talk") };
     private _actions: Map<string, (...args: any[]) => Promise<void>> = new Map()
     attackPlayer: boolean = false;
     chase: boolean = false;
@@ -675,8 +676,8 @@ class Character {
         this.mp = Math.min(this.max_mp, this.mp + mp);
     }
 
-    dialog(action: Action) {
-        this.addAction('talk', action.bind(this));
+    onDialog(action: Action) {
+        this._onDialog = action.bind(this);
         return this
     }
 
@@ -764,6 +765,10 @@ class Character {
     removeAction(name: string) {
         this.actions.delete(name);
         return this;
+    }
+
+    async talk(character: Character) {
+        await this._onDialog?.(character);
     }
 
     async encounter(character: Character) {
