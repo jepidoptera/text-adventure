@@ -890,7 +890,7 @@ class Player extends A2dCharacter {
             print("They're not here.")
         }
         else {
-            character.talk(this);
+            await character.talk(this);
         }
     }
 
