@@ -13,7 +13,7 @@ const pronouns = {
 
 type Action = (this: Character, ...args: any[]) => Promise<void>;
 type BonusKeys = (
-    'max_hp' | 'max_mp' | 'max_sp' | 'strength' | 'coordination' | 'agility' | 'magic_level' | 'healing' |
+    'max_hp' | 'max_mp' | 'max_sp' | 'strength' | 'speed' | 'coordination' | 'agility' | 'magic_level' | 'healing' |
     'blunt_damage' | 'sharp_damage' | 'magic_damage' | 'blunt_armor' | 'sharp_armor' | 'magic_armor' |
     'archery' | 'hp_recharge' | 'mp_recharge' | 'sp_recharge'
 )
@@ -99,6 +99,7 @@ interface CharacterParams {
     max_sp?: number;
     sp_recharge?: number;
     strength?: number;
+    speed?: number;
     coordination?: number;
     agility?: number;
     magic_level?: number;
@@ -124,6 +125,7 @@ interface CharacterParams {
     flags?: { [key: string]: any };
     respawn_time?: number;
     respawn?: boolean;
+    respawnLocationKey?: string | number | undefined;
     persist?: boolean;
 }
 
@@ -150,6 +152,7 @@ class Character {
     exp_value: number = 0;
     _hunger: number = 0;
     _strength: number;
+    _speed: number = 1;
     _coordination: number;
     _agility: number;
     _magic_level: number = 0;
@@ -194,6 +197,7 @@ class Character {
     respawnLocationKey: string | number | undefined;
     private _respawn: boolean = true;
     persist: boolean = true;
+    turnCounter: number = 0;
 
     constructor({
         name,
@@ -211,6 +215,7 @@ class Character {
         max_sp: sp = 1,
         sp_recharge = 0,
         strength = 1,
+        speed = 1,
         coordination = 1,
         agility = 1,
         magic_level = 0,
@@ -233,6 +238,7 @@ class Character {
         attackPlayer = false,
         chase = false,
         respawn = true,
+        respawnLocationKey,
         flags = {},
         persist = true
     }: CharacterParams) {
@@ -256,6 +262,7 @@ class Character {
         this._max_sp = sp;
         this._sp_recharge = sp_recharge;
         this._strength = strength;
+        this._speed = speed;
         this._coordination = coordination;
         this._agility = agility;
         this._magic_level = magic_level;
@@ -265,6 +272,7 @@ class Character {
         this.friends = friends;
         this.abilities = powers;
         this._respawn = respawn;
+        this.respawnLocationKey = respawnLocationKey || this.location?.key;
         this.persist = persist;
         if (weapon instanceof Item) {
             this.weaponName = weapon.name;
@@ -443,7 +451,7 @@ class Character {
         return (this._sharp_damage || this.strength * (weapon?.weapon_stats?.sharp_damage || 0)) + this.buff('sharp_damage');
     }
     magic_damage(weapon: Item | null = null) {
-        return (this._magic_damage || this.magic_level * (weapon?.weapon_stats?.magic_damage || 0)) + this.buff('magic_damage');
+        return (this._magic_damage || (this.strength + this.magic_level) * (weapon?.weapon_stats?.magic_damage || 0)) + this.buff('magic_damage');
     }
     get blunt_armor(): number {
         return this._blunt_armor + this.buff('blunt_armor');
@@ -468,6 +476,12 @@ class Character {
     }
     set strength(value: number) {
         this._strength = value - this.buff('strength');
+    }
+    get speed() {
+        return this._speed + this.buff('speed');
+    }
+    set speed(value: number) {
+        this._speed = value - this.buff('speed')
     }
     get coordination(): number {
         return this._coordination + this.buff('coordination');
@@ -553,12 +567,10 @@ class Character {
         }
     }
 
-
     async giveItem(item: Item, quantity?: number) {
         this.inventory.add(item, quantity);
         if (item.acquire) await item.acquire(this);
     }
-
 
     async removeItem(item: string | Item | undefined, quantity?: number) {
         if (typeof item === 'string') item = this.inventory.item(item);
@@ -594,6 +606,7 @@ class Character {
         }
         for (let character of this.location.characters) {
             if (!await character.allowDepart(this, direction)) {
+                console.log(`blocked from going ${direction} by ${character.name}`);
                 return false;
             }
         }
@@ -613,6 +626,10 @@ class Character {
 
 
     async relocate(newLocation: Location | null, direction?: string) {
+        if (!this.respawnLocationKey) {
+            this.respawnLocationKey = newLocation?.key;
+            console.log(`${this.name} will respawn respawn at ${this.respawnLocationKey}.`)
+        }
         await this.location?.exit(this, direction);
         if (this.location) this.exit(this.location);
         this.location = newLocation;
@@ -652,10 +669,10 @@ class Character {
         return this._respawn;
     }
 
-
     async respawn() {
         if (!this._respawn) return;
         await this._onRespawn?.()
+        this.turnCounter = 0;
         if (this.respawnLocationKey) {
             this.respawnLocation = this.game.locations.get(this.respawnLocationKey) || null
         }
@@ -716,7 +733,7 @@ class Character {
         return this;
     }
 
-    onTurn(action: (this: Character, gameState: GameState) => Promise<void>) {
+    onTurn(action: (this: Character) => Promise<void>) {
         this._onTurn = action.bind(this);
         return this;
     }
@@ -781,7 +798,7 @@ class Character {
     }
 
     async allowDepart(character: Character, direction: string) {
-        const allow = await this._onDeparture?.(character, direction) || true;
+        const allow = this._onDeparture ? await this._onDeparture?.(character, direction) : true;
         if (allow && this.attackTarget == character && this.chase) {
             // give chase
             console.log(`${this.name} chases ${character.name} ${direction}!`)
@@ -902,10 +919,10 @@ class Character {
     }
 
 
-    async turn(game: GameState) {
+    async turn() {
         // onTurn only happens if the character is not fighting.
         // if they are, fightMove will be called instead.
-        if (!this.fighting) await this._onTurn?.(game);
+        if (!this.fighting) await this._onTurn?.();
         if (this.hp < this.max_hp && !this.fighting) {
             this.recoverStats({ hp: this.hp_recharge * this.max_hp, mp: this.mp_recharge * this.max_mp, sp: this.sp_recharge * this.max_sp });
             console.log(`${this.name} heals to ${this.hp} hp`)
@@ -939,7 +956,6 @@ class Character {
             name: this.name,
             hp: this.hp,
             hp_recharge: this.hp_recharge,
-            dead: this.dead,
             enemies: this.enemies.map(enemy => enemy?.name).filter(name => name),
             attackPlayer: this.attackPlayer || this.enemies.some(enemy => enemy.isPlayer),
             chase: this.chase,
@@ -948,7 +964,8 @@ class Character {
             respawnLocationKey: this.respawnLocationKey,
             respawn: this._respawn,
             items: this.items.filter(item => item).map(item => item.save()),
-            flags: this.flags
+            flags: this.flags,
+            turnCounter: this.turnCounter
         }
     }
 }
