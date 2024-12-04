@@ -47,14 +47,14 @@ class Item {
     description: string;
     value: number = 0;
     size: number = 1;
-    quantity: number = 1;
+    private _quantity: number = 1;
     weapon_stats: {
-        blunt_damage?: number,
-        sharp_damage?: number,
-        magic_damage?: number,
+        blunt_damage: number,
+        sharp_damage: number,
+        magic_damage: number,
         type: WeaponTypes,
-        damage_type?: DamageTypes,
-        strength_required?: number,
+        damage_type: DamageTypes,
+        strength_required: number,
     } | undefined;
     equipment_slot?: string;
     _buff?: Buff;
@@ -83,8 +83,17 @@ class Item {
         this.description = description;
         this.value = value;
         this.size = size;
-        this.quantity = Math.max(Math.floor(quantity), 1); // Ensure quantity is an integer and at least 1
-        this.weapon_stats = weapon_stats;
+        this.quantity = quantity; // Ensure quantity is an integer and at least 1
+        if (weapon_stats) {
+            this.weapon_stats = {
+                blunt_damage: 0,
+                sharp_damage: 0,
+                magic_damage: 0,
+                damage_type: 'blunt',
+                strength_required: 0,
+                ...weapon_stats // override defaults
+            };
+        }
         this.equipment_slot = equipment_slot;
         if (this.weapon_stats && !this.weapon_stats.damage_type) {
             this.weapon_stats.damage_type = weapon_conversions[this.weapon_stats.type] ?? 'blunt';
@@ -102,6 +111,14 @@ class Item {
 
     get actions() {
         return this._actions;
+    }
+
+    get quantity() {
+        return this._quantity;
+    }
+
+    set quantity(value: number) {
+        this._quantity = Math.max(Math.floor(value), 1);
     }
 
     on_drink(action: (this: Item, character: Character) => Promise<void>) {
@@ -205,8 +222,8 @@ class Item {
     get display() {
         if (this._displayName) {
             return this._displayName();
-        } else if (this.quantity !== 1) {
-            return `${this.quantity} ${plural(this.name)}`;
+        } else if (this._quantity !== 1) {
+            return `${this._quantity} ${plural(this.name)}`;
         }
         return this.name;
     }
@@ -217,7 +234,7 @@ class Item {
         return {
             key: this.key,
             name: this.name,
-            quantity: this.quantity,
+            quantity: this._quantity,
         }
     }
 }
