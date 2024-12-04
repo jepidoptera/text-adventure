@@ -152,16 +152,16 @@ class Player extends A2dCharacter {
         this.addAction('save', this.saveGame);
         this.addAction('load', this.loadGame);
         this.addAction('', async () => { });
-        this.addAction('n', async () => this.go('north'));
-        this.addAction('s', async () => this.go('south'));
-        this.addAction('e', async () => this.go('east'));
-        this.addAction('w', async () => this.go('west'));
-        this.addAction('ne', async () => this.go('northeast'));
-        this.addAction('se', async () => this.go('southeast'));
-        this.addAction('sw', async () => this.go('southwest'));
-        this.addAction('nw', async () => this.go('northwest'));
-        this.addAction('down', async () => this.go('down'));
-        this.addAction('up', async () => this.go('up'));
+        this.addAction('n', async () => await this.go('north'));
+        this.addAction('s', async () => await this.go('south'));
+        this.addAction('e', async () => await this.go('east'));
+        this.addAction('w', async () => await this.go('west'));
+        this.addAction('ne', async () => await this.go('northeast'));
+        this.addAction('se', async () => await this.go('southeast'));
+        this.addAction('sw', async () => await this.go('southwest'));
+        this.addAction('nw', async () => await this.go('northwest'));
+        this.addAction('down', async () => await this.go('down'));
+        this.addAction('up', async () => await this.go('up'));
         this.addAction('go', this.go);
         this.addAction('flee', async () => { if (this.backDirection) await this.go(this.backDirection); else { color(black); print('you are cornered!') } });
         this.addAction('i', async () => this.listInventory());
@@ -170,10 +170,11 @@ class Player extends A2dCharacter {
         this.addAction('eat', this.eat);
         this.addAction('drink', this.drink);
         this.addAction('use', this.use);
-        this.addAction('wield', async (weapon: string) => this.equip(weapon, 'right hand'));
-        this.addAction('wield2', async (weapon: string) => this.equip(weapon, 'left hand'));
-        this.addAction('wear', async (item: string) => this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
-        this.addAction('ready', async (weapon: string) => this.equip(weapon, 'bow'));
+        this.addAction('wield', async (weapon: string) => await this.equip(weapon, 'right hand'));
+        this.addAction('wield2', async (weapon: string) => await this.equip(weapon, 'left hand'));
+        this.addAction('wear', async (item: string) => await this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
+        this.addAction('ready', async (weapon: string) => await this.equip(weapon, 'bow'));
+
         this.addAction('drop', this.drop);
         this.addAction('get', this.get);
         this.addAction('hp', async () => { this.checkHP(); this.checkHunger(); this.checkXP() });
@@ -182,7 +183,7 @@ class Player extends A2dCharacter {
         this.addAction('heal', this.heal);
         this.addAction('talk', this.talkTo);
         this.addAction('attack', async (name: string) => this.target(this.location?.character?.(name)));
-        this.addAction('\\', async (name: string) => this.attack(this.location?.character?.(name) || this.attackTarget, this.equipment['left hand']));
+        this.addAction('\\', async (name: string) => await this.attack(this.location?.character?.(name) || this.attackTarget, this.equipment['left hand']));
         this.addAction('cast', this.spell);
         this.addAction('cheatmode xfish9', async () => { this.cheatMode = true; color(magenta); print('Cheat mode activated.') });
         this.addAction('cheat', this.cheat);
@@ -594,7 +595,7 @@ class Player extends A2dCharacter {
         }
     }
 
-    equip(item: string | Item | undefined, slot: keyof Player['equipment']) {
+    async equip(item: string | Item | undefined, slot: keyof Player['equipment']) {
         color(black)
         if (item == 'fist') {
             item = getItem('fist', { name: 'fist' })
@@ -640,52 +641,81 @@ class Player extends A2dCharacter {
         }
         if (this.equipment[slot] && this.equipment[slot].name != 'fist') {
             // put their previous weapon in their inventory
-            this.giveItem(this.equipment[slot]);
-            this.equipment[slot].unequip(this);
+            await this.giveItem(this.equipment[slot]);
+            await this.equipment[slot].unequip(this);
         }
         this.removeItem(item, 1)
         this.equipment[slot] = item
         if (item.equip) {
-            item.equip(this);
+            await item.equip(this);
         }
     }
 
     async checkEquipment() {
-        color(black)
-        print("  Wielded: ", 1)
-        color(blue)
+        print("  ", 1)
+        color(black, white)
+        print("Wielded", 1)
+        color(black, darkwhite)
+        print(": ", 1)
         print(this.equipment['right hand']?.name ?? 'fist', 1)
         locate(40)
-        color(black)
-        print('Left Wielded: ', 1)
-        color(blue)
+        color(black, white)
+        print('Left Wielded', 1)
+        color(black, darkwhite)
+        print(': ', 1)
         print(this.equipment['left hand']?.name ?? 'fist')
         color(black)
-        print()
+        const leftBuffs = Object.keys(this.equipment['left hand']?.buffs as object || {}) as BonusKeys[]
+        const rightBuffs = Object.keys(this.equipment['right hand']?.buffs as object || {}) as BonusKeys[]
+        for (let i = 0; i < Math.max(leftBuffs.length, rightBuffs.length); i++) {
+            if (i < rightBuffs.length) {
+                color(blue)
+                print(`  +${this.statValue(rightBuffs[i], this.equipment['right hand']?.buff(rightBuffs[i]) || 0)} `, 1)
+                color(black)
+                print(`${this.statName(rightBuffs[i]).toLocaleLowerCase()}`, 1)
+            }
+            if (i < leftBuffs.length) {
+                locate(40)
+                color(blue)
+                print(`+${this.statValue(leftBuffs[i], this.equipment['left hand']?.buff(leftBuffs[i]) || 0)} `, 1)
+                color(black)
+                print(`${this.statName(leftBuffs[i]).toLocaleLowerCase()}`)
+            } else print()
+        }
+        if (Math.max(leftBuffs.length, rightBuffs.length) == 0) print()
         if (this.equipment['right hand']?.description || this.equipment['left hand']?.description) {
             print(this.equipment['right hand']?.description ?? '', 1)
             locate(40)
             print(this.equipment['left hand']?.description ?? '')
             print()
         }
-        print(`  blunt damage: ${this.equipment['right hand']?.weapon_stats?.blunt_damage || 0}`, 1)
+        const rightWeapon = this.equipment['right hand']!.weapon_stats || { blunt_damage: 0, sharp_damage: 0, magic_damage: 0 }
+        const leftWeapon = this.equipment['left hand']!.weapon_stats || { blunt_damage: 0, sharp_damage: 0, magic_damage: 0 }
+        print(`  blunt damage: ${rightWeapon.blunt_damage || 0}x (${Math.ceil(rightWeapon.blunt_damage * this.strength)})`, 1)
         locate(40)
-        print(`blunt damage: ${this.equipment['left hand']?.weapon_stats?.blunt_damage || 0}`)
-        print(`  sharp damage: ${this.equipment['right hand']?.weapon_stats?.sharp_damage || 0}`, 1)
+        print(`blunt damage: ${leftWeapon.blunt_damage || 0}x (${Math.ceil(leftWeapon.blunt_damage * this.strength)})`)
+        print(`  sharp damage: ${rightWeapon.sharp_damage || 0}x (${Math.ceil(rightWeapon.sharp_damage * this.strength)})`, 1)
         locate(40)
-        print(`sharp damage: ${this.equipment['left hand']?.weapon_stats?.sharp_damage || 0}`)
-        print(`  magic damage: ${this.equipment['right hand']?.weapon_stats?.magic_damage || 0}`, 1)
+        print(`sharp damage: ${this.equipment['left hand']?.weapon_stats?.sharp_damage || 0}x (${Math.ceil(leftWeapon.sharp_damage * this.strength)})`)
+        print(`  magic damage: ${this.equipment['right hand']?.weapon_stats?.magic_damage || 0}x (${Math.ceil(rightWeapon.magic_damage * (this.strength + this.magic_level))})`, 1)
         locate(40)
-        print(`magic damage: ${this.equipment['left hand']?.weapon_stats?.magic_damage || 0}`)
+        print(`magic damage: ${this.equipment['left hand']?.weapon_stats?.magic_damage || 0}x (${Math.ceil(leftWeapon.magic_damage * (this.strength + this.magic_level))})`)
+        print(`  total: ${Math.ceil((rightWeapon.blunt_damage + rightWeapon.sharp_damage + rightWeapon.magic_damage) * this.strength + rightWeapon.magic_damage * this.magic_level)}`, 1)
+        locate(40)
+        print(`total: ${Math.ceil((leftWeapon.blunt_damage + leftWeapon.sharp_damage + leftWeapon.magic_damage) * this.strength + leftWeapon.magic_damage * this.magic_level)}`)
         print()
-        print("  Armor: ", 1)
-        color(blue)
+        print("  ", 1)
+        color(black, white)
+        print("Armor", 1)
+        color(black, darkwhite)
+        print(": ", 1)
         print(this.equipment['armor']?.name ?? 'none', 1)
         if (this.equipment['ring']) {
             locate(40)
-            color(black)
-            print("Ring: ", 1)
-            color(blue)
+            color(black, white)
+            print("Ring", 1)
+            color(black, darkwhite)
+            print(": ", 1)
             print(this.equipment['ring']?.name)
         } else print()
         color(black)
@@ -789,7 +819,9 @@ class Player extends A2dCharacter {
 
     checkHunger() {
         print(`[ Hunger: `, 1)
-        const barLength = 26;
+        const barLength = 18 + [this.max_hp, this.hp, this.max_sp, this.sp, this.max_mp, this.mp].reduce(
+            (sum, stat) => sum + Math.max(Math.floor(Math.log10(stat)), 0), 0
+        );
         const barColor = red; // this.hunger / this.max_sp > 1 / 4 ? (this.hunger > this.max_sp / 2 ? brightred : red) : green
         for (let i = 0; i < barLength; i++) {
             if (this.hunger / this.max_sp * barLength > i) color(darkwhite, barColor)
@@ -821,14 +853,17 @@ class Player extends A2dCharacter {
             case ('hp_recharge'): return 'HP Recharge';
             case ('mp_recharge'): return 'MP Recharge';
             case ('sp_recharge'): return 'SP Recharge';
+            case ('speed'): return 'Speed';
             default: return key;
         }
     }
+
     statValue(key: BonusKeys, value: number) {
         switch (key) {
             case ('hp_recharge'): return `${Math.round(value * 100)}%`;
             case ('mp_recharge'): return `${Math.round(value * 100)}%`;
             case ('sp_recharge'): return `${Math.round(value * 100)}%`;
+            case ('speed'): return `${Math.round(value * 100)}%`;
             default: return `${Math.round(value)}`;
         }
     }
@@ -841,8 +876,8 @@ class Player extends A2dCharacter {
                 color(brightred)
             } else { color(black) }
             print(this.statValue(buffName, (this[buffName] as number)), 1)
-            if (this.buff(buffName) > 0) print(`(+${this.statValue(buffName, this.buff(buffName))})`)
-            else if (this.buff(buffName) < 0) print(`(${this.statValue(buffName, this.buff(buffName))})`)
+            if (this.buff(buffName) > 0) print(` (+${this.statValue(buffName, this.buff(buffName))})`)
+            else if (this.buff(buffName) < 0) print(` (${this.statValue(buffName, this.buff(buffName))})`)
             else print('')
             color(black)
         }
@@ -898,7 +933,8 @@ class Player extends A2dCharacter {
         this.hp = Math.min(this.hp, 0);
         color(brightred, gray)
         if (cause instanceof Character) {
-            print(`You go limply unconscious as ${cause.name} stands triumphantly over you.                      `)
+            print(`You go limply unconscious as ${cause.name} stands triumphantly over you.`)
+            print()
             if (this.flags.assistant) print("   -ASSISTANT-  Next time be careful when you choose your fights, though")
             if (this.flags.assistant) print("   -ASSISTANT-  sometimes its good to be darring and explore new areas where")
             if (this.flags.assistant) print("   -ASSISTANT-  creatures may not be so friendly")
@@ -957,6 +993,7 @@ class Player extends A2dCharacter {
     }
 
     async turn() {
+        await this.getInput();
         this.enemies = this.enemies.filter(enemy => enemy);
         if (this.fighting) {
             await this.attack(this.attackTarget, this.equipment['right hand']);
@@ -1063,6 +1100,7 @@ class Player extends A2dCharacter {
                     print(`landmark ${value} added.`)
                     break;
                 case ('flag'):
+                case ('flags'):
                     switch (value) {
                         case ('cradel'):
                             this.game.flags.cradel = !this.game.flags.cradel;
@@ -1096,6 +1134,7 @@ class Player extends A2dCharacter {
             _mp: this._mp,
             _mp_recharge: this._mp_recharge,
             _strength: this._strength,
+            _speed: this._speed,
             _agility: this._agility,
             _coordination: this._coordination,
             _healing: this._healing,
