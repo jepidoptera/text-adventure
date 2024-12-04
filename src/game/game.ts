@@ -38,10 +38,10 @@ class GameState {
             location.key = key;
             location.game = this;
             location.adjacent = new Map(Object.entries(location.adjacent_ids).map(([direction, id]) => [direction, this.locations.get(id) || location]));
-            // link characters to locations
+            // link characters to game
             for (let character of location.characters) {
-                character.location = location;
                 character.game = this;
+                character.relocate(location);
             }
         }
     }
