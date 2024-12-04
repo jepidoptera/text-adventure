@@ -10,6 +10,35 @@ let commandMode = 'input';
 let socket;
 let gameID;
 let keepAliveInterval;
+let inputBuffer = [];
+let keyCallbacks = [];
+
+// Set up the single global event listener
+function initializeInputHandler() {
+    document.addEventListener('keydown', (event) => {
+        if (keyCallbacks.length > 0) {
+            // If there are waiting callbacks, resolve the next one
+            const nextCallback = keyCallbacks.shift();
+            nextCallback(event.key);
+        } else {
+            // Otherwise add to buffer
+            inputBuffer.push(event.key);
+        }
+    });
+}
+
+// Central function for getting the next keystroke
+function getNextKey() {
+    return new Promise(resolve => {
+        if (inputBuffer.length > 0) {
+            // If there's a buffered key, use it immediately
+            resolve(inputBuffer.shift());
+        } else {
+            // Otherwise wait for the next keystroke
+            keyCallbacks.push(resolve);
+        }
+    });
+}
 
 // Initialize the display with empty spans
 function initializeDisplay() {
@@ -99,42 +128,53 @@ function quote(text = '', extend = false) {
 
 // Synchronous input function with in-place updating
 function query(promptText = '') {
-    quote(promptText, true); // Display prompt
+    quote(promptText, true);
     renderScreen();
-    return new Promise(resolve => {
+
+    return new Promise(async resolve => {
         let inputText = '';
         let initialX = cursor.x, initialY = cursor.y;
 
-        const handleInput = (event) => {
-            if (event.key === 'Enter') {
-                quote('');
-                document.removeEventListener('keydown', handleInput);
+        // Set up blinking cursor
+        const blink = setInterval(() => {
+            const blinkLocation = [initialX + inputText.length, initialY];
+            screenBuffer[blinkLocation[1]][blinkLocation[0]] = {
+                char: '_',
+                fg: currentColor.fg,
+                bg: currentColor.bg
+            };
+            renderScreen();
+            setTimeout(() => {
+                if (blinkLocation[0] < cursor.x || blinkLocation[1] < cursor.y) return;
+                screenBuffer[blinkLocation[1]][blinkLocation[0]] = {
+                    char: ' ',
+                    fg: currentColor.fg,
+                    bg: currentColor.bg
+                };
+                renderScreen();
+            }, 400);
+        }, 800);
+
+        // Process keystrokes until Enter
+        while (true) {
+            const key = await getNextKey();
+
+            if (key === 'Enter') {
                 clearInterval(blink);
+                quote('');
                 resolve(inputText);
-            } else if (event.key === 'Backspace') {
+                break;
+            } else if (key === 'Backspace') {
                 inputText = inputText.slice(0, -1);
                 locate(initialX, initialY);
-                quote(inputText + '  ', true); // Overwrite last character
-            } else if (event.key.length === 1) {
-                inputText += event.key;
+                quote(inputText + '  ', true);
+            } else if (key.length === 1) {
+                inputText += key;
                 locate(initialX, initialY);
                 quote(inputText, true);
             }
             renderScreen();
-        };
-
-        document.addEventListener('keydown', handleInput);
-        // blinky cursor
-        const blink = setInterval(() => {
-            const blinklocation = [initialX + inputText.length, initialY];
-            screenBuffer[blinklocation[1]][blinklocation[0]] = { char: '_', fg: currentColor.fg, bg: currentColor.bg };
-            renderScreen();
-            setTimeout(() => {
-                if (blinklocation[0] < cursor.x || blinklocation[1] < cursor.y) return;
-                screenBuffer[blinklocation[1]][blinklocation[0]] = { char: ' ', fg: currentColor.fg, bg: currentColor.bg };
-                renderScreen();
-            }, 400);
-        }, 800);
+        }
     });
 }
 
@@ -181,23 +221,12 @@ async function optionBox(
             quote(` ${options[i]}${' '.repeat(boxWidth - options[i].length - 1)}`, true);
         }
         renderScreen();
-        key = await getKey();
+        key = await getNextKey();
     }
     color(...previousColors);
     quote('');
     console.log('chose', options[selected]);
     return selected;
-}
-
-function getKey() {
-    return new Promise(resolve => {
-        const handleInput = (event) => {
-            document.removeEventListener('keydown', handleInput);
-            resolve(event.key);
-        };
-
-        document.addEventListener('keydown', handleInput);
-    });
 }
 
 function clear() {
@@ -223,7 +252,7 @@ async function processResponse(batch) {
                 quote(('text' in line ? line.text : ''), line.extend);
                 break;
             case 'getKey':
-                const key = await getKey();
+                const key = await getNextKey();
                 sendCommand(key);
                 break;
             case 'input':
@@ -286,5 +315,6 @@ function sendCommand(command) {
 }
 
 // Start the game loop
+initializeInputHandler();
 initializeDisplay();
 initializeWebSocket();
