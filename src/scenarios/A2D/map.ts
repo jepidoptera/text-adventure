@@ -292,17 +292,14 @@ class GameMap {
         34: new Location({
             name: "Corn Field",
             adjacent: { 'north': 35, 'east': 33 },
-            characters: [getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_captain', this.game)]
         }),
         35: new Location({
             name: "Corn Field",
             adjacent: { 'south': 34 },
-            characters: [getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_captain', this.game)]
         }),
         36: new Location({
             name: "Corn Field",
             adjacent: { 'south': 33 },
-            characters: [getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_captain', this.game)]
         }),
         37: new Location({
             name: "Corn Field",
@@ -316,7 +313,7 @@ class GameMap {
         39: new Location({
             name: "Barnyard",
             adjacent: { 'north': 40, 'south': 32 },
-            characters: [getCharacter('hen', this.game), getCharacter('hen', this.game), getCharacter('hen', this.game), getCharacter('hen', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_captain', this.game)]
+            characters: [getCharacter('hen', this.game), getCharacter('hen', this.game), getCharacter('hen', this.game), getCharacter('hen', this.game)]
         }),
         40: new Location({
             name: "Barn",
@@ -326,7 +323,7 @@ class GameMap {
         41: new Location({
             name: "Pasture",
             adjacent: { 'north': 32, 'south': 42, 'west': 43 },
-            characters: [getCharacter('cow', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_solider', this.game), getCharacter('goblin_captain', this.game)]
+            characters: [getCharacter('cow', this.game)]
         }),
         42: new Location({
             name: "Pasture",
@@ -466,7 +463,7 @@ class GameMap {
         }),
         66: new Location({
             name: "Forest of Thieves",
-            adjacent: { 'east': 334, 'south': 65, 'west': 51 },
+            adjacent: { 'south': 65, 'west': 51 },
         }),
         67: new Location({
             name: "Forest of Thieves",
@@ -1519,7 +1516,8 @@ class GameMap {
         }),
         277: new Location({
             name: "Dark Forest",
-            adjacent: { 'east': 259 }
+            adjacent: { 'east': 259 },
+            characters: [getCharacter('cat_woman', this.game)]
         }),
         278: new Location({
             name: "Dark Forest",
