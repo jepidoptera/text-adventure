@@ -205,9 +205,9 @@ const items = {
             size: 1,
             value: 0,
             quantity: args.quantity
-        }).on_eat(async function (player) {
+        }).addAction('eat giraffe gizzard', async function (player) {
             print('You gobble down the disgusting, slimy organ.  It tastes like a mix of')
-            print('rotten fish and old socks, but something compels you to eat it, and')
+            print('rotten fish and charcoal, but something compels you to eat it, and')
             print('eat it all.  You feel a little sick.')
             await pause(5)
             print("Too late, you realize: GIRAFFES DON'T HAVE GIZZARDS!")
@@ -766,7 +766,7 @@ const items = {
         return new Item({
             name: 'mighty gigasarm',
             size: 1,
-            value: 1350,
+            value: 5350,
             weapon_stats: {
                 type: 'axe',
                 blunt_damage: 1.9,
@@ -774,7 +774,10 @@ const items = {
                 magic_damage: 2.4,
             },
             quantity: args.quantity
-        })
+        }).addBuff(new Buff({
+            name: 'reach',
+            bonuses: { coordination: 4, agility: 2 }
+        }))
     },
     trident(args: ItemParams) {
         return new Item({
@@ -791,16 +794,20 @@ const items = {
     mighty_warfork(args: ItemParams) {
         return new Item({
             name: 'mighty warfork',
-            size: 1,
-            value: 460,
+            size: 6.5,
+            value: 4160,
             weapon_stats: {
                 type: 'stab',
                 blunt_damage: 3.1,
                 sharp_damage: 5.0,
                 magic_damage: 1.0,
+                strength_required: 30
             },
             quantity: args.quantity
-        })
+        }).addBuff(new Buff({
+            name: 'vitality',
+            bonuses: { healing: 20, sp_recharge: 0.1 }
+        }))
     },
     steel_polearm(args: ItemParams) {
         return new Item({
@@ -908,11 +915,11 @@ const items = {
             quantity: args.quantity
         })
     },
-    Glory_Blade(args: ItemParams) {
+    glory_blade(args: ItemParams) {
         return new Item({
-            name: 'Glory Blade',
+            name: 'glory blade',
             size: 8.5,
-            value: 0,
+            value: 29661,
             weapon_stats: {
                 type: 'sword',
                 blunt_damage: 10.0,
@@ -920,21 +927,28 @@ const items = {
                 magic_damage: 10.0,
             },
             quantity: args.quantity
-        })
+        }).addBuff(new Buff({
+            name: 'Glory',
+            bonuses: { strength: 10, coordination: 10, max_hp: 100 }
+        }))
     },
     mighty_excalabor(args: ItemParams) {
         return new Item({
             name: 'mighty excalabor',
             size: 6.5,
-            value: 1150,
+            value: 5150,
             weapon_stats: {
                 type: 'sword',
-                blunt_damage: 3.0,
+                blunt_damage: 2.75,
                 sharp_damage: 6.5,
-                magic_damage: 2.0,
+                magic_damage: 2.5,
+                strength_required: 30
             },
             quantity: args.quantity
-        })
+        }).addBuff(new Buff({
+            name: 'Excalabor',
+            bonuses: { strength: 15, max_sp: 50 }
+        }))
     },
     scimitar(args: ItemParams) {
         return new Item({
@@ -1139,14 +1153,6 @@ const items = {
             name: 'flute',
             size: 1,
             value: 100,
-            quantity: args.quantity
-        })
-    },
-    glory_blade(args: ItemParams) {
-        return new Item({
-            name: 'glory blade',
-            size: 1,
-            value: 29661,
             quantity: args.quantity
         })
     },
@@ -1556,6 +1562,40 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             quantity: args.quantity
+        }).addBuff(new Buff({
+            name: 'ring_of_time',
+            bonuses: {
+                speed: 1
+            }
+        })).on_equip(async function (player) {
+            if (player.isPlayer) {
+                let totalTime = 4.0
+                const slowfactor = 0.1
+                const text = "You feel the world around you slooooooow doowwn..."
+                const chars = text.split('')
+                const colors = chars.map((char, i) =>
+                    i < text.length - 20
+                        ? black
+                        : i < text.length - 10
+                            ? gray
+                            : [magenta, blue, green, yellow, red, cyan, magenta, blue, green, yellow][text.length - i - 1]
+                )
+                const pauseLength = chars.map((char, i) => {
+                    let length = totalTime * slowfactor
+                    totalTime -= length
+                    return length
+                }).reverse()
+                for (let i in chars) {
+                    color(colors[i])
+                    print(chars[i], 1)
+                    await pause(pauseLength[i])
+                }
+                print()
+            }
+        }).on_remove(async function (player) {
+            if (player.isPlayer) {
+                print("Time returns to normal.")
+            }
         })
     },
     ring_of_ultimate_power(args: ItemParams) {
