@@ -49,22 +49,25 @@ class Location extends Container {
     constructor({
         name,
         description = "",
+        key = "",
         adjacent = {},
         items = [],
         characters = []
     }: {
         name: string;
         description?: string;
+        key?: string | number;
         adjacent?: { [key: string]: string | number };
         items?: Item[];
         characters?: Character[];
     }) {
         super(items);
         this.name = name;
+        this.key = key;
         this.description = description;
         this.adjacent_ids = adjacent;
         for (let character of characters) {
-            this._characters.add(character);
+            this.addCharacter(character);
         };
     }
     addAction(name: string, action: (player: Character, ...args: any[]) => Promise<any>) {
@@ -72,7 +75,7 @@ class Location extends Container {
         return this;
     }
     addCharacter(character: Character) {
-        character.respawnLocation = this;
+        this._characters.add(character);
         character.relocate(this);
         return this;
     }
