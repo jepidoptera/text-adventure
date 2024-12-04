@@ -53,7 +53,7 @@ class A2dCharacter extends Character {
                 this.max_hp / 2
                 + this.sharp_damage() + this.blunt_damage() + this.magic_damage()
                 + this.blunt_armor + this.sharp_armor + this.magic_armor
-                + this.magic_level
+                + this.magic_level * 2
                 + this.coordination * 2 + this.agility * 2
                 + Object.values(this.abilities).reduce((sum, value) => sum + value, 0) * 10
             )
@@ -92,9 +92,11 @@ class A2dCharacter extends Character {
     }
 
     async encounter(character: Character) {
-        super.encounter(character);
+        await super.encounter(character);
         if (this.alignment === 'evil' && character.alignment != 'evil' && !this.dead) {
             // evil characters fight everyone
+            this.fight(character);
+        } else if (this.attackTarget == character || this.enemies.includes(character)) {
             this.fight(character);
         }
     }
@@ -155,11 +157,11 @@ class A2dCharacter extends Character {
         return super.onSlay(this.bindMethod(action));
     }
 
-    onDeath(action: (this: A2dCharacter, gameState?: GameState) => Promise<void>) {
+    onDeath(action: (this: A2dCharacter, cause?: any) => Promise<void>) {
         return super.onDeath(this.bindMethod(action));
     }
 
-    onTurn(action: (this: A2dCharacter, gameState: GameState) => Promise<void>) {
+    onTurn(action: (this: A2dCharacter) => Promise<void>) {
         return super.onTurn(this.bindMethod(action));
     }
 
@@ -173,7 +175,7 @@ class A2dCharacter extends Character {
     }
 
     get spellChance(): boolean {
-        return this._spellChance?.() || true
+        return this._spellChance ? this._spellChance() : true;
     }
 
     async attack(target: Character | null = null, weapon: Item | null = null) {
@@ -228,7 +230,7 @@ class A2dCharacter extends Character {
                 if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
                 if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('knock')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
                 if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('whack')} ${targetPronouns.object} with ${weaponName}, making a jagged cut.` };
-                if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('hit')} ${targetPronouns.object} with ${weaponName}, knocking ${targetPronouns.object} backwards.` };
+                if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('hit')} ${targetPronouns.object} with ${weaponName}, knocking ${target.pronouns.object} backwards.` };
                 if (DT >= 40) { does = `${caps(attackerPronouns.subject)} ${s('smash')} ${targetPronouns.object} with ${weaponName}, and you hear a bone break.` };
                 if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('crush')} ${targetPronouns.object} with ${weaponName}, damaging organs.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('pulverise')} ${targetPronouns.object} with ${weaponName}, splintering bones.` };
@@ -242,7 +244,7 @@ class A2dCharacter extends Character {
                 if (DT >= 35) { does = `${caps(attackerPronouns.subject)} ${s('slice')} ${targetPronouns.object} with ${weaponName}, and blood sprays the ground.` };
                 if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('lacerate')} ${targetPronouns.object} with ${weaponName}, inflicting a mortal wound.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('hew')} ${targetPronouns.object} with ${weaponName}, severing limbs.` };
-                if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('cleave')} ${targetPronouns.object} with ${weaponName}, slicing ${targetPronouns.object} in half.` };
+                if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('cleave')} ${targetPronouns.object} with ${weaponName}, slicing ${target.pronouns.object} in half.` };
                 break;
             case ("stab"):
                 if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
@@ -255,16 +257,16 @@ class A2dCharacter extends Character {
                 break;
             case ("fire"):
                 if (DT >= 0) does = `${caps(attackerPronouns.possessive)} ${weaponName} flickers against ${targetPronouns.object} without leaving a mark.`;
-                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('singe')} ${targetPronouns.object} with ${weaponName}, hurting ${targetPronouns.object} slightly.` };
+                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('singe')} ${targetPronouns.object} with ${weaponName}, hurting ${target.pronouns.object} slightly.` };
                 if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('scorch')} ${targetPronouns.object} with ${weaponName}, inflicting first-degree burns.` };
                 if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('scald')} ${targetPronouns.object} with ${weaponName}, inflicting second-degree burns.` };
                 if (DT >= 50) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, instantly blistering skin.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('roast')} ${targetPronouns.object} with ${weaponName}, making charred flesh sizzle.` };
                 if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} blasted off ${targetPronouns.possessive} feet and ${t_s('land')} in a smouldering heap.` };
-                if (DT >= 500) { does = `${caps(targetPronouns.possessive)} family is saved the cost of cremation, as ${targetPronouns.possessive} ashes scatter to the wind.` };
+                if (DT >= 500) { does = `${caps(targetPronouns.possessive)} family is saved the cost of cremation, as ${target.pronouns.possessive} ashes scatter to the wind.` };
                 break;
             case ("bow"):
-                if (DT >= 0) does = `${target.name} barely ${t_s('notices')} ${attackerPronouns.possessive} arrow striking ${targetPronouns.object}.`;
+                if (DT >= 0) does = `${target.name} barely ${t_s('notices')} ${attackerPronouns.possessive} arrow striking ${target.pronouns.object}.`;
                 if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${s('take')} minimal damage.` };
                 if (DT >= 12) { does = `${caps(targetPronouns.subject)} ${t_be} minorly wounded.` };
                 if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${s('sustain')} a major injury.` };
@@ -280,10 +282,10 @@ class A2dCharacter extends Character {
                 if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('flinch')}, but doesn't slow down.` };
                 if (DT >= 10) { does = `${caps(targetPronouns.subject)} ${t_be} knocked back a step.` };
                 if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')} under the force.` };
-                if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${t_s('reel')} backwards, almost knocked off ${targetPronouns.possessive} feet.` };
+                if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${t_s('reel')} backwards, almost knocked off ${target.pronouns.possessive} feet.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_be} snuffed out like a candle.` };
                 if (DT >= 220) { does = `${caps(targetPronouns.subject)} blows away like a dendelion puff in a hurricane.` };
-                if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_be} swept off ${targetPronouns.possessive} feet and out of the time/space continuum!` };
+                if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_be} swept off ${target.pronouns.possessive} feet and out of the time/space continuum!` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
             case ("electric"):
@@ -294,7 +296,7 @@ class A2dCharacter extends Character {
                 if (DT >= 35) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')}, sparking and spasming.` };
                 if (DT >= 60) { does = `${caps(targetPronouns.subject)} ${t_s('howl')}, and ${t_be} rendered briefly transparent.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_s('fall')}, smoking, to the ground and ${t_s('twitch')} a couple of times.` };
-                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, and electrical flames shoot from ${targetPronouns.possessive} blistered\neye sockets.` };
+                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, and electrical flames shoot from ${target.pronouns.possessive} blistered\neye sockets.` };
                 if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_s('explode')} like a knot of pine sap.` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
@@ -304,31 +306,31 @@ class A2dCharacter extends Character {
                 if (DT >= 10) { does = `${caps(targetPronouns.subject)} ${t_s('suffer')} some cuts and gashes.` };
                 if (DT >= 20) { does = `${caps(targetPronouns.subject)} ${t_be} slashed rather badly.` };
                 if (DT >= 35) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')} backwards, bleeding copiously from multiple wounds.` };
-                if (DT >= 60) { does = `${caps(targetPronouns.subject)} ${t_s('scream')} as magical knives stab through ${targetPronouns.object}.` };
+                if (DT >= 60) { does = `${caps(targetPronouns.subject)} ${t_s('scream')} as magical knives stab through ${target.pronouns.object}.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_s('fall')}, streaming blood from numerous fatal wounds.` };
                 if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} sliced to ribbons.` };
                 if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_be} pureed into soup.` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
             case ("sonic"):
-                if (DT >= 5) { does = `${caps(attackerPronouns.possessive)} ${weaponName} stings ${targetPronouns.object}, making ${targetPronouns.object} grit ${targetPronouns.possessive} teeth.` };
-                if (DT >= 10) { does = `${caps(attackerPronouns.possessive)} ${weaponName} stabs at ${targetPronouns.possessive} ears, and ${targetPronouns.subject} ${t_s('feel')} momentarily faint.` };
-                if (DT >= 20) { does = `${caps(attackerPronouns.possessive)} ${weaponName} hits ${targetPronouns.object} full in the face, making ${targetPronouns.possessive} ears ring.` };
-                if (DT >= 35) { does = `${caps(attackerPronouns.possessive)} ${weaponName} strikes ${targetPronouns.object} in the gut, sucking the breath from ${targetPronouns.possessive} lungs.` };
-                if (DT >= 60) { does = `${caps(attackerPronouns.possessive)} ${weaponName} rolls through ${targetPronouns.object}, siezing in ${targetPronouns.possessive} chest, and blackness\ncreeps into the corners of ${targetPronouns.possessive} vision.` };
-                if (DT >= 100) { does = `${caps(attackerPronouns.possessive)} ${weaponName} sweeps ${targetPronouns.possessive} feet from under ${targetPronouns.object}, etching cold lines of\nfrost over ${targetPronouns.possessive} stilled heart.` };
-                if (DT >= 220) { does = `${caps(attackerPronouns.possessive)} ${weaponName} pierces ${targetPronouns.object} like a sword, freezing the blood in ${targetPronouns.possessive} veins.` };
-                if (DT >= 500) { does = `${caps(attackerPronouns.possessive)} ${weaponName} whips through ${targetPronouns.possessive} body, and ${targetPronouns.possessive} frozen limbs shatter like\nfine crystal."   ` };
+                if (DT >= 5) { does = `${caps(attackerPronouns.possessive)} ${weaponName} stings ${targetPronouns.object}, making ${target.pronouns.object} grit ${target.pronouns.possessive} teeth.` };
+                if (DT >= 10) { does = `${caps(attackerPronouns.possessive)} ${weaponName} stabs at ${targetPronouns.possessive} ears, and ${target.pronouns.subject} ${t_s('feel')} momentarily faint.` };
+                if (DT >= 20) { does = `${caps(attackerPronouns.possessive)} ${weaponName} hits ${targetPronouns.object} full in the face, making ${target.pronouns.possessive} ears ring.` };
+                if (DT >= 35) { does = `${caps(attackerPronouns.possessive)} ${weaponName} strikes ${targetPronouns.object} in the gut, sucking the breath from ${target.pronouns.possessive} lungs.` };
+                if (DT >= 60) { does = `${caps(attackerPronouns.possessive)} ${weaponName} rolls through ${targetPronouns.object}, siezing in ${target.pronouns.possessive} chest, and blackness\ncreeps into the corners of ${target.pronouns.possessive} vision.` };
+                if (DT >= 100) { does = `${caps(attackerPronouns.possessive)} ${weaponName} sweeps ${targetPronouns.possessive} feet from under ${target.pronouns.object}, etching cold lines of\nfrost over ${target.pronouns.possessive} stilled heart.` };
+                if (DT >= 220) { does = `${caps(attackerPronouns.possessive)} ${weaponName} pierces ${targetPronouns.object} like a sword, freezing the blood in ${target.pronouns.possessive} veins.` };
+                if (DT >= 500) { does = `${caps(attackerPronouns.possessive)} ${weaponName} whips through ${targetPronouns.possessive} body, and ${target.pronouns.possessive} frozen limbs shatter like\nfine crystal."   ` };
                 break;
             case ("teeth"):
                 if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('nip')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
                 if (DT >= 10) { does = `${caps(attackerPronouns.subject)} ${s('rake')} ${targetPronouns.object} with ${weaponName}, leaving a trail of scratches.` };
                 if (DT >= 20) { does = `${caps(attackerPronouns.subject)} ${s('bite')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
-                if (DT >= 35) { does = `${caps(attackerPronouns.subject)} ${s('chomp')} ${targetPronouns.object} with ${weaponName}, taking a chunk from ${targetPronouns.possessive} side.` };
+                if (DT >= 35) { does = `${caps(attackerPronouns.subject)} ${s('chomp')} ${targetPronouns.object} with ${weaponName}, taking a chunk from ${target.pronouns.possessive} side.` };
                 if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('rip')} ${targetPronouns.object} with ${weaponName}, making vital fluids gush.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('shred')} ${targetPronouns.object} with ${weaponName}, severing limbs.` };
-                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('crush')} ${targetPronouns.object} with ${weaponName}, snapping ${targetPronouns.possessive} bones like dry twigs.` };
-                if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('snap')} ${targetPronouns.object} up and ${s('pick')} the bones from ${attackerPronouns.possessive} teeth.` };
+                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('crush')} ${targetPronouns.object} with ${weaponName}, snapping ${target.pronouns.possessive} bones like dry twigs.` };
+                if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('snap')} ${targetPronouns.object} up and ${s('pick')} the bones from ${this.pronouns.possessive} teeth.` };
                 break;
         }
         if (!this.isPlayer && !target.isPlayer && !callAttack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
@@ -443,7 +445,10 @@ const actions = {
             }
 
             if (player.has('gold', reqs.gold) && player.experience >= reqs.xp && player.magic_level >= reqs.magic_level) {
-                if (!player.isPlayer || await (async () => { print("Procede with training? [y/n]"); return await getKey() == 'y' })()) {
+                if (
+                    !player.isPlayer
+                    || await (async () => { print("Procede with training? [y/n]"); return await getKey(['y', 'n']) == 'y' })()
+                ) {
                     player.removeItem('gold', reqs.gold);
                     player.experience -= reqs.xp;
                     if (player.isPlayer) {
@@ -459,10 +464,8 @@ const actions = {
                     }
                     result(player);
                     return;
-                }
-            }
-
-            if (player.isPlayer) {
+                } else return;
+            } else if (player.isPlayer) {
                 if (player.experience < reqs.xp) {
                     print("You do not have enough experience.");
                 }
@@ -636,7 +639,7 @@ const characters = {
     stone_ogre(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'stone ogre',
-            pronouns: pronouns.inhuman,
+            pronouns: pronouns.male,
             items: [getItem('gold', 5), getItem('spiked_club')],
             max_hp: 100,
             blunt_damage: 20,
@@ -781,6 +784,13 @@ const characters = {
                 print("you now.  Thankyou for your business!")
             }
             player.flags.forest_pass = true
+            // this is the signal for the farm goblins to appear
+            for (let location of [34, 35, 36, 39, 41]) {
+                this.game.locations.get(location)?.addCharacter(getCharacter('goblin_captain', this.game))
+                for (let i = 0; i < 4; i++) {
+                    this.game.locations.get(location)?.addCharacter(getCharacter('goblin_solider', this.game))
+                }
+            }
         }).onRespawn(async function () {
             this.item('gold')!.value = Math.random() * 300 + 500
         });
@@ -973,11 +983,11 @@ const characters = {
         return new A2dCharacter({
             name: 'Colonel Arach',
             pronouns: pronouns.male,
-            items: [getItem('gold', 500), getItem('longsword')],
+            items: [getItem('gold', 500), getItem('mighty_excalabor')],
             description: 'Arach the Terrible',
             max_hp: 1500,
             sharp_damage: 500,
-            weapon: getItem('longsword'),
+            weapon: getItem('mighty_excalabor'),
             blunt_armor: 60,
             coordination: 20,
             agility: 20,
@@ -1499,6 +1509,75 @@ const characters = {
         });
     },
 
+    orc_emissary(args: { [key: string]: any }) {
+        return new A2dCharacter({
+            name: 'orcish emissary',
+            aliases: ['emissary', 'orc'],
+            pronouns: pronouns.female,
+            description: 'orc emissary',
+            max_hp: 150,
+            blunt_damage: 19,
+            sharp_damage: 74,
+            magic_damage: 24,
+            weapon: getItem('mighty_gigasarm'),
+            items: [getItem('gold', 5), getItem('mighty_gigasarm')],
+            sharp_armor: 20,
+            blunt_armor: 20,
+            magic_armor: 20,
+            coordination: 5,
+            agility: 3,
+            alignment: 'orc',
+            chase: true,
+            ...args
+        }).dialog(async function (player: Character) {
+            print(`I am an emissary of the orcs. I'm seeking you in particular, `, 1)
+            color(red)
+            print(player.name, 1);
+            color(black)
+            print(".")
+            print("We are at war with the humans, but we are not evil. We are simply trying to");
+            print("protect our land, while taking as much of theirs as possible.");
+            await pause(5)
+            print()
+            print("We are not the enemy. We need your help.");
+            await pause(2)
+            print()
+            print("Word has spread that you are a friend to the orcs, and that there is something");
+            print("that you want. I tell you that we know the whereabouts of the fifth ring, the");
+            color(blue)
+            print("ring of ultimate power", 1)
+            color(black)
+            print(", and we are prepared to deliver it to you, if you can");
+            print("accomplish our mission.");
+            print()
+            print("Do you want to hear about it [y/n]")
+            if (await getKey(['y', 'n']) == "y") {
+                print("We seek to destroy the humans' leader, Colonel Arach.");
+                await pause(2)
+                print()
+                print("To do so, you will probably have to kill every human soldier in Ierdale.");
+                print("I would go myself, but I don't want to die. This way, we risk nothing");
+                print("<cough> except human lives <cough>, and you get the ring. It's a win-win.");
+                await pause(5)
+                print()
+                print("We would also provide you with a powerful weapon and several of our best");
+                print("soldiers. If you succeed, the ring is yours.");
+                print("Accept? [y/n]");
+                if (await getKey(['y', 'n']) == "y") {
+                    this.transferItem('mighty_gigasarm', player)
+                    this.game.player.flags.orc_pass = true;
+                } else {
+                    print("I'm sorry to hear that. You die now.");
+                    await pause(2)
+                    this.fight(player)
+                }
+            } else {
+                print("That means death.")
+                this.fight(player)
+            }
+        })
+    },
+
     doo_dad_man(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'doo dad man',
@@ -1520,6 +1599,7 @@ const characters = {
     orcish_grocer(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'orcish grocer',
+            aliases: ['grocer'],
             pronouns: pronouns.female,
             items: [
                 getItem('banana'),
@@ -2012,6 +2092,7 @@ const characters = {
             max_hp: 400,
             blunt_damage: 75,
             sharp_damage: 100,
+            magic_level: 200,
             weapon: getItem('axe_of_the_cat'),
             description: 'cat woman',
             coordination: 20,
@@ -2057,12 +2138,16 @@ const characters = {
             agility: 0,
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             ...args
-        }).onDeath(async function () {
-            color(brightblue);
-            print("Yea, you killed a cow!  good job");
+        }).onDeath(async function (cause: Character) {
+            if (cause.isPlayer) {
+                color(brightblue);
+                print("Yea, you killed a cow!  good job");
+            }
         }).fightMove(async function () {
-            color(magenta)
-            print('Moooooo!')
+            if (this.attackTarget?.isPlayer) {
+                color(magenta)
+                print('Moooooo!')
+            }
         })
     },
 
@@ -2523,8 +2608,8 @@ const characters = {
         }).addAction('train healing', actions.train({
             skillName: 'healing',
             requirements: (player: Character) => ({
-                gold: 20 + player.healing * 5 / 8,
-                xp: 30 + 15 * player.healing
+                gold: 20 + player._healing * 5 / 8,
+                xp: 30 + 15 * player._healing
             }),
             classDiscount: {
                 'cleric': 0.5,
@@ -2536,8 +2621,8 @@ const characters = {
         })).addAction('train archery', actions.train({
             skillName: 'archery',
             requirements: (player: Character) => ({
-                gold: 10 + player.archery / 4,
-                xp: 15 + 8 * player.archery
+                gold: 10 + player._archery / 4,
+                xp: 15 + 8 * player._archery
             }),
             classDiscount: {
                 'cleric': 0.25,
@@ -2550,8 +2635,8 @@ const characters = {
         })).addAction('train mindfulness', actions.train({
             skillName: 'mindfulness',
             requirements: (player: Character) => ({
-                gold: 30 + 10 * player.max_mp / 50,
-                xp: 4 * player.max_mp
+                gold: 30 + 10 * player._max_mp / 50,
+                xp: 4 * player._max_mp
             }),
             classDiscount: {
                 'cleric': 0.5,
@@ -2887,6 +2972,7 @@ const characters = {
             blunt_damage: 65,
             sharp_damage: 30,
             weapon: getItem('silver_sword'),
+            items: [getItem('silver_sword'), getItem('gold', 15)],
             description: 'Police chief',
             blunt_armor: 29,
             sharp_armor: 35,
@@ -3297,6 +3383,9 @@ const characters = {
                         pronouns: player.pronouns,
                         max_hp: player.hp,
                         weapon: player.equipment['right hand'] || getItem('fist'),
+                        blunt_damage: player.strength * (player.equipment['right hand']?.weapon_stats?.blunt_damage || 0),
+                        sharp_damage: player.strength * (player.equipment['right hand']?.weapon_stats?.sharp_damage || 0),
+                        magic_damage: (player.strength + player.magic_level) * (player.equipment['right hand']?.weapon_stats?.magic_damage || 0),
                         blunt_armor: player.blunt_armor,
                         sharp_armor: player.sharp_armor,
                         magic_armor: player.magic_armor,
@@ -3304,7 +3393,9 @@ const characters = {
                         agility: player.agility,
                         strength: player.strength,
                         magic_level: player.healing,
-                        game: player.game
+                        game: player.game,
+                        respawn: false,
+                        persist: false
                     })
                     evil_you.fightMove(actions.heal)
                     await evil_you.relocate(this.location)
@@ -3362,16 +3453,18 @@ const characters = {
             name: 'Ieadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 1000,
-            blunt_damage: 120,
-            sharp_damage: 200,
-            weapon: getItem('mighty_excalabor'),
-            items: [getItem('gold', 1000), getItem('mighty_excalabor'), getItem('ring_of_ultimate_power')],
+            blunt_damage: 1000,
+            sharp_damage: 1000,
+            magic_damage: 1200,
+            weapon: getItem('glory_blade'),
+            items: [getItem('gold', 1000), getItem('glory_blade'), getItem('ring_of_ultimate_power')],
             description: 'the ledgendary Ieadon',
             coordination: 35,
             agility: 15,
             blunt_armor: 100,
             magic_armor: 100,
             sharp_armor: 100,
+            magic_level: 20,
             respawn: false,
             ...args
         }).dialog(async function (player: Character) {
@@ -3385,8 +3478,8 @@ const characters = {
         }).addAction('train strength', actions.train({
             skillName: 'strength',
             requirements: (player: Character) => ({
-                xp: 80 + 25 * player.strength,
-                gold: 25 + 5 * Math.floor(player.strength / 5)
+                xp: 80 + 25 * player._strength,
+                gold: 25 + 5 * Math.floor(player._strength / 5)
             }),
             classDiscount: { 'fighter': 50, 'thief': 25 },
             result: (player: Character) => {
@@ -3396,8 +3489,8 @@ const characters = {
         })).addAction('train stamina', actions.train({
             skillName: 'stamina',
             requirements: (player: Character) => ({
-                xp: 2 * player.max_sp,
-                gold: 15 + 5 * Math.floor(player.max_sp / 50)
+                xp: 2 * player._max_sp,
+                gold: 15 + 5 * Math.floor(player._max_sp / 50)
             }),
             classDiscount: { 'fighter': 25, 'cleric': 25 },
             result: (player: Character) => {
@@ -3407,8 +3500,8 @@ const characters = {
         })).addAction('train toughness', actions.train({
             skillName: 'toughness',
             requirements: (player: Character) => ({
-                xp: 2 * player.max_hp,
-                gold: 30 + 10 * Math.floor(player.max_hp / 50)
+                xp: 2 * player._max_hp,
+                gold: 30 + 10 * Math.floor(player._max_hp / 50)
             }),
             classDiscount: { 'fighter': 25 },
             result: (player: Character) => {
@@ -3461,8 +3554,8 @@ const characters = {
         }).addAction('train coordination', actions.train({
             skillName: 'coordination',
             requirements: (player) => ({
-                xp: 100 + 150 * player.coordination,
-                gold: 30 + 20 * player.coordination
+                xp: 100 + 150 * player._coordination,
+                gold: 30 + 20 * player._coordination
             }),
             classDiscount: { 'thief': 25, 'fighter': 25 },
             result: (player) => {
@@ -3472,8 +3565,8 @@ const characters = {
         })).addAction('train agility', actions.train({
             skillName: 'agility',
             requirements: (player) => ({
-                xp: 75 + 150 * player.agility,
-                gold: 35 + 20 * player.agility
+                xp: 75 + 150 * player._agility,
+                gold: 35 + 20 * player._agility
             }),
             classDiscount: { 'thief': 50 }, // thief specialty
             result: (player) => {
@@ -3565,8 +3658,8 @@ const characters = {
         }).addAction('train magic', actions.train({
             skillName: 'magic',
             requirements: (player) => ({
-                xp: 160 + 50 * player.magic_level,
-                gold: 50 + 10 * player.magic_level
+                xp: 160 + 50 * player._magic_level,
+                gold: 50 + 10 * player._magic_level
             }),
             classDiscount: { 'spellcaster': 50 },
             result: (player) => {
@@ -3860,8 +3953,10 @@ const characters = {
             description: 'Ziatos',
             coordination: 35,
             agility: 8,
+            speed: 2,
             blunt_armor: 40,
             respawn: false,
+            alignment: 'evil',
             ...args
         }).fightMove(async function () {
             print('TODO: time stop')
@@ -3953,7 +4048,6 @@ const characters = {
             max_hp: 110,
             blunt_damage: 10,
             magic_damage: 150,
-            magic_level: 500,
             weaponName: 'piercing scream',
             weaponType: 'sonic',
             description: 'wandering wisp',
@@ -4210,7 +4304,6 @@ const characters = {
             agility: 11,
             blunt_armor: 0,
             spellChance: () => Math.random() < 1 / 2,
-            aliases: ['grizzly bear'],
             ...args
         }).dialog(async function (player: Character) {
             print("grrrr...");
