@@ -63,13 +63,14 @@ class A2D extends GameState {
         this.clear();
         const opt = await this.optionBox({
             title: 'Adventure 2 Setup',
-            options: ['Start New', 'Load Game', 'Exit']
+            options: ['Start New', 'Load Game', 'Exit'],
+            default_option: 1
         })
         this.clear();
         console.log('chose', opt);
         if (opt === 0) {
             this.loadScenario(new GameMap(this).locations);
-            this.player = await this.newCharacter();
+            this.player = await this.newPlayer();
             this.player.location?.addCharacter(this.player);
         } else if (opt === 1) {
             this.player = new Player('', '', this);
@@ -79,6 +80,7 @@ class A2D extends GameState {
             return;
         }
         this.player.game = this;
+        clearInterval(this.respawnInterval);
         this.respawnInterval = setInterval(async () => {
             for (let character of this.characters) {
                 if (character.respawnCountdown > 0) {
@@ -98,22 +100,29 @@ class A2D extends GameState {
         console.log('starting main loop');
         while (!(['exit', 'quit'].includes(command)) && !this.player.dead) {
             // await this.player.turn();
-            await this.player.getInput();
-            for (let character of this.characters.sort((a, b) => a === this.player ? -1 : b === this.player ? 1 : 0)) {
-                if (character.respawnCountdown < 0) {
+            for (let character of this.characters) {
+                if (!character.dead) {
+                    character.turnCounter += character.speed;
+                } else if (character.respawnCountdown < 0) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
-                if (!character.dead) {
-                    if (character.turn) {
-                        await character.turn(this);
-                    }
-                    if (character.buffs) {
-                        for (let buff of Object.values(character.buffs)) {
-                            await buff.turn();
+            }
+            console.log(`player turncounter: ${this.player.turnCounter}`)
+            let activeCharacters = this.characters.filter(char => char.turnCounter >= 1)
+            while (activeCharacters.length > 0) {
+                for (let character of activeCharacters.sort((a, b) => a === this.player ? -1 : b === this.player ? 1 : b.turnCounter - a.turnCounter)) {
+                    if (!character.dead) {
+                        await character.turn();
+                        if (character.buffs) {
+                            for (let buff of Object.values(character.buffs)) {
+                                await buff.turn();
+                            }
                         }
                     }
+                    character.turnCounter -= 1;
                 }
+                activeCharacters = this.characters.filter(char => !char.dead && char.turnCounter >= 1)
             }
         }
         print('Press any key to continue.')
@@ -122,7 +131,7 @@ class A2D extends GameState {
         this.start();
     }
 
-    newCharacter(): Promise<Player> {
+    newPlayer(): Promise<Player> {
         return new Promise(async (resolve, reject) => {
             this.clear();
             const classes = ['Thief', 'Fighter', 'Spellcaster', 'Cleric']
@@ -159,6 +168,16 @@ class A2D extends GameState {
 
             resolve(new_player);
         })
+    }
+
+    addCharacter(name: string, location: string) {
+        if (!isValidCharacter(name)) {
+            console.log('invalid character name', name);
+            return;
+        }
+        const newCharacter = getCharacter(name, this);
+        const newLocation = this.locations.get(location);
+        newLocation?.addCharacter(newCharacter);
     }
 
     center(text: string) {
@@ -210,7 +229,6 @@ class A2D extends GameState {
                             ).filter((item: any) => item),
                             flags: character.flags,
                             respawnCountdown: character.respawnCountdown,
-                            respawnLocationKey: character.respawnLocationKey,
                             _respawn: character.respawn,
                             attackPlayer: character.attackPlayer,
                             chase: character.chase,
@@ -218,11 +236,13 @@ class A2D extends GameState {
                                 Object.entries(character.buffs).map(
                                     ([buffName, buffData]: [string, any]) => [buffName, getBuff(buffName as BuffNames)(buffData)]
                                 )
-                            ) : {}
+                            ) : {},
+                            game: this
                         }) : undefined
                 }).filter((character: any) => character),
                 items: location.items.map((itemData: any) => Object.assign(getItem(itemData.key), itemData)),
                 adjacent: location.adjacent,
+                key: key
             });
             location.landmarks.forEach((landmarkData: any) => {
                 const newLandmark = getLandmark(landmarkData.key, landmarkData.text);
@@ -238,7 +258,7 @@ class A2D extends GameState {
         this.flags = gamestate.flags;
         this.player = this.characters.find(char => char.isPlayer) as Player;
         this.player.game = this;
-        this.player.relocate(this.player.location);
+        // this.player.relocate(this.player.location);
         return true;
     }
 }
