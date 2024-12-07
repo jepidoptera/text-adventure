@@ -127,9 +127,11 @@ interface CharacterParams {
     respawn?: boolean;
     respawnLocationKey?: string | number | undefined;
     persist?: boolean;
+    following?: string;
 }
 
 class Character {
+    key: string = '';
     name: string;
     class_name: string = "";
     game!: GameState;
@@ -198,6 +200,7 @@ class Character {
     private _respawn: boolean = true;
     persist: boolean = true;
     turnCounter: number = 0;
+    following: string = '';
 
     constructor({
         name,
@@ -240,7 +243,8 @@ class Character {
         respawn = true,
         respawnLocationKey,
         flags = {},
-        persist = true
+        persist = true,
+        following = ''
     }: CharacterParams) {
         this.name = name;
         if (game) this.game = game;
@@ -298,6 +302,7 @@ class Character {
         this._magic_damage = magic_damage;
         this.attackPlayer = attackPlayer;
         this.chase = chase;
+        this.following = following;
         this.flags = flags;
     }
 
@@ -521,7 +526,6 @@ class Character {
         return damage;
     }
 
-
     async slay(character: Character) {
         // gloat or whatever
         await this._onSlay?.(character);
@@ -531,7 +535,6 @@ class Character {
     }
 
     has = (item_name: string, quantity?: number) => this.inventory.has(item_name, quantity);
-
 
     async getItem(itemName: string, location?: Container, quantity?: number) {
         const item = (location || this.location)?.item(itemName);
@@ -543,14 +546,12 @@ class Character {
         if (item.acquire) item.acquire(this);
     }
 
-
     async dropItem(itemName: string, quantity: number = 1) {
         const item = this.inventory.item(itemName);
         if (item) {
             this.inventory.transfer(item, this.location ?? this.inventory, quantity);
         }
     }
-
 
     async transferItem(item: string | Item | undefined, character: Character, quantity?: number) {
         if (typeof item === 'string') item = this.inventory.item(item);
@@ -559,7 +560,6 @@ class Character {
             if (item.acquire) await item.acquire(character);
         }
     }
-
 
     async transferAllItems(character: Character) {
         for (let item of this.inventory.items) {
@@ -599,7 +599,6 @@ class Character {
         return this.inventory.item(itemName);
     }
 
-
     async go(direction: string): Promise<boolean> {
         if (!this.location?.adjacent?.has(direction)) {
             return false;
@@ -624,7 +623,6 @@ class Character {
         }
     }
 
-
     async relocate(newLocation: Location | null, direction?: string) {
         if (!this.respawnLocationKey) {
             this.respawnLocationKey = newLocation?.key;
@@ -642,7 +640,6 @@ class Character {
             }
         }
     }
-
 
     async die(cause?: any) {
         this.hp = Math.min(this.hp, 0);
@@ -803,6 +800,9 @@ class Character {
             // give chase
             console.log(`${this.name} chases ${character.name} ${direction}!`)
             this.onTurn(async () => { await this.go(direction) });
+        } else if (allow && this.following == character.name) {
+            console.log(`${this.name} follows ${character.name} ${direction}!`)
+            await this.go(direction);
         }
         return allow;
     }
@@ -952,21 +952,36 @@ class Character {
 
     save(): object {
         // save only stuff that might change
-        return {
-            name: this.name,
-            hp: this.hp,
-            hp_recharge: this.hp_recharge,
-            enemies: this.enemies.map(enemy => enemy?.name).filter(name => name),
-            attackPlayer: this.attackPlayer || this.enemies.some(enemy => enemy.isPlayer),
-            chase: this.chase,
-            respawnTime: this.respawnTime,
-            respawnCountdown: this.respawnCountdown,
-            respawnLocationKey: this.respawnLocationKey,
+        const saveObject: { [key: string]: any } = {
+            key: this.key,
+            turnCounter: this.turnCounter,
             respawn: this._respawn,
-            items: this.items.filter(item => item).map(item => item.save()),
-            flags: this.flags,
-            turnCounter: this.turnCounter
+            chase: this.chase,
+            respawnLocationKey: this.respawnLocationKey,
+            attackPlayer: this.attackPlayer || this.enemies.some(enemy => enemy.isPlayer),
         }
+        if (this.following) {
+            saveObject['following'] = this.following;
+        }
+        if (this.hp != this.max_hp) {
+            saveObject['hp'] = this.hp;
+        }
+        if (this.respawnCountdown != 0) {
+            saveObject['respawnCountdown'] = this.respawnCountdown;
+        }
+        if (Object.keys(this.buffs).length > 0) {
+            saveObject['buffs'] = Object.values(this.buffs).map(buff => buff.save());
+        }
+        if (Object.keys(this.enemies).length > 0) {
+            saveObject['enemies'] = this.enemies.map(enemy => enemy?.name).filter(name => name);
+        }
+        if (Object.keys(this.items).length > 0) {
+            saveObject['items'] = this.items.filter(item => item).map(item => item.save());
+        }
+        if (Object.keys(this.flags).length > 0) {
+            saveObject['flags'] = this.flags;
+        }
+        return saveObject;
     }
 }
 
