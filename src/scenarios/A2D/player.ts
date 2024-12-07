@@ -10,6 +10,7 @@ import { spells, abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js"
 import { getLandmark } from "./landmarks.js"
 import { GameMap } from "./map.js"
+import { assistant } from "./assistant.js"
 
 class Player extends A2dCharacter {
     class_name: string = '';
@@ -50,7 +51,8 @@ class Player extends A2dCharacter {
         earplugs: false,
         hungry: false
     } as const
-    assistantHintsUsed: string[] = []
+    assistantHintsUsed: { [key: string]: number } = {}
+    lastCommand: string = '';
 
     constructor(characterName: string, className: string, game: GameState) {
         super({ name: characterName, game: game });
@@ -315,7 +317,7 @@ class Player extends A2dCharacter {
     }
 
     get max_sp() {
-        return Math.max(this._max_sp * (1 - this.hungerPenalty), 1)
+        return Math.max(super.max_sp * (1 - this.hungerPenalty), 1)
     }
 
     set max_sp(value) {
@@ -652,100 +654,70 @@ class Player extends A2dCharacter {
     }
 
     async checkEquipment() {
-        print("  ", 1)
-        color(black, white)
-        print("Wielded", 1)
-        color(black, darkwhite)
-        print(": ", 1)
-        print(this.equipment['right hand']?.name ?? 'fist', 1)
-        locate(40)
-        color(black, white)
-        print('Left Wielded', 1)
-        color(black, darkwhite)
-        print(': ', 1)
-        print(this.equipment['left hand']?.name ?? 'fist')
-        color(black)
-        const leftBuffs = Object.keys(this.equipment['left hand']?.buffs as object || {}) as BonusKeys[]
-        const rightBuffs = Object.keys(this.equipment['right hand']?.buffs as object || {}) as BonusKeys[]
-        for (let i = 0; i < Math.max(leftBuffs.length, rightBuffs.length); i++) {
-            if (i < rightBuffs.length) {
-                color(blue)
-                print(`  +${this.statValue(rightBuffs[i], this.equipment['right hand']?.buff(rightBuffs[i]) || 0)} `, 1)
-                color(black)
-                print(`${this.statName(rightBuffs[i]).toLocaleLowerCase()}`, 1)
-            }
-            if (i < leftBuffs.length) {
-                locate(40)
-                color(blue)
-                print(`+${this.statValue(leftBuffs[i], this.equipment['left hand']?.buff(leftBuffs[i]) || 0)} `, 1)
-                color(black)
-                print(`${this.statName(leftBuffs[i]).toLocaleLowerCase()}`)
-            } else print()
+        const slot_titles = {
+            'right hand': 'Wielded',
+            'left hand': 'Left Wielded',
+            'bow': 'Bow',
+            'armor': 'Armor',
+            'ring': 'Ring',
         }
-        if (Math.max(leftBuffs.length, rightBuffs.length) == 0) print()
-        if (this.equipment['right hand']?.description || this.equipment['left hand']?.description) {
-            print(this.equipment['right hand']?.description ?? '', 1)
-            locate(40)
-            print(this.equipment['left hand']?.description ?? '')
-            print()
-        }
-        const rightWeapon = this.equipment['right hand']!.weapon_stats || { blunt_damage: 0, sharp_damage: 0, magic_damage: 0 }
-        const leftWeapon = this.equipment['left hand']!.weapon_stats || { blunt_damage: 0, sharp_damage: 0, magic_damage: 0 }
-        print(`  blunt damage: ${rightWeapon.blunt_damage || 0}x (${Math.ceil(rightWeapon.blunt_damage * this.strength)})`, 1)
-        locate(40)
-        print(`blunt damage: ${leftWeapon.blunt_damage || 0}x (${Math.ceil(leftWeapon.blunt_damage * this.strength)})`)
-        print(`  sharp damage: ${rightWeapon.sharp_damage || 0}x (${Math.ceil(rightWeapon.sharp_damage * this.strength)})`, 1)
-        locate(40)
-        print(`sharp damage: ${this.equipment['left hand']?.weapon_stats?.sharp_damage || 0}x (${Math.ceil(leftWeapon.sharp_damage * this.strength)})`)
-        print(`  magic damage: ${this.equipment['right hand']?.weapon_stats?.magic_damage || 0}x (${Math.ceil(rightWeapon.magic_damage * (this.strength + this.magic_level))})`, 1)
-        locate(40)
-        print(`magic damage: ${this.equipment['left hand']?.weapon_stats?.magic_damage || 0}x (${Math.ceil(leftWeapon.magic_damage * (this.strength + this.magic_level))})`)
-        print(`  total: ${Math.ceil((rightWeapon.blunt_damage + rightWeapon.sharp_damage + rightWeapon.magic_damage) * this.strength + rightWeapon.magic_damage * this.magic_level)}`, 1)
-        locate(40)
-        print(`total: ${Math.ceil((leftWeapon.blunt_damage + leftWeapon.sharp_damage + leftWeapon.magic_damage) * this.strength + leftWeapon.magic_damage * this.magic_level)}`)
-        print()
-        print("  ", 1)
-        color(black, white)
-        print("Armor", 1)
-        color(black, darkwhite)
-        print(": ", 1)
-        print(this.equipment['armor']?.name ?? 'none', 1)
-        if (this.equipment['ring']) {
-            locate(40)
-            color(black, white)
-            print("Ring", 1)
-            color(black, darkwhite)
-            print(": ", 1)
-            print(this.equipment['ring']?.name)
-        } else print()
-        color(black)
-        print()
-
-        const equipment_stats = []
-        let i = 0;
-        const ringBonus = Object.keys(this.equipment['ring']?.buffs || {}) as BonusKeys[]
-        for (let i = 0; i < Math.max(ringBonus.length, 3); i++) {
-            color(black)
-            if (!this.equipment['armor'] && !ringBonus[i]) break;
-            if (this.equipment['armor']) {
-                const armorType = ['blunt', 'sharp', 'magic'][i]
-                const armorKey = `${armorType}_armor` as BonusKeys
-                if (i < 3) {
-                    const extraBuff = this.buff(armorKey) - this.equipment['armor'].buff(armorKey)
-                    print(`  ${caps(armorType)} Damage AC: `, 1)
-                    if (extraBuff) color(blue)
-                    print(`${this.buff(armorKey)}`, 1)
-                    if (extraBuff) print(` (+${extraBuff})`, 1)
+        const displayItem = (slot: keyof Player['equipment']) => {
+            const item = this.equipment[slot];
+            const lines: (() => any)[] = [
+                () => {
+                    color(black, white)
+                    print(slot_titles[slot], 1)
+                    color(black, darkwhite)
+                    print(': ', 1)
+                    print(item?.name ?? 'none', 1)
+                },
+            ];
+            for (let buff of Object.keys(item?.buffs || {}) as BonusKeys[]) {
+                lines.push(() => {
+                    color(blue)
+                    print(`+${this.statValue(buff, item?.buff(buff) || 0)} `, 1)
                     color(black)
-                } else print('', 1)
+                    print(`${this.statName(buff).toLocaleLowerCase()}`, 1)
+                })
             }
-            if (ringBonus[i]) {
+            if (item?.is_weapon) {
+                const weapon = item.weapon_stats!;
+                lines.push(
+                    () => { print(`blunt damage: ${weapon.blunt_damage || 0}x (${Math.ceil(weapon.blunt_damage * this.strength)})`, 1) },
+                    () => { print(`sharp damage: ${weapon.sharp_damage || 0}x (${Math.ceil(weapon.sharp_damage * this.strength)})`, 1) },
+                    () => { print(`magic damage: ${weapon.magic_damage || 0}x (${Math.ceil(weapon.magic_damage * (this.strength + this.magic_level))})`, 1) },
+                    () => { print(`total: ${Math.ceil((weapon.blunt_damage + weapon.sharp_damage + weapon.magic_damage) * this.strength + weapon.magic_damage * this.magic_level)}`, 1) },
+                )
+            }
+            lines.push(() => print('', 1))
+            return lines
+        }
+        let leftSide = displayItem('right hand')
+        let rightSide = displayItem('left hand')
+        const remainders = [displayItem('bow'), displayItem('armor'), displayItem('ring')]
+
+        // find the combination of lines that will be closest to two even columns
+        let options = [[[0, 1], [2]], [[0, 2], [1]], [[1, 2], [0]], [[0], [1, 2]], [[1], [0, 2]], [[2], [0, 1]]]
+        const parity = (option: number[][]) => {
+            return Math.abs(
+                leftSide.length + option[0].reduce((acc, i) => acc + remainders[i].length, 0)
+                - rightSide.length - option[1].reduce((acc, i) => acc + remainders[i].length, 0)
+            )
+        }
+        const chosen = options.sort((a, b) => parity(a) - parity(b))[0]
+        leftSide = leftSide.concat(...chosen[0].map(i => remainders[i]))
+        rightSide = rightSide.concat(...chosen[1].map(i => remainders[i]))
+
+        for (let i = 0; i < Math.max(leftSide.length, rightSide.length); i++) {
+            if (i < leftSide.length) {
+                print("  ", 1)
+                leftSide[i]()
+            } else print('', 1)
+            if (i < rightSide.length) {
                 locate(40)
-                color(blue)
-                print(`+${this.statValue(ringBonus[i], this.equipment['ring']?.buff(ringBonus[i]) || 0)} `, 1)
-                color(black)
-                print(`${this.statName(ringBonus[i])}`)
-            } else print()
+                rightSide[i]()
+            }
+            print()
         }
     }
 
@@ -860,9 +832,9 @@ class Player extends A2dCharacter {
 
     statValue(key: BonusKeys, value: number) {
         switch (key) {
-            case ('hp_recharge'): return `${Math.round(value * 100)}%`;
-            case ('mp_recharge'): return `${Math.round(value * 100)}%`;
-            case ('sp_recharge'): return `${Math.round(value * 100)}%`;
+            case ('hp_recharge'): return `${Math.min(Math.round(value * 100), 100)}%`;
+            case ('mp_recharge'): return `${Math.min(Math.round(value * 100), 100)}%`;
+            case ('sp_recharge'): return `${Math.min(Math.round(value * 100), 100)}%`;
             case ('speed'): return `${Math.round(value * 100)}%`;
             default: return `${Math.round(value)}`;
         }
@@ -993,6 +965,9 @@ class Player extends A2dCharacter {
     }
 
     async turn() {
+        if (this.flags.assistant)
+            assistant(this);
+
         await this.getInput();
         this.enemies = this.enemies.filter(enemy => enemy);
         if (this.fighting) {
@@ -1003,6 +978,7 @@ class Player extends A2dCharacter {
                 this.sp = 0;
             }
         }
+
     }
 
     buff(key: BonusKeys): number {
@@ -1114,11 +1090,17 @@ class Player extends A2dCharacter {
                     }
                     print(`flag ${value} set.`)
                     break;
+                case ('assistant'):
+                    this.assistantHintsUsed = {};
+                    print('assistant hints reset.')
+                    break;
             }
         }
     }
 
     save() {
+        console.log(this.assistantHintsUsed)
+        console.log({ 'clubman': 1 })
         return {
             key: 'player',
             isPlayer: true,
@@ -1155,7 +1137,8 @@ class Player extends A2dCharacter {
             buffs: Object.fromEntries(
                 Object.entries(this._buffs).map(([key, buff]) => [key, buff.save()])
             ),
-            flags: this.flags
+            flags: this.flags,
+            assistantHintsUsed: this.assistantHintsUsed
         }
     }
 
