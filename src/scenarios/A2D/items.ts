@@ -929,7 +929,7 @@ const items = {
             quantity: args.quantity
         }).addBuff(new Buff({
             name: 'Glory',
-            bonuses: { strength: 10, coordination: 10, max_hp: 100 }
+            bonuses: { strength: 20, coordination: 10 }
         }))
     },
     mighty_excalabor(args: ItemParams) {
@@ -1605,6 +1605,20 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             quantity: args.quantity
+        }).addBuff(new Buff({
+            name: 'ultimate power',
+            bonuses: {
+                strength: 100,
+                magic_level: 100,
+                blunt_armor: 100,
+                sharp_armor: 100,
+                magic_armor: 100,
+                max_hp: 100,
+                max_sp: 100,
+                max_mp: 100,
+            },
+        })).on_acquire(async function (player) {
+            player.abilities.powermaxout = 7
         })
     },
     shovel(args: ItemParams) {
