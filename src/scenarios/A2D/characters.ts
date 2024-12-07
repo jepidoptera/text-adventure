@@ -20,7 +20,6 @@ interface A2dCharacterParams extends CharacterParams {
 }
 
 class A2dCharacter extends Character {
-    key: string = ''
     class_name: string = ''
     _spellChance: ((this: A2dCharacter) => boolean) | undefined
     tripping: number = 0;
@@ -245,6 +244,7 @@ class A2dCharacter extends Character {
                 if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('lacerate')} ${targetPronouns.object} with ${weaponName}, inflicting a mortal wound.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('hew')} ${targetPronouns.object} with ${weaponName}, severing limbs.` };
                 if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('cleave')} ${targetPronouns.object} with ${weaponName}, slicing ${target.pronouns.object} in half.` };
+                if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('flick')} ${this.pronouns.possessive} ${weaponName} and ${targetPronouns.subject} tumbles into a pile of diced meat.` };
                 break;
             case ("stab"):
                 if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
@@ -337,11 +337,6 @@ class A2dCharacter extends Character {
         // if (DT === 0) callAttack = ''
         return callAttack ? `${callAttack}\n${does}` : does
     }
-    save() {
-        const saveObj = Object.assign(super.save(), { key: this.key });
-        Object.assign(saveObj, { attackPlayer: this.attackPlayer || this.enemies.includes(this.game.player) });
-        return saveObj;
-    }
 }
 
 const actions = {
@@ -352,7 +347,7 @@ const actions = {
                 const options = Array.from(
                     this.location?.adjacent?.keys() || []
                 ).filter(
-                    // don't back back if you can help it
+                    // don't go back if you can help it
                     key => key != this.backDirection
                 ).filter(
                     key => {
@@ -1530,13 +1525,13 @@ const characters = {
             chase: true,
             ...args
         }).dialog(async function (player: Character) {
-            print(`I am an emissary of the orcs. I'm seeking you in particular, `, 1)
+            print(`I am the emissary of the orcs. I'm seeking you in particular, `, 1)
             color(red)
             print(player.name, 1);
             color(black)
             print(".")
-            print("We are at war with the humans, but we are not evil. We are simply trying to");
-            print("protect our land, while taking as much of theirs as possible.");
+            print("We are at war with the humans, but we are not evil. We're simply trying to");
+            print("protect our land while taking as much of theirs as we can for ourselves.");
             await pause(5)
             print()
             print("We are not the enemy. We need your help.");
@@ -2399,19 +2394,6 @@ const characters = {
         }).onAttack(actions.pish2)
     },
 
-    grobin(args: { [key: string]: any }) {
-        return new A2dCharacter({
-            name: 'Grobin',
-            pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            description: 'N',
-            max_hp: 6000,
-            agility: 10000,
-            blunt_armor: 1000,
-            respawn: false,
-            ...args
-        }).onAttack(actions.pish2);
-    },
-
     blobin(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'Blobin',
@@ -2511,15 +2493,15 @@ const characters = {
                             print(" -- Ieadon launches himself at your throat.");
                             pause(1);
                             color(black)
-                            ieadon.location = this.location;
-                            ieadon.attackPlayer = true;
+                            ieadon.relocate(this.location);
+                            ieadon.fight(player);
                         }
                     }
                     this.location?.addCharacter(getCharacter('gryphon', this.game).onDeath(soldierDown));
                     this.location?.addCharacter(getCharacter('orc_behemoth', this.game).onDeath(soldierDown));
                     this.location?.addCharacter(getCharacter('orc_behemoth', this.game).onDeath(soldierDown));
                     this.location?.addCharacter(getCharacter('orc_amazon', this.game).onDeath(soldierDown));
-
+                    (player as Player).disableCommands(['save'], 'no.')
                     // Fight 157
                     // print("Ieadon is hiding in a mysterious place know as ", 1);
                     // color(red);
@@ -2762,6 +2744,7 @@ const characters = {
             coordination: 6,
             agility: 4,
             description: 'poisonus adder',
+            alignment: 'evil',
         }).fightMove(async function () {
             if (Math.random() > 2 / 3) {
                 print('TODO: poison fang')
@@ -3453,9 +3436,9 @@ const characters = {
             name: 'Ieadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 1000,
-            blunt_damage: 1000,
-            sharp_damage: 1000,
-            magic_damage: 1200,
+            blunt_damage: 2000,
+            sharp_damage: 2000,
+            magic_damage: 3000,
             weapon: getItem('glory_blade'),
             items: [getItem('gold', 1000), getItem('glory_blade'), getItem('ring_of_ultimate_power')],
             description: 'the ledgendary Ieadon',
@@ -3508,8 +3491,16 @@ const characters = {
                 player.max_hp += 5;
                 if (player.isPlayer) print(`Your toughness increased.  Congradulations your Hit Points are now: ${player._max_hp}`);
             }
-        })).onDeath(async function () {
+        })).onDeath(async function (player) {
             // win
+            if (player.isPlayer) {
+                // they can save again
+                player.enableCommands(['save'])
+                // and then we should probably say something about how well they did
+                print("Ieadon is defeated, and the new holder of the ultimate ring is... you!")
+            } else {
+                // very unexpectedly, Ieadon died but the player didn't do it
+            }
         }).addAction('list', async function () {
             color(black);
             print("At the domain of Ieadon we teach the following:");
@@ -3894,6 +3885,21 @@ const characters = {
             pause(2)
             print("He leaves behind just one small item...");
             await pause(3);
+        }).addAction('climb down', async function (player: Character) {
+            print("As you grasp for the upper rungs of the ladder, you see something from the")
+            print("corner of your eye.")
+            await pause(2)
+            print("It's Turlin, lunging at you with a roar!")
+            print("You try to put up your hands to defend yourself, only to realize - you were")
+            print("holding the ladder with those.")
+            await pause(5)
+            print("You fall down...")
+            for (let i = 0; i < 3; i++) {
+                await pause(1)
+                print("and down...")
+            }
+            player.hurt(200, 'blunt', 'the fall');
+            if (player.isPlayer && !player.dead) (player as Player).checkHP();
         })
     },
 
@@ -3979,7 +3985,7 @@ const characters = {
             print()
             print("I must go now.")
             this.game.player.flags.enemy_of_ierdale = false;
-            this.game.locations.get(78)?.addCharacter(getCharacter('biadon', this.game))
+            this.game.addCharacter('biadon', 78)
             await pause(15)
             color(black, black)
             clear()
@@ -4370,7 +4376,7 @@ const characters = {
             aliases: ['employee'],
             ...args
         }).dialog(async function (player: Character) {
-            print("Welcome, please seek the true location of Mythins shop deep in the Forest of");
+            print("Welcome, please seek the true location of Mythin's shop deep in the Forest of");
             print("Thieves.  Mythin is a good thief, yet a thief at that.  If he were to have an");
             print("office in town, the kings men would surely capture him.  I can't give you the");
             print("wareabouts as to where the place is located in the least... sorry.");
