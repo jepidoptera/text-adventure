@@ -133,7 +133,6 @@ class A2D extends GameState {
 
     newPlayer(): Promise<Player> {
         return new Promise(async (resolve, reject) => {
-            this.clear();
             const classes = ['Thief', 'Fighter', 'Spellcaster', 'Cleric']
             const new_player = new Player(
                 await input('\n\nType a name for yourself:'),
@@ -145,7 +144,7 @@ class A2D extends GameState {
                 this
             )
             new_player.location = this.find_location('Cottage of the Young');
-
+            clear();
             color('yellow')
             print("-- ", 1)
             color('red')
@@ -170,7 +169,7 @@ class A2D extends GameState {
         })
     }
 
-    addCharacter(name: string, location: string) {
+    addCharacter(name: string, location: string | number) {
         if (!isValidCharacter(name)) {
             console.log('invalid character name', name);
             return;
@@ -223,21 +222,21 @@ class A2D extends GameState {
                 characters: location.characters.map((character: any) => {
                     return character.isPlayer
                         ? new Player('', '', this).load(character)
-                        : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key, this, character), {
-                            items: character.items?.map(
+                        : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key, this, { flags: character.flags }), {
+                            items: character.items ? character.items.map(
                                 (itemData: any) => isValidItemKey(itemData.key) ? getItem(itemData.key, itemData) : undefined
-                            ).filter((item: any) => item),
-                            flags: character.flags,
+                            ).filter((item: any) => item) : [],
                             respawnCountdown: character.respawnCountdown,
                             _respawn: character.respawn,
+                            respawnLocationKey: character.respawnLocationKey,
                             attackPlayer: character.attackPlayer,
                             chase: character.chase,
+                            following: character.following,
                             buffs: character.buffs ? Object.fromEntries(
                                 Object.entries(character.buffs).map(
                                     ([buffName, buffData]: [string, any]) => [buffName, getBuff(buffName as BuffNames)(buffData)]
                                 )
-                            ) : {},
-                            game: this
+                            ) : {}
                         }) : undefined
                 }).filter((character: any) => character),
                 items: location.items.map((itemData: any) => Object.assign(getItem(itemData.key), itemData)),
