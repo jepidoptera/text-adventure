@@ -175,8 +175,9 @@ class A2D extends GameState {
             return;
         }
         const newCharacter = getCharacter(name, this);
-        const newLocation = this.locations.get(location);
+        const newLocation = this.locations.get(location.toString());
         newLocation?.addCharacter(newCharacter);
+        return newCharacter;
     }
 
     center(text: string) {
