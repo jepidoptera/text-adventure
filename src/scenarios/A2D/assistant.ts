@@ -27,13 +27,17 @@ class Hint {
 
 const hintParams: hintParameters[] = [
     {
-        name: 'read sign',
-        text: ['type "read sign" to read the sign.'],
-        condition: (player: Player) => player.location?.landmarks?.some(landmark => landmark.name === 'sign') || false,
+        name: 'go east',
+        text: ["Go east to learn about the plot."],
+        condition: (player: Player) => player.location?.key == '1' && !player.game.flags.cleric
     }, {
         name: 'move',
         text: ['type "n", "s", "e", or "w" to move.'],
         condition: (player: Player) => true,
+    }, {
+        name: 'read sign',
+        text: ['type "read sign" to read the sign.'],
+        condition: (player: Player) => player.location?.landmarks?.some(landmark => landmark.name === 'sign') || false,
     }, {
         name: 'inventory',
         text: ['type "i" to see your inventory.'],
@@ -56,8 +60,10 @@ const hintParams: hintParameters[] = [
 let hints = hintParams.map(hint => new Hint(hint));
 
 function assistant(player: Player) {
-    const hint = hints.find(
-        hint => (player.assistantHintsUsed[hint.name] || 0) < hint.appearances && hint.condition(player)
+    const hint = hints.filter(
+        hint => (player.assistantHintsUsed[hint.name] || 0) < hint.appearances
+    ).find(
+        hint => hint.condition(player)
     );
     if (hint) {
         color(magenta);
