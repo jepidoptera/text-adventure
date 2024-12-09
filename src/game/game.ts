@@ -32,10 +32,10 @@ class GameState {
         (global as any).clear = this.clear.bind(this);
     }
     loadScenario(locations: { [key: string | number]: Location }) {
-        this._locations = new Map(Object.entries(locations).map(([k, v]) => [isNaN(Number(k)) ? k : Number(k), v]));
+        this._locations = new Map(Object.entries(locations).map(([k, v]) => [k.toString(), v]));
         for (let [key, location] of this.locations.entries()) {
             // since we have to link locations by id initially, we now link to the actual location object
-            location.key = key;
+            location.key = key.toString();
             location.game = this;
             location.adjacent = new Map(Object.entries(location.adjacent_ids).map(([direction, id]) => [direction, this.locations.get(id) || location]));
             // link characters to game
@@ -235,7 +235,7 @@ class GameState {
     animate_characters() {
         this.characters.forEach(character => {
             if (character.turn) {
-                character.turn(this);
+                character.turn();
             }
         });
     }
@@ -252,7 +252,7 @@ class GameState {
     }
     find_location(name: string) {
         name = name.toLowerCase();
-        const location = Array.from(this.locations.values()).find(location => location.name.toLowerCase() === name) || null;
+        const location = Array.from(this.locations.values()).find(location => location.name.toLowerCase() === name || location.key == name) || null;
         if (!location) {
             console.log(`could not find location ${name}`);
         }
