@@ -18,9 +18,10 @@ X put bounds on action.wander (and don't backtrack)
 X random monsters on the path of nod (and caves)
 X put Henge in a slot canyon
 X hunger
+X offhand
+X fix incorrectly naming multi-named monsters after save/load
 / spells (trance, transport and vanish)
 
-offhand
 two-handed weapons
 / context switching to support multiple games at once
 robust gameState map on server
