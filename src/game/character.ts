@@ -1,5 +1,5 @@
 import { Container, Item } from "./item.js";
-import { Location } from "./location.js";
+import { Location, findPath } from "./location.js";
 import { GameState, withGameState } from "./game.js";
 import { WeaponTypes, weapon_conversions } from "./item.js";
 import { highRandom } from "./utils.js";
@@ -15,7 +15,7 @@ type Action = (this: Character, ...args: any[]) => Promise<void>;
 type BonusKeys = (
     'max_hp' | 'max_mp' | 'max_sp' | 'strength' | 'speed' | 'coordination' | 'agility' | 'magic_level' | 'healing' |
     'blunt_damage' | 'sharp_damage' | 'magic_damage' | 'blunt_armor' | 'sharp_armor' | 'magic_armor' |
-    'archery' | 'hp_recharge' | 'mp_recharge' | 'sp_recharge'
+    'archery' | 'hp_recharge' | 'mp_recharge' | 'sp_recharge' | 'offhand'
 )
 type DamageTypes = 'blunt' | 'sharp' | 'magic' | 'fire' | 'electric' | 'cold' | 'sonic' | 'poison'
 class Buff {
@@ -54,6 +54,7 @@ class Buff {
         return this;
     }
     async expire() {
+        console.log(`buff ${this.name} expires.`)
         await this._onExpire?.();
         this.character.removeBuff(this);
     }
@@ -187,7 +188,7 @@ class Character {
     private _onSlay: Action | undefined;
     private _onDeath: Action | undefined;
     private _onAttack: Action | undefined;
-    private _onTurn: Action | undefined;
+    private _onTurn: Action | null = null;
     private _fightMove: Action | undefined;
     private _onRespawn: Action | undefined;
     private _onDialog: Action | undefined = async () => { print("They don't want to talk") };
@@ -312,11 +313,13 @@ class Character {
 
     async addBuff(buff: Buff) {
         await buff.apply(this);
+        console.log(`applying buff ${buff.name} to ${this.name} (${Object.keys(buff.bonuses).reduce((prev, curr) => `${prev} ${curr}: ${buff.bonuses[curr as BonusKeys]}`, '')})`)
         this._buffs[buff.name] = buff;
     }
 
     removeBuff(buff: string | Buff) {
         if (typeof buff === 'string') buff = this._buffs[buff];
+        console.log(`removing buff ${buff.name} from ${this.name}`)
         delete this._buffs[buff.name];
     }
 
@@ -337,7 +340,7 @@ class Character {
             (total, buff) => (buff.bonuses[key] || 0) + total,
             0
         );
-        if (buff > 0) console.log(`${this.name} has ${key} + ${buff}.`)
+        if (buff != 0) console.log(`${this.name} has buff ${key} ${buff}.`)
         return buff;
     }
 
@@ -386,7 +389,7 @@ class Character {
     }
 
     get dead() {
-        return this._hp <= 0 || this.respawnCountdown > 0 || this.location?.key == 0;
+        return this._hp <= 0 || this.respawnCountdown > 0 || this.location?.key == '0';
     }
 
     get max_hp(): number {
@@ -600,6 +603,10 @@ class Character {
     }
 
     async go(direction: string): Promise<boolean> {
+        if (direction.includes(' ')) {
+            this.flags.path = direction.split(' ');
+            return true;
+        }
         if (!this.location?.adjacent?.has(direction)) {
             return false;
         }
@@ -621,6 +628,16 @@ class Character {
             console.log(`Unexpected error: ${direction} exists but location is undefined.`);
             return false;
         }
+    }
+
+    async goto(location: string | Location) {
+        if (typeof location === 'string') {
+            const loc = this.game.find_location(location);
+            if (loc) { location = loc }
+            else { return false }
+        }
+        if (this.location) this.flags.path = findPath(this.location, location);
+        return this;
     }
 
     async relocate(newLocation: Location | null, direction?: string) {
@@ -730,8 +747,8 @@ class Character {
         return this;
     }
 
-    onTurn(action: (this: Character) => Promise<void>) {
-        this._onTurn = action.bind(this);
+    onTurn(action: ((this: Character) => Promise<void>) | null) {
+        this._onTurn = action ? action.bind(this) : null;
         return this;
     }
 
@@ -863,6 +880,8 @@ class Character {
         //Damage total
         let tdam = dam + pdam + mdam
         tdam = Math.max(this.damage_modifier(tdam, damageType), 0)
+        console.log(`${this.name} hits ${target.name} for ${tdam} damage!`)
+        console.log(`${target.name} has ${target.hp} hp.`)
 
         //Output screen
         if (this.location?.playerPresent)
@@ -947,6 +966,12 @@ class Character {
         if (this.attackTarget?.location === this.location) {
             // console.log(`${this.name} attacks ${this.attackTarget.name}!`)
             await this.attack(this.attackTarget);
+            return;
+        } else if (this.flags.path) {
+            const direction = this.flags.path.shift();
+            if (direction) {
+                await this.go(direction);
+            }
         }
     }
 
