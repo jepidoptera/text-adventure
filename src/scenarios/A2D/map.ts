@@ -1589,8 +1589,12 @@ class GameMap {
             "=--=--=--=--=--=--=--=--=--="
         ])),
         284: new Location({
-            name: "East Road",
-            adjacent: { 'west': 283 }
+            name: "East Road Ends",
+            adjacent: { 'west': 283 },
+        }).addLandmark(getLandmark('locked_gate')),
+        284.1: new Location({
+            name: "The King's Court",
+            adjacent: { 'west': 284 },
         }),
         285: new Location({
             name: "Sandy Desert",
