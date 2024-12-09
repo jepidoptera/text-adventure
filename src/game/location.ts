@@ -35,10 +35,11 @@ class Landmark {
 }
 
 class Location extends Container {
-    unique_id!: string | number;
+    x: number = 0;
+    y: number = 0;
     name: string;
     game!: GameState;
-    key!: string | number;
+    key!: string;
     adjacent: Map<string, Location> | undefined;
     adjacent_ids: { [key: string]: string | number } = {};
     description: string | undefined;
@@ -52,7 +53,9 @@ class Location extends Container {
         key = "",
         adjacent = {},
         items = [],
-        characters = []
+        characters = [],
+        x = 0,
+        y = 0
     }: {
         name: string;
         description?: string;
@@ -60,15 +63,19 @@ class Location extends Container {
         adjacent?: { [key: string]: string | number };
         items?: Item[];
         characters?: Character[];
+        x?: number;
+        y?: number;
     }) {
         super(items);
         this.name = name;
-        this.key = key;
+        this.key = key.toString();
         this.description = description;
         this.adjacent_ids = adjacent;
         for (let character of characters) {
             this.addCharacter(character);
         };
+        this.x = x;
+        this.y = y;
     }
     addAction(name: string, action: (player: Character, ...args: any[]) => Promise<any>) {
         this.actions.set(name, action.bind(this));
@@ -152,5 +159,105 @@ class Location extends Container {
         }
     }
 }
+class NodeInfo {
+    f: number;
+    g: number;
+    h: number;
+    parent: Location | null;
+    directionFromParent: string | null;
+    location: Location;  // Store the actual location reference
 
-export { Location, Landmark, Container };
+    constructor(location: Location, f: number, g: number, h: number, parent: Location | null, directionFromParent: string | null) {
+        this.location = location;
+        this.f = f;
+        this.g = g;
+        this.h = h;
+        this.parent = parent;
+        this.directionFromParent = directionFromParent;
+    }
+}
+
+function findPath(start: Location, goal: Location): string[] {
+    const openSet = new Map<string, NodeInfo>();
+    const closedSet = new Map<string, NodeInfo>();
+
+    // Initialize with start location
+    openSet.set(start.key, new NodeInfo(
+        start,
+        heuristic(start, goal),  // f = g + h, and g = 0 for start
+        0,  // g = 0 for start
+        heuristic(start, goal),
+        null,
+        null
+    ));
+
+    while (openSet.size > 0) {
+        // Find node with lowest f score
+        let currentInfo: NodeInfo | null = null;
+        let lowestF = Infinity;
+
+        for (const [_, info] of openSet) {
+            if (info.f < lowestF) {
+                currentInfo = info;
+                lowestF = info.f;
+            }
+        }
+
+        if (!currentInfo) break;
+        const current = currentInfo.location;
+
+        if (current.key === goal.key) {
+            return reconstructDirections(currentInfo, closedSet);
+        }
+
+        // Move current from open to closed
+        openSet.delete(current.key);
+        closedSet.set(current.key, currentInfo);
+
+        // Check all neighbors
+        for (const [direction, neighbor] of current.adjacent || []) {
+            if (closedSet.has(neighbor.key)) continue;
+
+            const tentativeG = currentInfo.g + 1;
+            let neighborInfo = openSet.get(neighbor.key);
+
+            if (!neighborInfo) {
+                // Discovered a new node
+                neighborInfo = new NodeInfo(
+                    neighbor,
+                    tentativeG + heuristic(neighbor, goal),
+                    tentativeG,
+                    heuristic(neighbor, goal),
+                    current,
+                    direction
+                );
+                openSet.set(neighbor.key, neighborInfo);
+            } else if (tentativeG < neighborInfo.g) {
+                // Found a better path to neighbor
+                neighborInfo.g = tentativeG;
+                neighborInfo.f = tentativeG + neighborInfo.h;
+                neighborInfo.parent = current;
+                neighborInfo.directionFromParent = direction;
+            }
+        }
+    }
+
+    return []; // No path found
+}
+
+function heuristic(a: Location, b: Location): number {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+function reconstructDirections(current: NodeInfo, closedSet: Map<string, NodeInfo>): string[] {
+    const directions: string[] = [];
+    let currentInfo: NodeInfo | null = current;
+
+    while (currentInfo?.directionFromParent) {
+        directions.unshift(currentInfo.directionFromParent);
+        currentInfo = currentInfo.parent ? closedSet.get(currentInfo.parent.key) || null : null;
+    }
+
+    return directions;
+}
+export { Location, Landmark, Container, findPath };
