@@ -160,8 +160,8 @@ class A2dCharacter extends Character {
         return super.onDeath(this.bindMethod(action));
     }
 
-    onTurn(action: (this: A2dCharacter) => Promise<void>) {
-        return super.onTurn(this.bindMethod(action));
+    onTurn(action: ((this: A2dCharacter) => Promise<void>) | null) {
+        return super.onTurn(action ? this.bindMethod(action) : null);
     }
 
     fightMove(action: (this: A2dCharacter) => Promise<void>): this {
@@ -500,6 +500,33 @@ const actions = {
                 print(`${item.name} equipped.`)
             }
         }
+    },
+    travel: function (path: string | string[]) {
+        path = typeof path === 'string' ? path.split(' ') : path
+        async function travel(this: A2dCharacter) {
+            this.flags.path = path;
+            this.onTurn(async function () {
+                let dir: string = (path as string[]).pop() || ''
+                dir = {
+                    n: 'north',
+                    s: 'south',
+                    e: 'east',
+                    w: 'west',
+                    ne: 'northeast',
+                    nw: 'northwest',
+                    se: 'southeast',
+                    sw: 'southwest'
+                }[dir] || dir
+                if (dir) {
+                    this.flags.path = path
+                    await this.go(dir)
+                    console.log(`${this.name} travels ${dir}`)
+                } else {
+                    this.onTurn(null)
+                }
+            })
+        }
+        return travel;
     }
 }
 
@@ -1510,7 +1537,7 @@ const characters = {
             aliases: ['emissary', 'orc'],
             pronouns: pronouns.female,
             description: 'orc emissary',
-            max_hp: 150,
+            max_hp: 250,
             blunt_damage: 19,
             sharp_damage: 74,
             magic_damage: 24,
@@ -4084,6 +4111,14 @@ const characters = {
             respawn: false,
             ...args
         }).dialog(async function (player: Character) {
+            print("Hehehehehe.");
+            print("Me, holding The Ring of Ultimate Power???  Kahahaha.");
+            print("You poor fool, my BROTHER holds the ring!!!");
+            pause((5));
+            print("Can you figure out who he is?");
+            print("KAKAKAKAKAKAKAKA");
+            this.game.flags.biadon = true;
+            this.game.player.flags.enemy_of_ierdale = false;
             const blobin = this.game.find_character('Blobin')
             const grogren = this.game.find_character('Grogren')
             const barracks = this.game.find_location('Orc Barracks')
@@ -4097,14 +4132,8 @@ const characters = {
             } else if (!barracks) {
                 console.log('Orc barracks not found')
             }
-            print("Hehehehehe.");
-            print("Me, holding The Ring of Ultimate Power???  Kahahaha.");
-            print("You poor fool, my BROTHER holds the ring!!!");
-            pause((5));
-            print("Can you figure out who he is?");
-            print("KAKAKAKAKAKAKAKA");
-            this.game.flags.biadon = true;
-            this.game.player.flags.enemy_of_ierdale = false;
+            this.game.addCharacter('orc_emissary', 197)
+            this.game.addCharacter('ierdale_soldier', 284)?.onTurn(actions.travel('w w w w w w w'))
         });
     },
 
@@ -4386,13 +4415,13 @@ const characters = {
     },
 } as const;
 
-type CharacterKey = keyof typeof characters;
+type CharacterKeys = keyof typeof characters;
 
-function isValidCharacter(key: string): key is CharacterKey {
+function isValidCharacter(key: string): key is CharacterKeys {
     return key in characters;
 }
 
-function getCharacter(charName: CharacterKey, game: GameState, args?: any): A2dCharacter {
+function getCharacter(charName: CharacterKeys, game: GameState, args?: any): A2dCharacter {
     if (!characters[charName]) {
         console.log(`Character "${charName}" not found`);
         throw new Error(`Character "${charName}" not found`);
@@ -4403,4 +4432,4 @@ function getCharacter(charName: CharacterKey, game: GameState, args?: any): A2dC
     return char
 }
 
-export { A2dCharacter, A2dCharacterParams, getCharacter, isValidCharacter, actions };
+export { A2dCharacter, A2dCharacterParams, getCharacter, isValidCharacter, CharacterKeys, actions };
