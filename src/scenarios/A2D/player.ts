@@ -1,6 +1,6 @@
-import { Location } from "../../game/location.js"
+import { findPath, Location } from "../../game/location.js"
 import { Item } from "../../game/item.js"
-import { Character, BonusKeys } from "../../game/character.js"
+import { Character, BonusKeys, Buff } from "../../game/character.js"
 import { A2dCharacter } from "./characters.js"
 import { getItem, isValidItemKey, ItemKey } from "./items.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
@@ -185,10 +185,16 @@ class Player extends A2dCharacter {
         this.addAction('heal', this.heal);
         this.addAction('talk', this.talkTo);
         this.addAction('attack', async (name: string) => this.target(this.location?.character?.(name)));
-        this.addAction('\\', async (name: string) => await this.attack(this.location?.character?.(name) || this.attackTarget, this.equipment['left hand']));
+        this.addAction('\\', async (name: string) => await this.left_attack(name));
         this.addAction('cast', this.spell);
         this.addAction('cheatmode xfish9', async () => { this.cheatMode = true; color(magenta); print('Cheat mode activated.') });
         this.addAction('cheat', this.cheat);
+        this.addAction('buffs', async () => {
+            Object.values(this.buffs).forEach(buff => print(
+                `${buff.name}: ${Object.keys(buff.bonuses).reduce((prev, curr) => prev + '\n  ' + curr + ': ' + buff.bonuses[curr as BonusKeys], '')}`
+            ))
+        });
+        this.addAction('goto', this.goto);
 
         console.log('loaded player actions.')
 
@@ -196,6 +202,15 @@ class Player extends A2dCharacter {
         this.recoverStats({ hp: 100, sp: 100, mp: 100 });
         this.autoheal();
         this.onTurn(async () => { this.onSlay(this.checkHP) });
+    }
+
+    async goto(locationName: string) {
+        const location = this.game.find_location(locationName);
+        if (location && this.location) {
+            console.log('looking for a path to location', location.key)
+            print(findPath(this.location, location).join(', '));
+        }
+        return this;
     }
 
     async getInput() {
@@ -311,8 +326,8 @@ class Player extends A2dCharacter {
     }
 
     get hungerPenalty(): number {
-        return (this.hunger > this._max_sp / 4)
-            ? ((this.hunger * 4 - this._max_sp) / 3 / this._max_sp)
+        return (this.hunger > super.max_sp / 4)
+            ? ((this.hunger * 4 - super.max_sp) / 3 / super.max_sp)
             : 0
     }
 
@@ -363,23 +378,27 @@ class Player extends A2dCharacter {
         this.fight(target || this.attackTarget);
     }
 
+    async left_attack(targetName: string) {
+        if (targetName) {
+            this.fight(this.location?.character?.(targetName) || this.attackTarget);
+        }
+        if (this.offhand < 1) {
+            await this.addBuff(new Buff({
+                name: 'offhand',
+                duration: 1,
+                bonuses: {
+                    coordination: -this.coordination * (1 - this.offhand),
+                    strength: -this.strength * (1 - this.offhand),
+                }
+            }));
+        }
+        await this.attack(this.attackTarget, this.equipment['left hand']);
+        this.removeBuff('offhand');
+    }
+
     async encounter(character: Character) {
         await super.encounter(character);
         console.log(`player encountered "${character.name}", "${character.description}"`)
-    }
-
-    async relocate(location: Location | null) {
-        await super.relocate(location);
-        if (location && this.flags.assistant) {
-            color(magenta)
-            switch (location.key) {
-                case 0:
-                    if (!this.game.flags.cleric)
-                        print("   --ASSISTANT:--  Go east to learn about the plot.")
-                    break;
-                case 1:
-            }
-        }
     }
 
     async look(target?: string) {
@@ -683,10 +702,10 @@ class Player extends A2dCharacter {
             if (item?.is_weapon) {
                 const weapon = item.weapon_stats!;
                 lines.push(
-                    () => { print(`blunt damage: ${weapon.blunt_damage || 0}x (${Math.ceil(weapon.blunt_damage * this.strength)})`, 1) },
-                    () => { print(`sharp damage: ${weapon.sharp_damage || 0}x (${Math.ceil(weapon.sharp_damage * this.strength)})`, 1) },
-                    () => { print(`magic damage: ${weapon.magic_damage || 0}x (${Math.ceil(weapon.magic_damage * (this.strength + this.magic_level))})`, 1) },
-                    () => { print(`total: ${Math.ceil((weapon.blunt_damage + weapon.sharp_damage + weapon.magic_damage) * this.strength + weapon.magic_damage * this.magic_level)}`, 1) },
+                    () => { print(`blunt damage: ${weapon.blunt_damage || 0}x${slot == 'left hand' ? ' ' + this.statValue('offhand') : ''} (${Math.ceil(weapon.blunt_damage * this.strength * (slot == 'left hand' ? this.offhand : 1))})`, 1) },
+                    () => { print(`sharp damage: ${weapon.sharp_damage || 0}x${slot == 'left hand' ? ' ' + this.statValue('offhand') : ''} (${Math.ceil(weapon.sharp_damage * this.strength * (slot == 'left hand' ? this.offhand : 1))})`, 1) },
+                    () => { print(`magic damage: ${weapon.magic_damage || 0}x${slot == 'left hand' ? ' ' + this.statValue('offhand') : ''} (${Math.ceil(weapon.magic_damage * (this.strength + this.magic_level) * (slot == 'left hand' ? this.offhand : 1))})`, 1) },
+                    () => { print(`total: ${Math.ceil(((weapon.blunt_damage + weapon.sharp_damage + weapon.magic_damage) * this.strength + weapon.magic_damage * this.magic_level) * (slot == 'left hand' ? this.offhand : 1))}`, 1) },
                 )
             }
             lines.push(() => print('', 1))
@@ -796,7 +815,7 @@ class Player extends A2dCharacter {
         );
         const barColor = red; // this.hunger / this.max_sp > 1 / 4 ? (this.hunger > this.max_sp / 2 ? brightred : red) : green
         for (let i = 0; i < barLength; i++) {
-            if (this.hunger / this.max_sp * barLength > i) color(darkwhite, barColor)
+            if (this.hunger / super.max_sp * barLength > i) color(darkwhite, barColor)
             else color(darkwhite, black)
             print('▂', 1)
         }
@@ -830,26 +849,31 @@ class Player extends A2dCharacter {
         }
     }
 
-    statValue(key: BonusKeys, value: number) {
+    statValue(key: BonusKeys, value?: number) {
+        if (value === undefined) value = this[key] as number;
         switch (key) {
             case ('hp_recharge'): return `${Math.min(Math.round(value * 100), 100)}%`;
             case ('mp_recharge'): return `${Math.min(Math.round(value * 100), 100)}%`;
             case ('sp_recharge'): return `${Math.min(Math.round(value * 100), 100)}%`;
             case ('speed'): return `${Math.round(value * 100)}%`;
+            case ('offhand'): return `${Math.floor(this.offhand * 100)}%`;
             default: return `${Math.round(value)}`;
         }
     }
 
     async checkStats() {
         const printStat = (buffName: BonusKeys) => {
-            if (this.buff(buffName) > 0) {
+            const buff = this.buff(buffName);
+            if (buff > 0) {
                 color(blue)
-            } else if (this.buff(buffName) < 0) {
+            } else if (buff < 0) {
                 color(brightred)
-            } else { color(black) }
+            } else {
+                color(black)
+            }
             print(this.statValue(buffName, (this[buffName] as number)), 1)
-            if (this.buff(buffName) > 0) print(` (+${this.statValue(buffName, this.buff(buffName))})`)
-            else if (this.buff(buffName) < 0) print(` (${this.statValue(buffName, this.buff(buffName))})`)
+            if (buff > 0) print(` (+${this.statValue(buffName, buff)})`)
+            else if (buff < 0) print(` (${this.statValue(buffName, buff)})`)
             else print('')
             color(black)
         }
@@ -877,7 +901,8 @@ class Player extends A2dCharacter {
         printStat('sp_recharge')
         print(`BP recovery: `, 1)
         printStat('mp_recharge')
-        print(`OffHand: ${Math.floor(this.offhand * 100)}%`)
+        print(`OffHand: `, 1)
+        printStat('offhand')
         print(`Magic Level: `, 1)
         printStat('magic_level')
         for (let ability in this.abilities) {
@@ -982,6 +1007,7 @@ class Player extends A2dCharacter {
     }
 
     buff(key: BonusKeys): number {
+        // add items bonuses
         const buff = Object.values(this.equipment || {}).reduce(
             (total, item) => {
                 return (item?.buff(key) || 0) + total
@@ -1087,6 +1113,12 @@ class Player extends A2dCharacter {
                         case ('ierdale'):
                             this.flags.enemy_of_ierdale = !this.flags.enemy_of_ierdale;
                             break;
+                        case ('pass'):
+                            this.flags.forest_pass = !this.flags.forest_pass;
+                            break;
+                        default:
+                            print('flag not recognized.')
+                            return;
                     }
                     print(`flag ${value} set.`)
                     break;
