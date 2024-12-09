@@ -1,26 +1,8 @@
 import { Item, ItemParams } from "../../game/item.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js";
-import { Player } from "./player.js";
 import { Character, Buff } from "../../game/character.js";
 import { getBuff } from "./buffs.js";
 import { play, musicc$ } from "./utils.js";
-
-function equip(slot: keyof Player["equipment"]) {
-    return async function (this: Item, character: Character) {
-        if (character.isPlayer) {
-            if (slot === 'armor') {
-                const player = character as Player
-                if (player.equipment.armor) {
-                    print("You remove your old armor...")
-                    player.giveItem(player.equipment['armor'])
-                } else {
-                    print(`${this.name} equipped.`)
-                }
-                player.equipment['armor'] = this
-            }
-        }
-    }
-}
 
 const items = {
     gold(args: ItemParams) {
@@ -30,7 +12,7 @@ const items = {
             value: 1,
             quantity: args.quantity || 1
         }).displayName(function () {
-            return `${this.quantity} GP`
+            return `${this.quantity} gold`
         }).on_acquire(async function (player) {
             color(yellow)
         })
@@ -55,6 +37,7 @@ const items = {
         return new Item({
             name: 'arrows',
             value: 1,
+            size: 0.1,
             quantity: args.quantity,
         })
     },
@@ -573,7 +556,8 @@ const items = {
             value: 110,
             weapon_stats: {
                 type: 'club',
-                blunt_damage: 5.0,
+                blunt_damage: 7.0,
+                strength_required: 30
             },
             quantity: args.quantity
         })
