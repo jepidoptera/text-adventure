@@ -40,7 +40,7 @@ class Location extends Container {
     name: string;
     game!: GameState;
     key!: string;
-    adjacent: Map<string, Location> | undefined;
+    adjacent: Map<string, Location>;
     adjacent_ids: { [key: string]: string | number } = {};
     description: string | undefined;
     private _characters: Set<Character> = new Set();
@@ -49,6 +49,7 @@ class Location extends Container {
     actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
     constructor({
         name,
+        game,
         description = "",
         key = "",
         adjacent = {},
@@ -58,6 +59,7 @@ class Location extends Container {
         y = 0
     }: {
         name: string;
+        game?: GameState;
         description?: string;
         key?: string | number;
         adjacent?: { [key: string]: string | number };
@@ -68,9 +70,11 @@ class Location extends Container {
     }) {
         super(items);
         this.name = name;
+        this.game = game as GameState;
         this.key = key.toString();
         this.description = description;
         this.adjacent_ids = adjacent;
+        this.adjacent = new Map();
         for (let character of characters) {
             this.addCharacter(character);
         };
@@ -159,6 +163,7 @@ class Location extends Container {
         }
     }
 }
+
 class NodeInfo {
     f: number;
     g: number;
@@ -215,7 +220,7 @@ function findPath(start: Location, goal: Location): string[] {
         closedSet.set(current.key, currentInfo);
 
         // Check all neighbors
-        for (const [direction, neighbor] of current.adjacent || []) {
+        for (const [direction, neighbor] of current.adjacent) {
             if (closedSet.has(neighbor.key)) continue;
 
             const tentativeG = currentInfo.g + 1;
@@ -260,4 +265,5 @@ function reconstructDirections(current: NodeInfo, closedSet: Map<string, NodeInf
 
     return directions;
 }
+
 export { Location, Landmark, Container, findPath };
