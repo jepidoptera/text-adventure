@@ -37,7 +37,9 @@ class GameState {
             // since we have to link locations by id initially, we now link to the actual location object
             location.key = key.toString();
             location.game = this;
-            location.adjacent = new Map(Object.entries(location.adjacent_ids).map(([direction, id]) => [direction, this.locations.get(id) || location]));
+            // console.log(`loading location ${location.name}, ${Object.entries(location.adjacent_ids).reduce((acc, [k, v]) => (acc + `${k}: ${v}, `), '')}`);
+            location.adjacent = new Map(Object.entries(location.adjacent_ids).map(([direction, id]) => [direction, this.locations.get(id.toString()) || location]));
+            // console.log(`adjacent locations: ${Array.from(location.adjacent.values()).map(loc => loc.name).join(', ')}`);
             // link characters to game
             for (let character of location.characters) {
                 character.game = this;
@@ -247,11 +249,15 @@ class GameState {
         }
         return character;
     }
+    find_all_characters(name: string) {
+        name = name.toLowerCase();
+        return this.characters.filter(character => character.name.toLowerCase() === name);
+    }
     get locations() {
         return this._locations;
     }
-    find_location(name: string) {
-        name = name.toLowerCase();
+    find_location(name: string | number) {
+        name = name.toString().toLowerCase();
         const location = Array.from(this.locations.values()).find(location => location.name.toLowerCase() === name || location.key == name) || null;
         if (!location) {
             console.log(`could not find location ${name}`);
