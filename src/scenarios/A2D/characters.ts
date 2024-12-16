@@ -77,7 +77,7 @@ class A2dCharacter extends Character {
     fight(character: Character | null) {
         if (character) {
             if (this.attackTarget === character) return;
-            if (character.isPlayer && character.attackTarget !== this) {
+            if (character.isPlayer && character.attackTarget !== this && this.location?.playerPresent) {
                 color(red)
                 print(this.name, 1)
                 color(black)
@@ -296,7 +296,7 @@ class A2dCharacter extends Character {
                 if (DT >= 35) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')}, sparking and spasming.` };
                 if (DT >= 60) { does = `${caps(targetPronouns.subject)} ${t_s('howl')}, and ${t_be} rendered briefly transparent.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_s('fall')}, smoking, to the ground and ${t_s('twitch')} a couple of times.` };
-                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, and electrical flames shoot from ${target.pronouns.possessive} blistered\neye sockets.` };
+                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, and electrical flames shoot from ${target.pronouns.possessive}\nblistered eye sockets.` };
                 if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_s('explode')} like a knot of pine sap.` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
@@ -309,7 +309,7 @@ class A2dCharacter extends Character {
                 if (DT >= 60) { does = `${caps(targetPronouns.subject)} ${t_s('scream')} as magical knives stab through ${target.pronouns.object}.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_s('fall')}, streaming blood from numerous fatal wounds.` };
                 if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} sliced to ribbons.` };
-                if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_be} pureed into soup.` };
+                if (DT >= 500) { does = `${caps(targetPronouns.subject)} ${t_be} diced into high-grade mincemeat.` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
             case ("sonic"):
@@ -620,23 +620,86 @@ const characters = {
             name: 'guard captain',
             items: [getItem('gold', 25), getItem('longsword')],
             max_hp: 100,
-            blunt_damage: 40,
-            sharp_damage: 10,
-            weapon: getItem('shortsword'),
+            blunt_damage: 10,
+            sharp_damage: 40,
+            weapon: getItem('longsword'),
             description: 'guard captain',
             coordination: 7,
             agility: 2,
             blunt_armor: 13,
+            sharp_armor: 20,
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             alignment: 'ierdale',
             ...args
-        }).dialog(async function () {
-            print("Beware... if you attack me I will call more guards to help me.");
-        }).onDeath(async function () {
-            print("Ierdale has turned against you!");
-            this.game.player.flags.enemy_of_ierdale = true;
+        }).dialog(async function (player: Character) {
+            const assignMission = async () => {
+                this.game.flags.ierdale_mission = 'yes';
+                print("You are a true hero. GLORY TO IERDALE!")
+                await pause(2)
+                print("Half now, half when you return. You may need this to equip yourself for")
+                print("the journey.")
+                player.giveItem(getItem('gold', 5000))
+                await pause(2)
+                print("This may also help you - ")
+                color(magenta)
+                print("<recieved pocket ballista>")
+            }
+            if (!this.game.flags.biadon) {
+                print("Beware... if you attack me I will call more guards to help me.");
+            } else if (!this.game.flags.ierdale_mission) {
+                print("Guard captain looks up from her maps and schematics.");
+                print(`${caps(player.name)}. You came.`)
+                await pause(3)
+                print()
+                print("We need your help for a desperate mission. The orcs have been plotting to")
+                print("invade Ierdale. We've raised the gates and are preparing for a siege, but")
+                print("it may not be enough. The worst part is that the legendary Ieadon has turned")
+                print("against us and escaped town. With him on their side, we are in real trouble.")
+                print("I think our best shot may be to send a lone hero to Grobin to steal their")
+                print("most potent weapon, the Mighty Gigasarm. That would weaken their forces and")
+                print("give ours a much needed boost to morale.")
+                print()
+                print("I think you may be up to the task.")
+                await pause(11)
+                print()
+                print("What do you say? Will you help us?")
+                print("If so, the orcs' best weapon will be YOURS to keep, and you will have")
+                print("all the GLORY of Ierdale!")
+                await pause(5)
+                print()
+                print("Also, 10 thousand GP.")
+                await pause(2)
+                print('[y/n]')
+                const answer = await getKey(['y', 'n'])
+                if (answer == 'y') {
+                    await assignMission()
+                } else {
+                    print("I understand. This is a difficult thing to ask.")
+                    print("Come back later if you change your mind.")
+                    this.game.flags.ierdale_mission = 'maybe';
+                }
+            } else if (this.game.flags.ierdale_mission == 'maybe') {
+                print("Are you ready to accept the mission?");
+                print("[y/n]");
+                const answer = await getKey(['y', 'n'])
+                if (answer == 'y') {
+                    await assignMission()
+                } else {
+                    print("Come back later if you change your mind.")
+                }
+            } else if (this.game.flags.ierdale_mission == 'yes') {
+                print("You have accepted the mission.  Go to Grobin and steal the Mighty Gigasarm.")
+            }
+        }).onDeath(async function (player) {
+            if (player.isPlayer && !player.flags.enemy_of_ierdale) {
+                print("Ierdale has turned against you!");
+                this.game.player.flags.enemy_of_ierdale = true;
+            }
         }).fightMove(async function () {
-            // TODO: call troops
+            this.game.find_all_characters('security guard').forEach(guard => {
+                guard.goto(this.location!.key)
+                guard.fight(this.attackTarget)
+            })
         });
     },
 
@@ -683,8 +746,8 @@ const characters = {
             pronouns: pronouns.male,
             items: [getItem('gold', 50), getItem('claymoore')],
             max_hp: 300,
-            blunt_damage: 90,
-            sharp_damage: 10,
+            blunt_damage: 50,
+            sharp_damage: 50,
             weapon: getItem('claymoore'),
             description: 'ierdale soldier',
             coordination: 14,
@@ -692,21 +755,11 @@ const characters = {
             blunt_armor: 15,
             sharp_armor: 25,
             aliases: ['soldier'],
+            alignment: 'ierdale',
             respawn: false,
             ...args
         }).dialog(async function (player: Character) {
-            switch (this.game.flags.ieadon) {
-                case false:
-                    print("We are ready to attack the filthy Orcs at a moments notice!");
-                    break;
-                case true:
-                    print("Ieadon has escaped!");
-                    print("We have no idea where he fled too.  If you can find him, ALERT US!");
-                    print();
-                    print("We suspect that the Orcs have helped him to escape, and are preparing to take");
-                    print("military action against them.");
-                    break;
-            }
+            print("We have been dispatched to counter the rising threat of invasion from the orcs!");
         }).onDeath(async function () {
             this.game.flags.soldiers_remaining -= 1;
             this.game.player.flags.enemy_of_ierdale = true;
@@ -715,7 +768,70 @@ const characters = {
         });
     },
 
-    ierdale_general(args: { [key: string]: any }) {
+    ierdale_patrol(args: { [key: string]: any }) {
+        return new A2dCharacter({
+            name: 'ierdale soldier',
+            pronouns: pronouns.male,
+            items: [getItem('gold', 50), getItem('claymoore')],
+            max_hp: 300,
+            blunt_damage: 50,
+            sharp_damage: 50,
+            weapon: getItem('claymoore'),
+            description: 'ierdale soldier',
+            coordination: 14,
+            agility: 3,
+            blunt_armor: 15,
+            sharp_armor: 25,
+            aliases: ['soldier'],
+            alignment: 'ierdale',
+            respawn: false,
+            ...args
+        }).dialog(async function (player: Character) {
+            print("We are ready to attack the filthy Orcs at a moments notice!");
+        }).onDeath(async function () {
+            this.game.flags.soldiers_remaining -= 1;
+            this.game.player.flags.enemy_of_ierdale = true;
+        }).onTurn(actions.wander({
+            bounds: [
+                'mucky path', 'stony bridge', 'dry grass', 'entrance to the forest of thieves', 'house', 'sandy desert', 'path of nod'
+            ]
+        }));
+    },
+
+    general_kerry(args: { [key: string]: any }) {
+        return new A2dCharacter({
+            name: 'ierdale general',
+            pronouns: pronouns.male,
+            items: [getItem('gold', 200), getItem('silver_sword')],
+            max_hp: 700,
+            blunt_damage: 50,
+            sharp_damage: 120,
+            weapon: getItem('silver_sword'),
+            description: 'ierdale general',
+            coordination: 16,
+            agility: 8,
+            blunt_armor: 30,
+            sharp_armor: 45,
+            magic_armor: 10,
+            aliases: ['general'],
+            respawn: false,
+            ...args
+        }).onDeath(async function () {
+            this.game.flags.soldiers_remaining -= 1;
+            this.game.player.flags.enemy_of_ierdale = true;
+        }).fightMove(async function () {
+            this.game.find_all_characters('ierdale_soldier').forEach(soldier => {
+                soldier.goto(this.location!.key)
+                soldier.fight(this.attackTarget)
+            })
+        }).dialog(async function (player: Character) {
+            print("Ieadon is nowhere to be found, and our best intelligence is that he has")
+            print("joined the Orcs.  We must prepare for the worst.  We have locked the gates")
+            print("and are preparing for a siege.  We need you to go to the Orc stronghold")
+        });
+    },
+
+    general_gant(args: { [key: string]: any }) {
         return new A2dCharacter({
             name: 'ierdale general',
             pronouns: pronouns.male,
@@ -741,7 +857,10 @@ const characters = {
             this.game.flags.soldiers_remaining -= 1;
             this.game.player.flags.enemy_of_ierdale = true;
         }).fightMove(async function () {
-            // TODO: heal
+            this.game.find_all_characters('ierdale_soldier').forEach(soldier => {
+                soldier.goto(this.location!.key)
+                soldier.fight(this.attackTarget)
+            })
         });
     },
 
@@ -1589,12 +1708,12 @@ const characters = {
                     this.transferItem('mighty_gigasarm', player)
                     this.game.player.flags.orc_pass = true;
                 } else {
-                    print("I'm sorry to hear that. You die now.");
-                    await pause(2)
-                    this.fight(player)
+                    print("That means death.");
+                    await pause(2);
+                    this.fight(player);
                 }
             } else {
-                print("That means death.")
+                print("I'm sorry to hear that. You die now.");
                 this.fight(player)
             }
         })
@@ -2892,23 +3011,7 @@ const characters = {
                 print("Sorry... we can't let you past.  Colonel Arach has us locking these gates down");
                 print("good and tight!  No one may get through.");
             } else if (this.game.flags.biadon && !this.game.flags.ieadon) {
-                print();
-                print("Greetings...I have some important news for you.");
-                print();
-                pause
-                print("One night some days ago, a group of ork soldiers from");
-                print("the town of Grobin snuck into our town by way of a short");
-                print("path that leads in from the forest of thieves.  They ran");
-                print("around killing people until they were dispatched by the");
-                print("guards.  Colonel Arach has declared war on the orc town");
-                print("and until the war is over, no one will be allowed in");
-                print("through the eastern gates.  Also, it was discovered that");
-                print("the great Ieadon had turned traitor and joined the side");
-                print("of the orcs.  We think that he fled to Grobin, the orc");
-                print("town.");
-                print();
-                print("We have heard that you are a great warrior, so");
-                print("if you want to check it out... <wink> <wink>");
+                print("The guard captain wants to see you! Report to the security office, please!");
             } else if (this.game.flags.ieadon || !this.game.flags.ziatos) {
                 print("Hello... how are you on this fine day.  We will treat you with respect, if");
                 print("you show respect to our town.  If you wish to inquire of something visit");
@@ -3606,7 +3709,7 @@ const characters = {
             },
             classDiscount: { 'thief': 25, 'fighter': 25 },
             result: (player) => {
-                player.offhand += Math.max(Math.floor(((1 - player.offhand) / 4) * 100 + 1.5) / 100, 1);
+                player.offhand += Math.min(Math.floor(((1 - player.offhand) / 4) * 100 + 1.5) / 100, 1);
                 if (player.isPlayer) print(`Your left-handed capabilities increased.  Congradulations, offhand is now: ${Math.floor(player.offhand * 100)}%`);
             }
         })).addAction('train', async function (player) {
@@ -4013,6 +4116,7 @@ const characters = {
             print("I must go now.")
             this.game.player.flags.enemy_of_ierdale = false;
             this.game.addCharacter('biadon', 78)
+            this.game.find_character('ieadon')?.relocate(this.game.find_location('the void'))
             await pause(15)
             color(black, black)
             clear()
@@ -4133,7 +4237,29 @@ const characters = {
                 console.log('Orc barracks not found')
             }
             this.game.addCharacter('orc_emissary', 197)
-            this.game.addCharacter('ierdale_soldier', 284)?.onTurn(actions.travel('w w w w w w w'))
+            const dispatches = [
+                'center of town',
+                'beet street',
+                'north road',
+                'south road',
+                'east road',
+                'west road',
+                'alleyway',
+                'northern gatehouse',
+                'western gatehouse',
+                'eastern gatehouse',
+                "Ieadon's house",
+            ]
+            for (let i = 0; i < dispatches.length; i++) {
+                const soldier = await this.game.addCharacter('ierdale_soldier', 284)
+                await soldier?.goto(dispatches[i])
+            }
+            for (let i = 0; i < 11; i++) {
+                await this.game.addCharacter('ierdale_patrol', 284)
+            }
+            await this.game.addCharacter('general_gant', "center of town")
+            await this.game.addCharacter('general_kerry', "Ieadon's house")
+            await this.game.find_character('guard captain')?.goto('45')
         });
     },
 
@@ -4415,13 +4541,13 @@ const characters = {
     },
 } as const;
 
-type CharacterKeys = keyof typeof characters;
+type CharacterNames = keyof typeof characters;
 
-function isValidCharacter(key: string): key is CharacterKeys {
+function isValidCharacter(key: string): key is CharacterNames {
     return key in characters;
 }
 
-function getCharacter(charName: CharacterKeys, game: GameState, args?: any): A2dCharacter {
+function getCharacter(charName: CharacterNames, game: GameState, args?: any): A2dCharacter {
     if (!characters[charName]) {
         console.log(`Character "${charName}" not found`);
         throw new Error(`Character "${charName}" not found`);
@@ -4432,4 +4558,4 @@ function getCharacter(charName: CharacterKeys, game: GameState, args?: any): A2d
     return char
 }
 
-export { A2dCharacter, A2dCharacterParams, getCharacter, isValidCharacter, CharacterKeys, actions };
+export { A2dCharacter, A2dCharacterParams, getCharacter, isValidCharacter, CharacterNames, actions };
