@@ -2,13 +2,14 @@ import { GameState } from "../../game/game.js"
 import { Location } from "../../game/location.js"
 import { Character } from "../../game/character.js"
 import { Container } from "../../game/item.js"
-import { getItem, isValidItemKey, ItemKey } from "./items.js"
+import { getItem, isValidItemKey, ItemNames } from "./items.js"
 import { getLandmark } from "./landmarks.js"
-import { GameMap } from "./map.js"
+import { GameMap, getLocation, locationNames, LocationParams } from "./map.js"
 import { Player } from "./player.js"
 import { A2dCharacter, getCharacter, isValidCharacter } from "./characters.js"
 import { BuffNames, getBuff, } from "./buffs.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
+import { get } from "http"
 
 class A2D extends GameState {
     respawnInterval!: ReturnType<typeof setInterval>;
@@ -24,7 +25,8 @@ class A2D extends GameState {
         henge: boolean,
         cradel: boolean,
         orc_mission: boolean,
-        sift: boolean
+        ierdale_mission: string,
+        sift: boolean,
     } = {
             cleric: false,
             ieadon: false,
@@ -36,6 +38,7 @@ class A2D extends GameState {
             henge: false,
             cradel: false,
             orc_mission: false,
+            ierdale_mission: '',
             sift: false,
         }
 
@@ -169,15 +172,21 @@ class A2D extends GameState {
         })
     }
 
-    addCharacter(name: string, location: string | number) {
+    async addCharacter(name: string, location: string | number) {
         if (!isValidCharacter(name)) {
             console.log('invalid character name', name);
             return;
         }
         const newCharacter = getCharacter(name, this);
-        const newLocation = this.locations.get(location.toString());
-        newLocation?.addCharacter(newCharacter);
+        const newLocation = this.find_location(location.toString());
+        if (newLocation) await newCharacter.relocate(newLocation);
         return newCharacter;
+    }
+
+    async addLocation(name: locationNames, params: LocationParams) {
+        const newLocation = getLocation(name, this, params);
+        this.locations.set(newLocation.key, newLocation);
+        return newLocation;
     }
 
     center(text: string) {
@@ -217,6 +226,7 @@ class A2D extends GameState {
         const loadScenario: { [key: string]: Location } = {};
         Object.keys(gamestate.locations).forEach(key => {
             const location = gamestate.locations[key];
+            // console.log(`loading location ${key}, adjacent to ${Object.entries(location.adjacent).reduce((acc, [dir, loc]) => acc + `${dir}: ${loc}, `, '')}`);
             const newLocation = new Location({
                 name: location.name,
                 description: location.description,
