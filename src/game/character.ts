@@ -605,7 +605,22 @@ class Character {
     async go(direction: string): Promise<boolean> {
         if (direction.includes(' ')) {
             this.flags.path = direction.split(' ');
-            return true;
+            direction = '';
+        }
+        console.log(`${this.name} goes ${direction}`)
+        if (this.flags.path && !direction) {
+            console.log(`following path ${this.flags.path}`)
+            let dir: string = this.flags.path.shift() || ''
+            direction = {
+                n: 'north',
+                s: 'south',
+                e: 'east',
+                w: 'west',
+                ne: 'northeast',
+                nw: 'northwest',
+                se: 'southeast',
+                sw: 'southwest'
+            }[dir] || dir
         }
         if (!this.location?.adjacent?.has(direction)) {
             return false;
@@ -634,16 +649,18 @@ class Character {
         if (typeof location === 'string') {
             const loc = this.game.find_location(location);
             if (loc) { location = loc }
-            else { return false }
+            else { return this }
         }
+        console.log(`${this.name} goes to ${location.name} from ${this.location?.name}`)
         if (this.location) this.flags.path = findPath(this.location, location);
+        console.log(`path is ${this.flags.path}`)
         return this;
     }
 
     async relocate(newLocation: Location | null, direction?: string) {
         if (!this.respawnLocationKey) {
             this.respawnLocationKey = newLocation?.key;
-            console.log(`${this.name} will respawn respawn at ${this.respawnLocationKey}.`)
+            // console.log(`${this.name} will respawn respawn at ${this.respawnLocationKey}.`)
         }
         await this.location?.exit(this, direction);
         if (this.location) this.exit(this.location);
@@ -969,6 +986,7 @@ class Character {
             return;
         } else if (this.flags.path) {
             const direction = this.flags.path.shift();
+            console.log(`${this.name} follows path ${direction}`)
             if (direction) {
                 await this.go(direction);
             }
