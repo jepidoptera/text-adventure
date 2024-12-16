@@ -4,11 +4,11 @@ import { brightred, black, gray, magenta } from './colors.js';
 import { getBuff } from './buffs.js';
 import { WeaponTypes } from '../../game/item.js';
 import { highRandom } from '../../game/utils.js';
-type AttackAction = (this: A2dCharacter, target: Character) => Promise<void>;
+type SpellAction = (this: A2dCharacter, target: Character) => Promise<void>;
 const abilityLevels = ["Novice", "Ameteur", "Competent", "Proficient", "Adept", "Expert", "Master", "Grand Master"]
 const spellPower = 1.0860331325016919
 
-const spells: Record<string, AttackAction> = {
+const spells: Record<string, SpellAction> = {
     newbie: async function (target: Character) {
         if (!checkRequirements.call(this, 'newbie', (2 + this.abilities['newbie']) / 3)) return;
         color(brightred);
