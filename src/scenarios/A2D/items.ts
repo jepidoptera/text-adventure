@@ -1727,13 +1727,13 @@ const items = {
     },
 } as const
 
-type ItemKey = keyof typeof items;
+type ItemNames = keyof typeof items;
 
-function isValidItemKey(key: string): key is ItemKey {
+function isValidItemKey(key: string): key is ItemNames {
     return key in items;
 }
 
-function getItem(itemName: ItemKey, args: number | ItemParams = 1): Item {
+function getItem(itemName: ItemNames, args: number | ItemParams = 1): Item {
     if (typeof args === 'number') {
         args = { quantity: args } as ItemParams
     } else if (!('quantity' in args)) {
@@ -1760,4 +1760,4 @@ potions.forEach(function (value, key) {
     sorted_potions.set(key.sort().join(', '), value.copy.bind(value))
 })
 
-export { getItem, ItemKey, isValidItemKey, sorted_potions as potions };
+export { getItem, ItemNames, isValidItemKey, sorted_potions as potions };
