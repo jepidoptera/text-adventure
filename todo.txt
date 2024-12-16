@@ -20,6 +20,8 @@ X put Henge in a slot canyon
 X hunger
 X offhand
 X fix incorrectly naming multi-named monsters after save/load
+X implement aStar pathfinding
+X key buffer in client
 / spells (trance, transport and vanish)
 
 two-handed weapons
@@ -30,8 +32,6 @@ use list of strings for enemies and friends (unique ID?)
 onTimer event
 pets
 bows
-key buffer in client
 strictly separate code files from content files
 / Orc town
-implement aStar pathfinding
 
