@@ -263,8 +263,8 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
     }
 } as const
 
-type LandmarkKey = keyof typeof landmarks
-function getLandmark(key: LandmarkKey, ...args: any[]) {
+type LandmarkNames = keyof typeof landmarks
+function getLandmark(key: LandmarkNames, ...args: any[]) {
     if (!landmarks[key]) {
         throw new Error(`No landmark with key ${key}`)
     }
