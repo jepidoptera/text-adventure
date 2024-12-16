@@ -2,14 +2,14 @@ import { findPath, Location } from "../../game/location.js"
 import { Item } from "../../game/item.js"
 import { Character, BonusKeys, Buff } from "../../game/character.js"
 import { A2dCharacter } from "./characters.js"
-import { getItem, isValidItemKey, ItemKey } from "./items.js"
+import { getItem, isValidItemKey, ItemNames } from "./items.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
 import { GameState } from "../../game/game.js";
 import { caps, plural, randomChoice } from "../../game/utils.js";
 import { spells, abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js"
 import { getLandmark } from "./landmarks.js"
-import { GameMap } from "./map.js"
+import { GameMap, spawnArea } from "./map.js"
 import { assistant } from "./assistant.js"
 
 class Player extends A2dCharacter {
@@ -41,7 +41,8 @@ class Player extends A2dCharacter {
         forest_pass: boolean,
         orc_pass: boolean,
         earplugs: boolean,
-        hungry: boolean
+        hungry: boolean,
+        path: string[],
     } = {
         assistant: false,
         enemy_of_ierdale: false,
@@ -49,7 +50,8 @@ class Player extends A2dCharacter {
         forest_pass: false,
         orc_pass: false,
         earplugs: false,
-        hungry: false
+        hungry: false,
+        path: [],
     } as const
     assistantHintsUsed: { [key: string]: number } = {}
     lastCommand: string = '';
@@ -153,7 +155,7 @@ class Player extends A2dCharacter {
 
         this.addAction('save', this.saveGame);
         this.addAction('load', this.loadGame);
-        this.addAction('', async () => { });
+        this.addAction('', async () => { if (this.flags.path.length > 0) this.go('') });
         this.addAction('n', async () => await this.go('north'));
         this.addAction('s', async () => await this.go('south'));
         this.addAction('e', async () => await this.go('east'));
@@ -206,9 +208,11 @@ class Player extends A2dCharacter {
 
     async goto(locationName: string) {
         const location = this.game.find_location(locationName);
+        if (!location) { return this }
         if (location && this.location) {
             console.log('looking for a path to location', location.key)
-            print(findPath(this.location, location).join(', '));
+            this.flags.path = findPath(this.location, location);
+            print(this.flags.path.join(', '))
         }
         return this;
     }
@@ -457,6 +461,7 @@ class Player extends A2dCharacter {
     }
 
     async go(direction: string) {
+        console.log('go!', direction)
         color(black)
         if (this.sp <= 0) {
             print("You are too weak!");
@@ -493,7 +498,17 @@ class Player extends A2dCharacter {
         return Math.round(this.items.reduce((acc, item) => acc + item.size * item.quantity, 0) * 10) / 10
     }
 
-    listInventory() {
+    async listInventory() {
+        let lines = 4;
+        async function nextLine() {
+            lines += 1;
+            if (lines > 25) {
+                color(black)
+                print('more, press a key...')
+                await getKey();
+                lines = 0;
+            }
+        }
         color(green, black)
         print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
         color(black, darkwhite)
@@ -504,45 +519,59 @@ class Player extends A2dCharacter {
         color(black, darkwhite)
         print()
         const listItems = this.items.sort((a, b) => (a.name < b.name ? -1 : 1)).filter(item => !(['gold', 'arrows'].includes(item.name)))
-        listItems.forEach((item, i) => {
+        let i = 0
+        for (let item of listItems) {
             if (i % 2 == 0) {
                 print('    ' + item.display, 1)
             } else {
                 locate(40)
                 print(item.display)
+                await nextLine();
             }
-        })
+            i++;
+        }
         if (listItems.length % 2 == 1) print()
         color(gray)
         print(`Total Object Weight: ${this.inventoryWeight}/${this.max_carry}`)
+        await nextLine();
         color(green, white)
         print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
+        await nextLine();
         color(black, darkwhite)
         print()
         color(black)
         print("Wielded:         ", 1)
+        await nextLine();
         color(gray)
         print(this.equipment['right hand']?.name ?? 'fist')
+        await nextLine();
         color(black)
         print("Left Wielded:    ", 1)
+        await nextLine();
         color(gray)
         print(this.equipment['left hand']?.name ?? 'fist')
+        await nextLine();
         if (this.equipment['bow']) {
             color(blue)
             print("Bow:             " + this.equipment['bow'].name)
         }
+        await nextLine();
         color(black)
         print("Armor:           ", 1)
+        await nextLine();
         color(gray)
         print((this.equipment['armor'] ? this.equipment['armor'].name : 'none'))
         if (this.equipment['ring']) {
+            await nextLine();
             color(blue)
             print("Ring:            " + this.equipment['ring'].name)
         }
         if (this.item('arrows')?.quantity) {
+            await nextLine();
             color(orange)
             print("Arrows:          " + this.item('arrows')?.quantity)
         }
+        await nextLine();
         color(yellow)
         print(`${this.item('gold')?.quantity ?? 0} GP`)
         color(green, black)
@@ -558,7 +587,6 @@ class Player extends A2dCharacter {
                 print("Assistant -- Type \"ready short bow\" to set it as your wielded bow.")
             }
         }
-
     }
 
     async eat(itemName: string) {
@@ -1125,6 +1153,11 @@ class Player extends A2dCharacter {
                 case ('assistant'):
                     this.assistantHintsUsed = {};
                     print('assistant hints reset.')
+                    break;
+                case ('void'):
+                    const voidArea = await spawnArea(this.game, parseInt(value))
+                    // await this.relocate(voidArea[0]);
+                    // console.log(voidArea)
                     break;
             }
         }
