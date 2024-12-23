@@ -453,7 +453,7 @@ const items = {
             weapon_stats: {
                 type: 'electric',
                 blunt_damage: 2.0,
-                magic_damage: 6.0,
+                magic_damage: 7.0,
             },
             quantity: args.quantity
         })
@@ -506,6 +506,19 @@ const items = {
                 type: 'bow',
                 blunt_damage: 140.0,
                 sharp_damage: 234.0,
+            },
+            quantity: args.quantity
+        })
+    },
+    pocket_ballista(args: ItemParams) {
+        return new Item({
+            name: 'ballista',
+            size: 1.5,
+            value: 2000,
+            weapon_stats: {
+                type: 'bow',
+                blunt_damage: 40.0,
+                sharp_damage: 134.0,
             },
             quantity: args.quantity
         })
@@ -753,7 +766,7 @@ const items = {
             value: 5350,
             weapon_stats: {
                 type: 'axe',
-                blunt_damage: 1.9,
+                blunt_damage: 1.92,
                 sharp_damage: 7.44,
                 magic_damage: 2.4,
             },
@@ -908,7 +921,7 @@ const items = {
                 type: 'sword',
                 blunt_damage: 10.0,
                 sharp_damage: 10.0,
-                magic_damage: 10.0,
+                magic_damage: 1,
             },
             quantity: args.quantity
         }).addBuff(new Buff({
@@ -994,8 +1007,8 @@ const items = {
             weapon_stats: {
                 type: 'sword',
                 blunt_damage: 2.0,
-                sharp_damage: 2.0,
-                magic_damage: 5.0,
+                sharp_damage: 4.0,
+                magic_damage: 3.0,
             },
             quantity: args.quantity
         })
@@ -1020,8 +1033,8 @@ const items = {
             value: 365,
             weapon_stats: {
                 type: 'sword',
-                magic_damage: 1.5,
-                sharp_damage: 6.0,
+                magic_damage: 0.75,
+                sharp_damage: 11.0,
             },
             quantity: args.quantity
         })
@@ -1725,7 +1738,85 @@ const items = {
             quantity: args.quantity
         })
     },
-} as const
+    comb(args: ItemParams) {
+        return new Item({
+            name: 'comb',
+            size: 0.1,
+            value: 1,
+            quantity: args.quantity
+        })
+    },
+    pen(args: ItemParams) {
+        return new Item({
+            name: 'pen',
+            size: 0.1,
+            value: 1,
+            quantity: args.quantity
+        })
+    },
+    paperclip(args: ItemParams) {
+        return new Item({
+            name: 'paperclip',
+            size: 0.1,
+            value: 1,
+            quantity: args.quantity
+        })
+    },
+    sock(args: ItemParams) {
+        return new Item({
+            name: 'sock',
+            size: 0.1,
+            value: 1,
+            quantity: args.quantity
+        })
+    },
+    crumpled_paper(args: ItemParams) {
+        return new Item({
+            name: 'crumpled paper',
+            size: 0.1,
+            value: 1,
+            quantity: args.quantity
+        })
+    },
+    pokemon_card(args: ItemParams) {
+        return new Item({
+            name: 'pokemon card',
+            size: 0.1,
+            value: 1,
+            quantity: args.quantity
+        })
+    },
+    cranberries_cd(args: ItemParams) {
+        return new Item({
+            name: 'cranberries cd',
+            size: 0.1,
+            value: 1,
+            quantity: args.quantity
+        })
+    },
+    voidstone(args: ItemParams) {
+        return new Item({
+            name: 'voidstone',
+            size: 1,
+            value: 1000,
+            quantity: args.quantity
+        })
+    },
+    negative_gold(args: ItemParams) {
+        return new Item({
+            name: 'negative gold',
+            size: 0.005,
+            value: -1,
+            quantity: args.quantity || 1
+        }).displayName(function () {
+            return `${this.quantity} gold`
+        }).on_acquire(async function (player) {
+            color(brightmagenta)
+            player.removeItem('gold', this.quantity)
+            print(`Got negative ${this.quantity} GP`)
+        })
+    },
+}
 
 type ItemNames = keyof typeof items;
 
@@ -1760,4 +1851,4 @@ potions.forEach(function (value, key) {
     sorted_potions.set(key.sort().join(', '), value.copy.bind(value))
 })
 
-export { getItem, ItemNames, isValidItemKey, sorted_potions as potions };
+export { items, getItem, ItemNames, isValidItemKey, sorted_potions as potions };
