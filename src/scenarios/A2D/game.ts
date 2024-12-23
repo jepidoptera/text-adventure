@@ -1,19 +1,22 @@
 import { GameState } from "../../game/game.js"
-import { Location } from "../../game/location.js"
+import { Location, findPath } from "../../game/location.js"
 import { Character } from "../../game/character.js"
-import { Container } from "../../game/item.js"
-import { getItem, isValidItemKey, ItemNames } from "./items.js"
+import { Container, Item, ItemParams } from "../../game/item.js"
+import { items } from "./items.js"
 import { getLandmark } from "./landmarks.js"
-import { GameMap, getLocation, locationNames, LocationParams } from "./map.js"
+import { GameMap, locationTemplates } from "./map.js"
 import { Player } from "./player.js"
-import { A2dCharacter, getCharacter, isValidCharacter } from "./characters.js"
+import { A2dCharacter, getCharacter, isValidCharacter, characters } from "./characters.js"
 import { BuffNames, getBuff, } from "./buffs.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
 import { get } from "http"
 
 class A2D extends GameState {
     respawnInterval!: ReturnType<typeof setInterval>;
-    player!: Player;
+    declare player: Player;
+    itemTemplates = items;
+    locationTemplates = locationTemplates;
+    characterTemplates = characters;
     flags: {
         cleric: boolean,
         ieadon: boolean,
@@ -27,6 +30,7 @@ class A2D extends GameState {
         orc_mission: boolean,
         ierdale_mission: string,
         sift: boolean,
+        soldier_dialogue: string[]
     } = {
             cleric: false,
             ieadon: false,
@@ -40,7 +44,18 @@ class A2D extends GameState {
             orc_mission: false,
             ierdale_mission: '',
             sift: false,
+            soldier_dialogue: []
         }
+
+    addItem(name: keyof typeof this.itemTemplates, container: Container | null, params?: any): Item | undefined {
+        return super.addItem(name, container, params);
+    }
+    addLocation(name: keyof typeof this.locationTemplates, params: any): Location | undefined {
+        return super.addLocation(name, params);
+    }
+    addCharacter(name: keyof typeof this.characterTemplates, location: string | number | Location, args?: any) {
+        return super.addCharacter(name, location, args);
+    }
 
     intro() {
         color(orange, darkwhite);
@@ -103,18 +118,22 @@ class A2D extends GameState {
         console.log('starting main loop');
         while (!(['exit', 'quit'].includes(command)) && !this.player.dead) {
             // await this.player.turn();
-            for (let character of this.characters) {
+            let characters = this.characters.filter(char => !char.dead);
+            if (!characters.includes(this.player)) {
+                throw new Error('player is not in characters list');
+            }
+            for (let character of characters) {
                 if (!character.dead) {
-                    character.turnCounter += character.speed;
+                    character.tiemCounter += character.speed;
                 } else if (character.respawnCountdown < 0) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
             }
-            console.log(`player turncounter: ${this.player.turnCounter}`)
-            let activeCharacters = this.characters.filter(char => char.turnCounter >= 1)
+            console.log(`player turncounter: ${this.player.tiemCounter}`)
+            let activeCharacters = characters.filter(char => char.tiemCounter >= 1)
             while (activeCharacters.length > 0) {
-                for (let character of activeCharacters.sort((a, b) => a === this.player ? -1 : b === this.player ? 1 : b.turnCounter - a.turnCounter)) {
+                for (let character of activeCharacters.sort((a, b) => b.tiemCounter - a.tiemCounter)) {
                     if (!character.dead) {
                         await character.turn();
                         if (character.buffs) {
@@ -123,9 +142,9 @@ class A2D extends GameState {
                             }
                         }
                     }
-                    character.turnCounter -= 1;
+                    character.tiemCounter -= 1 / character.action_speed;
                 }
-                activeCharacters = this.characters.filter(char => !char.dead && char.turnCounter >= 1)
+                activeCharacters = this.characters.filter(char => !char.dead && char.tiemCounter >= 1)
             }
         }
         print('Press any key to continue.')
@@ -172,23 +191,6 @@ class A2D extends GameState {
         })
     }
 
-    async addCharacter(name: string, location: string | number) {
-        if (!isValidCharacter(name)) {
-            console.log('invalid character name', name);
-            return;
-        }
-        const newCharacter = getCharacter(name, this);
-        const newLocation = this.find_location(location.toString());
-        if (newLocation) await newCharacter.relocate(newLocation);
-        return newCharacter;
-    }
-
-    async addLocation(name: locationNames, params: LocationParams) {
-        const newLocation = getLocation(name, this, params);
-        this.locations.set(newLocation.key, newLocation);
-        return newLocation;
-    }
-
     center(text: string) {
         const x = Math.floor((80 - text.length) / 2);
         print(' '.repeat(x) + text);
@@ -218,7 +220,10 @@ class A2D extends GameState {
     }
 
     async load(saveName: string): Promise<boolean> {
-        const gamestate = await this._load(saveName) as any;
+        const gamestate: {
+            locations: { [key: string]: any },
+            flags: any
+        } = await this._load(saveName) as any;
         if (gamestate === null) {
             print(`Character ${saveName} not found.`)
             return false;
@@ -234,15 +239,13 @@ class A2D extends GameState {
                     return character.isPlayer
                         ? new Player('', '', this).load(character)
                         : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key, this, { flags: character.flags }), {
-                            items: character.items ? character.items.map(
-                                (itemData: any) => isValidItemKey(itemData.key) ? getItem(itemData.key, itemData) : undefined
-                            ).filter((item: any) => item) : [],
                             respawnCountdown: character.respawnCountdown,
                             _respawn: character.respawn,
-                            respawnLocationKey: character.respawnLocationKey,
+                            respawnLocation: character.respawnLocationKey || character.respawnLocation,
                             attackPlayer: character.attackPlayer,
                             chase: character.chase,
                             following: character.following,
+                            actionQueue: character.actionQueue,
                             buffs: character.buffs ? Object.fromEntries(
                                 Object.entries(character.buffs).map(
                                     ([buffName, buffData]: [string, any]) => [buffName, getBuff(buffName as BuffNames)(buffData)]
@@ -250,15 +253,17 @@ class A2D extends GameState {
                             ) : {}
                         }) : undefined
                 }).filter((character: any) => character),
-                items: location.items.map((itemData: any) => Object.assign(getItem(itemData.key), itemData)),
+                items: location.items.map((itemData: any) => {
+                    console.log('loading item', itemData, `at ${key}`)
+                    return this.addItem(itemData.key, null, itemData.quantity)
+                }).filter((item: any) => item),
                 adjacent: location.adjacent,
                 key: key
             });
             location.landmarks.forEach((landmarkData: any) => {
                 const newLandmark = getLandmark(landmarkData.key, landmarkData.text);
                 landmarkData.items.forEach((itemData: any) => {
-                    if (isValidItemKey(itemData.key))
-                        newLandmark.contents.add(getItem(itemData.key, itemData))
+                    const item = this.addItem(itemData.key, newLandmark.contents, itemData.quantity)
                 });
                 newLocation.addLandmark(newLandmark);
             });
@@ -270,6 +275,93 @@ class A2D extends GameState {
         this.player.game = this;
         // this.player.relocate(this.player.location);
         return true;
+    }
+    async enter_the_void() {
+        const void_map = (await this.spawnArea('the_void', 37, 0.25, 7)).filter(location => location instanceof Location)
+        const origin = void_map[0]
+        const grid = new Map((void_map).map(location => [`${location.x},${location.y}`, location]))
+
+        function getFurthestPoint(start: Location) {
+            let pathMap = new Map(Array.from(grid.values()).map(location => {
+                const path = findPath(start, location)
+                return [location, path.length]
+            }))
+            let longestPath = Array.from(pathMap.entries()).reduce((acc, [location, length]) => {
+                if (length > acc[1]) {
+                    return [location, length]
+                }
+                return acc
+            }, [start, 0])
+            return longestPath
+        }
+
+        // find the (probably) longest path through the whole maze
+        const startPoint = getFurthestPoint(origin)[0]
+        const longestPath = getFurthestPoint(startPoint)
+        const endPoint = longestPath[0]
+        console.log(`longest path is from ${startPoint.key} to ${endPoint.key} with length ${longestPath[1]}`)
+        console.log(`path is ${findPath(startPoint, endPoint)}`)
+        endPoint.name = 'the end'
+
+        // the player has to find their way to Ieadon
+        await this.player.relocate(startPoint)
+        await this.find_character('Ieadon')?.relocate(endPoint)
+
+        // add some monsters and random objects
+        this.addCharacter('voidfish', void_map[12])
+        this.addCharacter('voidfish', void_map[13])
+        this.addCharacter('wraith', void_map[14])
+        this.addCharacter('wraith', void_map[15])
+        this.addCharacter('voidrat', void_map[16])
+        this.addCharacter('voidrat', void_map[17])
+        this.addCharacter('voidrat', void_map[18])
+
+        this.addItem('mighty_warfork', void_map[0])
+        this.addItem('banana', void_map[1])
+        this.addItem('voidstone', void_map[19])
+        this.addItem('comb', void_map[20])
+        this.addItem('crumpled_paper', void_map[21])
+        this.addItem('pen', void_map[22])
+        this.addItem('paperclip', void_map[23])
+        this.addItem('pokemon_card', void_map[24])
+        this.addItem('sock', void_map[25])
+        this.addItem('pile_of_gold', void_map[26], 650)
+        this.addItem('negative_gold', void_map[27], this.player.itemCount('gold'))
+
+        // all the rest of this is just making a pretty map for the console
+
+        const sortedLocations = Array.from(grid.values()).sort((a, b) => a.y - b.y || a.x - b.x)
+        let min_y = sortedLocations[0].y;
+        let max_y = sortedLocations[sortedLocations.length - 1].y;
+        let min_x = sortedLocations.reduce((acc, loc) => Math.min(acc, loc.x), 0);
+        let max_x = sortedLocations.reduce((acc, loc) => Math.max(acc, loc.x), 0);
+        let stringRep = '\n';
+        for (let y = min_y; y <= max_y; y++) {
+            stringRep += '` ';
+            let nextRow = '` ';
+            for (let x = min_x; x <= max_x; x++) {
+                const loc = grid.get(`${x},${y}`)
+                const nexLoc = grid.get(`${x + 1},${y}`)
+                if (loc) {
+                    const voidNumber = parseInt(loc.key.split(' ')[1])
+                    stringRep += `${Math.floor(voidNumber / 10)}*${voidNumber % 10}${loc.adjacent.has('east') ? '-' : ' '}`
+                    nextRow += loc.adjacent.has('south') ? ' | ' : '   '
+                } else if (nexLoc?.adjacent.has('west')) {
+                    nextRow += '   '
+                    stringRep += '   -'
+                } else {
+                    stringRep += '    '
+                    nextRow += '   '
+                }
+                if (nexLoc?.adjacent.has('southwest')) {
+                    if (!loc?.adjacent.has('southeast')) nextRow += '/'
+                    else nextRow += 'X'
+                } else if (loc?.adjacent.has('southeast')) nextRow += '\\'
+                else nextRow += ' '
+            }
+            stringRep += ' `\n' + nextRow + ' `\n'
+        }
+        console.log(stringRep)
     }
 }
 
