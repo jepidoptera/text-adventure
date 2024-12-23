@@ -2,7 +2,7 @@ import { Container, Item } from "./item.js";
 import { Location, findPath } from "./location.js";
 import { GameState, withGameState } from "./game.js";
 import { WeaponTypes, weapon_conversions } from "./item.js";
-import { highRandom } from "./utils.js";
+import { highRandom, randomChoice } from "./utils.js";
 
 const pronouns = {
     'male': { subject: "he", object: "him", possessive: "his" },
@@ -156,6 +156,7 @@ class Character {
     _hunger: number = 0;
     _strength: number;
     _speed: number = 1;
+    action_speed: number = 1; // speed modifier for last action
     _coordination: number;
     _agility: number;
     _magic_level: number = 0;
@@ -197,11 +198,12 @@ class Character {
     chase: boolean = false;
     respawnTime: number = 0;
     respawnCountdown: number = 0;
-    respawnLocationKey: string | number | undefined;
+    respawnLocation: string | number | undefined;
     private _respawn: boolean = true;
     persist: boolean = true;
-    turnCounter: number = 0;
+    tiemCounter: number = 0;
     following: string = '';
+    actionQueue: string[] = [];
 
     constructor({
         name,
@@ -277,7 +279,7 @@ class Character {
         this.friends = friends;
         this.abilities = powers;
         this._respawn = respawn;
-        this.respawnLocationKey = respawnLocationKey || this.location?.key;
+        this.respawnLocation = respawnLocationKey || this.location?.key;
         this.persist = persist;
         if (weapon instanceof Item) {
             this.weaponName = weapon.name;
@@ -351,15 +353,6 @@ class Character {
             damage = buff.damage_modifier[type]?.(damage) || damage
         })
         return damage
-    }
-
-    get respawnLocation() {
-        if (!this.respawnLocationKey) return null;
-        return this.game.locations.get(this.respawnLocationKey) || null;
-    }
-
-    set respawnLocation(location: Location | null) {
-        this.respawnLocationKey = location?.key;
     }
 
     get fighting(): boolean {
@@ -526,6 +519,7 @@ class Character {
         damage = this._damage_modifier[type] ? this._damage_modifier[type](damage) : damage;
         damage = this.defense_buff(damage, type);
         if (damage < original_damage) console.log(`Damage reduced from ${original_damage} to ${damage}`)
+        else if (damage > original_damage) console.log(`Damage increased from ${original_damage} to ${damage}`)
         return damage;
     }
 
@@ -603,26 +597,9 @@ class Character {
     }
 
     async go(direction: string): Promise<boolean> {
-        if (direction.includes(' ')) {
-            this.flags.path = direction.split(' ');
-            direction = '';
-        }
         console.log(`${this.name} goes ${direction}`)
-        if (this.flags.path && !direction) {
-            console.log(`following path ${this.flags.path}`)
-            let dir: string = this.flags.path.shift() || ''
-            direction = {
-                n: 'north',
-                s: 'south',
-                e: 'east',
-                w: 'west',
-                ne: 'northeast',
-                nw: 'northwest',
-                se: 'southeast',
-                sw: 'southwest'
-            }[dir] || dir
-        }
         if (!this.location?.adjacent?.has(direction)) {
+            console.log(`Can't go ${direction} from ${this.location?.name}.`)
             return false;
         }
         for (let character of this.location.characters) {
@@ -652,14 +629,14 @@ class Character {
             else { return this }
         }
         console.log(`${this.name} goes to ${location.name} from ${this.location?.name}`)
-        if (this.location) this.flags.path = findPath(this.location, location);
-        console.log(`path is ${this.flags.path}`)
+        if (this.location) this.actionQueue = findPath(this.location, location);
+        console.log(`path is ${this.actionQueue}`)
         return this;
     }
 
     async relocate(newLocation: Location | null, direction?: string) {
-        if (!this.respawnLocationKey) {
-            this.respawnLocationKey = newLocation?.key;
+        if (!this.respawnLocation) {
+            this.respawnLocation = newLocation?.key;
             // console.log(`${this.name} will respawn respawn at ${this.respawnLocationKey}.`)
         }
         await this.location?.exit(this, direction);
@@ -703,13 +680,11 @@ class Character {
     async respawn() {
         if (!this._respawn) return;
         await this._onRespawn?.()
-        this.turnCounter = 0;
-        if (this.respawnLocationKey) {
-            this.respawnLocation = this.game.locations.get(this.respawnLocationKey) || null
-        }
-        if (this.respawnLocation) {
-            console.log(`${this.name} respawns at ${this.respawnLocation.name}`)
-            await this.relocate(this.respawnLocation);
+        this.tiemCounter = 0;
+        const location = randomChoice(this.game.find_all_locations(this.respawnLocation?.toString() ?? '0'))
+        if (location) {
+            console.log(`${this.name} respawns at ${location.name}`)
+            await this.relocate(location);
             this.hp = this.max_hp;
             this.mp = this.max_mp;
             this.sp = this.max_sp;
@@ -836,7 +811,7 @@ class Character {
             this.onTurn(async () => { await this.go(direction) });
         } else if (allow && this.following == character.name) {
             console.log(`${this.name} follows ${character.name} ${direction}!`)
-            await this.go(direction);
+            this.actionQueue.unshift(direction);
         }
         return allow;
     }
@@ -850,11 +825,11 @@ class Character {
     }
 
     get evasion() {
-        return this.agility * Math.random();
+        return this.agility * this.speed * Math.random();
     }
 
     get accuracy() {
-        return this.coordination * Math.random()
+        return this.coordination * this.speed * Math.random()
     }
 
     async attack(target: Character | null = null, weapon: Item | null = null) {
@@ -896,9 +871,7 @@ class Character {
 
         //Damage total
         let tdam = dam + pdam + mdam
-        tdam = Math.max(this.damage_modifier(tdam, damageType), 0)
-        console.log(`${this.name} hits ${target.name} for ${tdam} damage!`)
-        console.log(`${target.name} has ${target.hp} hp.`)
+        tdam = Math.max(target.damage_modifier(tdam, damageType), 0)
 
         //Output screen
         if (this.location?.playerPresent)
@@ -916,6 +889,7 @@ class Character {
     async hurt(damage: number, type: DamageTypes | null = null, cause: any): Promise<number> {
         if (type) damage = Math.max(this.damage_modifier(damage, type), 0)
         this.hp -= damage;
+        console.log(`${this.name} takes ${damage} damage, ${this.hp} hp left.`)
         if (this.hp <= 0) {
             await this.die(cause);
         }
@@ -923,6 +897,7 @@ class Character {
     }
 
     describeAttack(target: Character, weaponName: string, weaponType: string, damage: number): string {
+        console.log(`${this.name} hits ${target.name} for ${damage} damage!`)
         let does = '';
         if (damage < 0) {
             return `${this.name} misses ${target.name}!`;
@@ -933,7 +908,6 @@ class Character {
         }
         return does;
     }
-
 
     async defend(attacker: Character) {
         if (!this.enemies.includes(attacker)) {
@@ -984,11 +958,14 @@ class Character {
             // console.log(`${this.name} attacks ${this.attackTarget.name}!`)
             await this.attack(this.attackTarget);
             return;
-        } else if (this.flags.path) {
-            const direction = this.flags.path.shift();
-            console.log(`${this.name} follows path ${direction}`)
-            if (direction) {
-                await this.go(direction);
+        } else if (this.actionQueue.length > 0) {
+            const action = this.actionQueue.shift()!;
+            console.log(`${this.name} next action: ${action}`)
+            if (this.location?.adjacent.keys().some(key => key === action)) {
+                await this.go(action);
+            }
+            else {
+                console.log(`${this.name} can't go ${action}`)
             }
         }
     }
@@ -997,11 +974,15 @@ class Character {
         // save only stuff that might change
         const saveObject: { [key: string]: any } = {
             key: this.key,
-            turnCounter: this.turnCounter,
             respawn: this._respawn,
-            chase: this.chase,
-            respawnLocationKey: this.respawnLocationKey,
+            respawnLocation: this.respawnLocation,
             attackPlayer: this.attackPlayer || this.enemies.some(enemy => enemy.isPlayer),
+        }
+        if (this.tiemCounter != 0) {
+            saveObject['turnCounter'] = this.tiemCounter;
+        }
+        if (this.chase) {
+            saveObject['chase'] = true;
         }
         if (this.following) {
             saveObject['following'] = this.following;
@@ -1011,6 +992,9 @@ class Character {
         }
         if (this.respawnCountdown != 0) {
             saveObject['respawnCountdown'] = this.respawnCountdown;
+        }
+        if (this.actionQueue.length > 0) {
+            saveObject['actionQueue'] = this.actionQueue;
         }
         if (Object.keys(this.buffs).length > 0) {
             saveObject['buffs'] = Object.values(this.buffs).map(buff => buff.save());
