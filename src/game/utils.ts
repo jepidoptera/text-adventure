@@ -21,6 +21,7 @@ function plural(str: string): string {
 }
 
 function randomChoice<T>(arr: T[]): T {
+    if (arr.length <= 1) return arr[0];
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
@@ -28,4 +29,20 @@ function highRandom() {
     return Math.sqrt(Math.random());
 }
 
-export { caps, plural, randomChoice, highRandom };
+function lineBreak(text: string) {
+    const lineLength = 80;
+    let lines = [];
+    let currentLine = '';
+    if (text.length < lineLength) return text;
+    for (let word of text.split(' ')) {
+        if (currentLine.length + word.length + 1 > lineLength) {
+            lines.push(currentLine);
+            currentLine = '';
+        }
+        currentLine += word + ' ';
+    }
+    lines.push(currentLine);
+    return lines.join('\n');
+}
+
+export { caps, plural, randomChoice, highRandom, lineBreak };
