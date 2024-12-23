@@ -476,7 +476,7 @@ class GameMap {
         68: new Location({
             name: "Forest of Thieves",
             adjacent: { 'north': 75, 'east': 69, 'south': 79, 'west': 77 },
-            characters: [getCharacter('evil_forester', this.game), getCharacter('snarling_thief', this.game)]
+            characters: [getCharacter('snarling_thief', this.game)]
         }),
         69: new Location({
             name: "Forest of Thieves",
@@ -543,7 +543,8 @@ class GameMap {
         ])),
         79: new Location({
             name: "Forest of Thieves",
-            adjacent: { 'north': 68, 'west': 78 }
+            adjacent: { 'north': 68, 'west': 78 },
+            characters: [getCharacter('evil_forester', this.game)]
         }),
         80: new Location({
             name: "Forest of Thieves",
@@ -2084,7 +2085,7 @@ class GameMap {
         363: new Location({
             name: "Orcish Stronghold",
             adjacent: { 'north': 365, 'east': 366, 'south': 364, 'west': 361 },
-            characters: [getCharacter('grogren', this.game), getCharacter('blobin', this.game)]
+            characters: []
         }),
         364: new Location({
             name: "Barracks",
@@ -2139,7 +2140,7 @@ class GameMap {
         371: new Location({
             name: "House",
             adjacent: { 'north': 354 },
-            characters: [getCharacter('orcish_citizen', this.game), getCharacter('orcish_child', this.game)]
+            characters: [getCharacter('blobin', this.game)]
         }),
         372: new Location({
             name: "Peon House",
@@ -2173,11 +2174,13 @@ class GameMap {
         }),
         378: new Location({
             name: "Drawing Room",
-            adjacent: { 'west': 374 }
+            adjacent: { 'west': 374 },
+            characters: [getCharacter('orcish_citizen', this.game), getCharacter('orcish_child', this.game)]
         }),
         379: new Location({
             name: "House",
-            adjacent: { 'south': 358 }
+            adjacent: { 'south': 358 },
+            characters: [getCharacter('grogren', this.game)]
         }),
         380: new Location({
             name: "Peon House",
@@ -2278,131 +2281,37 @@ class GameMap {
             characters: [getCharacter('mino', this.game)]
         }),
         401: new Location({
-            name: "land of the lost",
+            name: "the void",
             adjacent: {}
         }),
     }
 }
 
-async function spawnArea(game: A2D, areaSize: number) {
-    // spawn the void!
-    const origin = await game.addLocation('the void', { x: 0, y: 0 })
-    const grid = new Map([[`0,0`, origin]])
-
-    const adjacents = {
-        'north': [0, -1],
-        'east': [1, 0],
-        'west': [-1, 0],
-        'south': [0, 1],
-        'northeast': [1, -1],
-        'northwest': [-1, -1],
-        'southeast': [1, 1],
-        'southwest': [-1, 1]
-    }
-
-    function vacancies(location: Location): [number, number][] {
-        return Object.entries(adjacents).reduce((acc, [key, direction]) => {
-            if (location.adjacent.get(key) === undefined && !grid.has(`${direction[0] + location.x},${direction[1] + location.y}`)) {
-                acc.push([direction[0] + location.x, direction[1] + location.y])
-            }
-            return acc
-        }, [] as [number, number][])
-    }
-
-    // grid locations which are adjacent to the existing grid but aren't used yet
-    let borderLands = vacancies(origin)
-
-    for (let i = 0; i < areaSize; i++) {
-        console.log(`round ${i}:\n`, borderLands)
-        const coors = randomChoice(borderLands)
-        console.log(`chose ${coors}`)
-        const newLocation = await game.addLocation(`the void`, { x: coors[0], y: coors[1] })
-        grid.set(`${coors[0]},${coors[1]}`, newLocation)
-        // draw connections to existing locations
-        let connects = 0;
-        for (const [direction, [dx, dy]] of Object.entries(adjacents)) {
-            if (Math.random() * connects > 0.1) continue;
-            const adjacent = grid.get(`${coors[0] + dx},${coors[1] + dy}`)
-            if (adjacent) {
-                newLocation.adjacent.set(direction, adjacent)
-                adjacent.adjacent.set(Object.keys(adjacents).find(key => {
-                    const [x, y] = adjacents[key as keyof typeof adjacents]
-                    return x === -dx && y === -dy
-                })!, newLocation)
-                connects++;
-            }
-        }
-        // reset the borders
-        borderLands = borderLands.filter(([x, y]) => x !== coors[0] || y !== coors[1])
-        borderLands.push(...vacancies(newLocation))
-    }
-    // console.log(Array.from(grid.entries()).reduce((acc, [key, value]) => {
-    //     const [x, y] = key.split(',').map(Number)
-    //     acc += `${x},${y}:\n${Array.from(value.adjacent.entries()).reduce((acc, [key, value]) => {
-    //         acc += `  ${key} -> ${value.x},${value.y}\n`
-    //         return acc
-    //     }, '')
-    //         }\n`
-    //     return acc
-    // }, ''))
-    const sortedLocations = Array.from(grid.values()).sort((a, b) => a.y - b.y || a.x - b.x)
-    let stringRep = '';
-    let y = sortedLocations[0].y;
-    let x = 0;
-    let min_x = sortedLocations.reduce((acc, loc) => Math.min(acc, loc.x), 0)
-    for (let i = 0; i < sortedLocations.length; i++) {
-        const loc = sortedLocations[i];
-        const tab = Array(loc.x - x).fill('    ').join('');
-        stringRep += tab;
-        if (loc.y > y) {
-            stringRep += '\n' + tab;
-            for (let j = 0; j < x; j++) {
-            }
-        }
-        x += 1;
-        stringRep += `███${loc.adjacent.has('east') ? '-' : ' '}`
-    }
-
-    await game.player.relocate(origin)
-    const pathMap = new Map(Array.from(grid.values()).map(location => {
-        const path = findPath(origin, location)
-        return [location, path.length]
-    }))
-    let longestPath = Array.from(pathMap.entries()).reduce((acc, [location, length]) => {
-        if (length > acc[1]) {
-            return [location, length]
-        }
-        return acc
-    }, [origin, 0])
-    console.log(`longest path is to ${longestPath[0].x},${longestPath[0].y} with length ${longestPath[1]}`)
-    console.log(`path is ${findPath(origin, longestPath[0])}`)
-    longestPath[0].name = 'the end'
-    return Array.from(grid.values())
-}
-
-type LocationParams = {
-    x?: number,
-    y?: number,
-    adjacent?: { [key: string]: number },
-}
+// type LocationParams = {
+//     x?: number,
+//     y?: number,
+//     adjacent?: { [key: string]: number },
+// }
 const locationTemplates = {
-    'the void': (
+    the_void(
         game: GameState,
-        params?: LocationParams
-    ) => new Location({
-        name: "The Void",
-        adjacent: {},
-        // characters: [getCharacter(randomChoice(['grizzly_bear', 'wolf', 'minotaur', 'cyclops', ...Array(16).fill(undefined)]), game)],
-        game: game,
-        ...params
-    }),
-} as const
-type locationNames = keyof typeof locationTemplates
+        params?: any
+    ) {
+        return new Location({
+            name: "The Void",
+            adjacent: {},
+            game: game,
+            ...params
+        })
+    },
+}  // as const
+// type locationNames = keyof typeof locationTemplates
 
-function getLocation(name: locationNames, game: GameState, params?: LocationParams) {
-    const newLocation = locationTemplates[name](game, params);
-    newLocation.key = name + game.find_all_locations(name).length;
-    newLocation.description = newLocation.key;
-    return newLocation;
-}
-export { GameMap, getLocation, locationNames, LocationParams, spawnArea }
+// function getLocation(name: locationNames, game: GameState, params?: LocationParams) {
+//     const newLocation = locationTemplates[name](game, params);
+//     newLocation.key = name + ' ' + game.find_all_locations(name).length;
+//     newLocation.description = newLocation.key;
+//     return newLocation;
+// }
+
+export { GameMap, locationTemplates }
