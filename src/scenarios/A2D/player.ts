@@ -1,6 +1,6 @@
 import { findPath, Location } from "../../game/location.js"
 import { Item } from "../../game/item.js"
-import { Character, BonusKeys, Buff } from "../../game/character.js"
+import { Character, BonusKeys, Buff, DamageTypes } from "../../game/character.js"
 import { A2dCharacter } from "./characters.js"
 import { getItem, isValidItemKey, ItemNames } from "./items.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
@@ -9,7 +9,7 @@ import { caps, plural, randomChoice } from "../../game/utils.js";
 import { spells, abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js"
 import { getLandmark } from "./landmarks.js"
-import { GameMap, spawnArea } from "./map.js"
+import { GameMap } from "./map.js"
 import { assistant } from "./assistant.js"
 
 class Player extends A2dCharacter {
@@ -54,7 +54,7 @@ class Player extends A2dCharacter {
         path: [],
     } as const
     assistantHintsUsed: { [key: string]: number } = {}
-    lastCommand: string = '';
+    lastCommand: string[] = [];
 
     constructor(characterName: string, className: string, game: GameState) {
         super({ name: characterName, game: game });
@@ -247,6 +247,8 @@ class Player extends A2dCharacter {
         }
         color(black, darkwhite)
         command = command.toLowerCase().trim();
+        this.lastCommand.unshift(command);
+        console.log(`player command log: ${this.lastCommand.slice(0, 5)}`)
         // block disabled commands
         if (this.disabledCommands[command]) {
             color(gray)
@@ -729,12 +731,25 @@ class Player extends A2dCharacter {
             }
             if (item?.is_weapon) {
                 const weapon = item.weapon_stats!;
-                lines.push(
-                    () => { print(`blunt damage: ${weapon.blunt_damage || 0}x${slot == 'left hand' ? ' ' + this.statValue('offhand') : ''} (${Math.ceil(weapon.blunt_damage * this.strength * (slot == 'left hand' ? this.offhand : 1))})`, 1) },
-                    () => { print(`sharp damage: ${weapon.sharp_damage || 0}x${slot == 'left hand' ? ' ' + this.statValue('offhand') : ''} (${Math.ceil(weapon.sharp_damage * this.strength * (slot == 'left hand' ? this.offhand : 1))})`, 1) },
-                    () => { print(`magic damage: ${weapon.magic_damage || 0}x${slot == 'left hand' ? ' ' + this.statValue('offhand') : ''} (${Math.ceil(weapon.magic_damage * (this.strength + this.magic_level) * (slot == 'left hand' ? this.offhand : 1))})`, 1) },
-                    () => { print(`total: ${Math.ceil(((weapon.blunt_damage + weapon.sharp_damage + weapon.magic_damage) * this.strength + weapon.magic_damage * this.magic_level) * (slot == 'left hand' ? this.offhand : 1))}`, 1) },
-                )
+                const damage_calc = {
+                    blunt_damage: weapon.blunt_damage * this.strength * (slot == 'left hand' ? this.offhand : 1),
+                    sharp_damage: weapon.sharp_damage * this.strength * (slot == 'left hand' ? this.offhand : 1),
+                    magic_damage: weapon.magic_damage * (this.strength + this.magic_level) * (slot == 'left hand' ? this.offhand : 1),
+                }
+                for (let [type, damage] of Object.entries(damage_calc)) {
+                    if (weapon[type as keyof typeof weapon]) lines.push(() => {
+                        color(black)
+                        print(`${caps(type.replace('_', ' '))}: ${slot == 'left hand' ? this.statValue('offhand') + ' of ' : ''}${weapon[type as keyof typeof weapon]}x = `, 1)
+                        color(red)
+                        print(`${Math.ceil(damage)}`, 1)
+                    })
+                }
+                lines.push(() => {
+                    color(black)
+                    print('total: ', 1)
+                    color(red)
+                    print(`${Math.ceil(Object.values(damage_calc).reduce((prev, curr) => curr + prev))}`, 1)
+                })
             }
             lines.push(() => print('', 1))
             return lines
@@ -959,10 +974,6 @@ class Player extends A2dCharacter {
         color(brightred, gray)
         if (cause instanceof Character) {
             print(`You go limply unconscious as ${cause.name} stands triumphantly over you.`)
-            print()
-            if (this.flags.assistant) print("   -ASSISTANT-  Next time be careful when you choose your fights, though")
-            if (this.flags.assistant) print("   -ASSISTANT-  sometimes its good to be darring and explore new areas where")
-            if (this.flags.assistant) print("   -ASSISTANT-  creatures may not be so friendly")
         } else {
             print(`You have died from ${cause}.`)
         }
@@ -1155,7 +1166,13 @@ class Player extends A2dCharacter {
                     print('assistant hints reset.')
                     break;
                 case ('void'):
-                    const voidArea = await spawnArea(this.game, parseInt(value))
+                    // delete any previous void
+                    const voidLocations = this.game.find_all_locations('the void')
+                    for (const location of voidLocations) {
+                        this.game.removeLocation(location)
+                    }
+                    this.game.enter_the_void();
+                    // const voidArea = await this.game.spawnArea('the_void', parseInt(value), 0.25, parseInt(value) / 5)
                     // await this.relocate(voidArea[0]);
                     // console.log(voidArea)
                     break;
@@ -1164,8 +1181,6 @@ class Player extends A2dCharacter {
     }
 
     save() {
-        console.log(this.assistantHintsUsed)
-        console.log({ 'clubman': 1 })
         return {
             key: 'player',
             isPlayer: true,
