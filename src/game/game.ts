@@ -260,12 +260,19 @@ class GameState {
         return character;
     }
 
-    find_all_characters(name: string) {
-        name = name.toLowerCase();
-        return this.characters.filter(character => character.name.toLowerCase() === name || character.key == name);
+    find_all_characters(key: string | string[]) {
+        if (typeof key === 'string') {
+            key = [key];
+        }
+        const chars = [] as Character[];
+        for (let name of key) {
+            name = name.toLowerCase();
+            chars.push(...this.characters.filter(character => character.name.toLowerCase() === name || character.key == name));
+        }
+        return chars;
     }
 
-    get locations() {
+    private get locations() {
         return this._locations;
     }
 
@@ -278,9 +285,18 @@ class GameState {
         return location;
     }
 
-    find_all_locations(name: string) {
-        name = name.toLowerCase();
-        return Array.from(this.locations.values()).filter(location => location.name.toLowerCase() === name);
+    find_all_locations(name: string | number | string[] | number[]) {
+        if (typeof name === 'number') {
+            name = [name.toString()];
+        } else if (typeof name === 'string') {
+            name = [name];
+        }
+        const locs = [] as Location[];
+        for (name of name) {
+            name = name.toString().toLowerCase();
+            locs.push(...Array.from(this.locations.values()).filter(location => location.name.toLowerCase() === name || location.key == name));
+        }
+        return locs;
     }
 
     get characters() {
@@ -432,6 +448,9 @@ class GameState {
         const newItem = this.itemTemplates[name](params || {});
         newItem.game = this;
         newItem.key = name.toString();
+        if (typeof params === 'number') {
+            newItem.quantity = params;
+        }
         if (container) container.add(newItem);
         return newItem;
     }
@@ -452,6 +471,21 @@ class GameState {
         }
         console.log(`Created ${newCharacter.name} at ${newLocation?.name}`)
         return newCharacter;
+    }
+
+
+    async save(saveName: string): Promise<void> {
+
+        const gameStateObj: any = {
+            locations: {},
+            flags: this.flags
+        };
+
+        this.locations.forEach((location, key) => {
+            gameStateObj.locations[key] = location.save();
+        });
+
+        this._save(saveName, gameStateObj);
     }
 }
 
