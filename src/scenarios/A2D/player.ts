@@ -978,24 +978,29 @@ class Player extends A2dCharacter {
         }
     }
 
-    async slay(character: Character) {
-        await super.slay(character);
-        print()
-        color(yellow)
-        print(`You defeat ${character.name}!`)
-        color(green)
-        this.experience += character.exp_value;
-        print(` you gain ${character.exp_value} exp.`)
-        if (character.has('gold')) {
-            print(` you gain ${character.itemCount('gold')} gold.`)
-            this.getItem('gold', this.location || undefined, character.itemCount('gold'));
+    async slay(character: Character | Character[]) {
+        if (character instanceof Character) {
+            character = [character];
         }
-        color(black)
-        for (let item of character.items) {
-            if (item.name !== 'gold') print(`${character.name} drops ${item.display}`)
+        for (let char of character) {
+            await super.slay(char);
+            print()
+            color(yellow)
+            print(`You defeat ${char.name}!`)
+            color(green)
+            this.experience += char.exp_value;
+            print(` you gain ${char.exp_value} exp.`)
+            if (char.has('gold')) {
+                print(` you gain ${char.itemCount('gold')} gold.`)
+                this.getItem('gold', this.location || undefined, char.itemCount('gold'));
+            }
+            color(black)
+            for (let item of char.items) {
+                if (item.name !== 'gold') print(`${char.name} drops ${item.display}`)
+            }
+            this.fight(null);
         }
-        this.fight(null);
-        // see who's left
+        // who else wants some??
         const enemies_remaining = this.location?.characters.filter(char => char !== this && char.attackTarget === this);
         if (enemies_remaining?.length) {
             // group them by name and list them
@@ -1004,7 +1009,7 @@ class Player extends A2dCharacter {
                 else acc[char.name] = 1;
                 return acc;
             }, {} as { [key: string]: number });
-            const enemy_names = Object.keys(enemy_numbers);
+            const enemy_names = Object.keys(enemy_numbers).sort((a, b) => enemy_numbers[a] - enemy_numbers[b]);
             const enemy_list = enemy_names.map(name => enemy_numbers[name] > 1 ? plural(name) : name)
             color(black)
             for (let i = 0; i < enemy_list.length; i++) {
@@ -1016,9 +1021,8 @@ class Player extends A2dCharacter {
                 else if (i < enemy_list.length - 1) print(' and ', 1)
             }
             print(` ${enemies_remaining.length > 1 ? 'continue' : 'continues'} the attack!`)
+            this.fight(enemies_remaining[0]);
         }
-        // who else wants some??
-        this.fight(this.location?.characters.find(char => char.enemies.includes(this.name)) || null);
     }
 
     async turn() {
