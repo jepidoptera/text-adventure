@@ -3,6 +3,7 @@ import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, bright
 import { Character, Buff } from "../../game/character.js";
 import { getBuff } from "./buffs.js";
 import { play, musicc$ } from "./utils.js";
+import { lineBreak } from "src/game/utils.js";
 
 const items = {
     gold(args: ItemParams) {
@@ -886,13 +887,13 @@ const items = {
     },
     halberd(args: ItemParams) {
         return new Item({
-            name: 'polearm',
+            name: 'halberd',
             size: 2.0,
             value: 67,
             weapon_stats: {
                 type: 'axe',
                 blunt_damage: 1.9,
-                sharp_damage: 3.44,
+                sharp_damage: 3.7,
             },
             quantity: args.quantity
         }).addBuff(new Buff({
@@ -1615,7 +1616,7 @@ const items = {
                 max_mp: 100,
             },
         })).on_acquire(async function (player) {
-            player.abilities.powermaxout = 7
+            player.abilities.powermaxout = Math.max(player.abilities.powermaxout, 7)
         })
     },
     shovel(args: ItemParams) {
@@ -1792,6 +1793,23 @@ const items = {
             size: 0.1,
             value: 1,
             quantity: args.quantity
+        }).addAction('play cranberries cd', async function (player) {
+            print("You pop the CD into your walkman and hit play.")
+            await pause(2)
+            print(lineBreak("Far above, the clouded sky opens up with a furious rumble. A lone beam of light shines down, directly on - you."))
+            await pause(2)
+            print(lineBreak("Suddenly a burst of lightning arcs down from the heavens, striking the CD in your hand. Bolt after bolt follows until nothing remains of you or the CD but a smoking hole in the ground."))
+            print("Lars hates the cranberries!")
+            player.die('Wrath of God')
+            if (player.flags.assistant) {
+                color(magenta, darkwhite)
+                print("Assistant -- what did I tell you?!.")
+            }
+        }).on_acquire(async function (player) {
+            if (player.flags.assistant) {
+                color(magenta)
+                print("Assistant -- don't type \"play cranberries cd\".")
+            }
         })
     },
     voidstone(args: ItemParams) {
