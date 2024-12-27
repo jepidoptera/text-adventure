@@ -1,3 +1,5 @@
+import { Character } from './character.js';
+import { black, red } from './colors.js';
 function caps(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
@@ -45,4 +47,28 @@ function lineBreak(text: string) {
     return lines.join('\n');
 }
 
-export { caps, plural, randomChoice, highRandom, lineBreak };
+function printCharacters({
+    characters,
+    basecolor = black,
+    charcolor = red,
+    capitalize = false
+}: { characters: Character[], basecolor?: string, charcolor?: string, capitalize?: boolean }) {
+    const enemy_numbers = characters?.reduce((acc, char) => {
+        if (acc[char.name]) acc[char.name]++;
+        else acc[char.name] = 1;
+        return acc;
+    }, {} as { [key: string]: number });
+    const enemy_names = Object.keys(enemy_numbers).sort((a, b) => enemy_numbers[a] - enemy_numbers[b]);
+    const enemy_list = enemy_names.map(name => enemy_numbers[name] > 1 ? plural(name) : name)
+    color(basecolor)
+    for (let i = 0; i < enemy_list.length; i++) {
+        if (enemy_numbers[enemy_names[i]] > 1) print(`${enemy_numbers[enemy_names[i]]} `, 1)
+        color(charcolor)
+        print(i == 0 && capitalize ? caps(enemy_list[i]) : enemy_list[i], 1)
+        color(basecolor)
+        if (i < enemy_list.length - 2) print(', ', 1)
+        else if (i < enemy_list.length - 1) print(' and ', 1)
+    }
+}
+
+export { caps, plural, randomChoice, highRandom, lineBreak, printCharacters };
