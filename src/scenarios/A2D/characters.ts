@@ -6,7 +6,7 @@ import { plural, caps, randomChoice, lineBreak } from "../../game/utils.js";
 import { play, musicc$ } from "./utils.js";
 import { getItem } from "./items.js";
 import { getLandmark } from "./landmarks.js";
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { GameState } from "../../game/game.js";
 import { A2D } from "./game.js";
 import { abilityLevels } from "./spells.js";
@@ -260,7 +260,7 @@ class A2dCharacter extends Character {
                 if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('scald')} ${targetPronouns.object} with ${weaponName}, inflicting second-degree burns.` };
                 if (DT >= 50) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, instantly blistering skin.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('roast')} ${targetPronouns.object} with ${weaponName}, making charred flesh sizzle.` };
-                if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} blasted off ${targetPronouns.possessive} feet and ${t_s('land')} in a smouldering heap.` };
+                if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} blasted off ${targetPronouns.possessive} feet and cooked to a cinder in mid-air.` };
                 if (DT >= 500) { does = `${caps(targetPronouns.possessive)} family is saved the cost of cremation, as ${target.pronouns.possessive} ashes scatter to the wind.` };
                 break;
             case ("bow"):
@@ -1720,6 +1720,7 @@ const characters = {
             agility: 2,
             pronouns: pronouns.male,
             respawn: false,
+            alignment: 'orc',
             ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.ieadon) {
@@ -2663,6 +2664,7 @@ const characters = {
             agility: 10000,
             blunt_armor: 1000,
             respawn: false,
+            alignment: 'orc',
             ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.biadon) {
@@ -4144,7 +4146,7 @@ const characters = {
                 await pause(1)
                 print("and down...")
             }
-            player.hurt(200, 'blunt', 'the fall');
+            player.hurt(200, 'the fall');
             if (player.isPlayer && !player.dead) (player as Player).checkHP();
         })
     },
@@ -4442,8 +4444,9 @@ const characters = {
                 color(yellow)
                 if (this.location?.playerPresent) {
                     print(`A wave of fire erupts from ${this.name}, heading toward ${this.attackTarget?.name}!`)
-                    const dam = Math.floor(Math.sqrt(Math.random()) * this.magic_level)
-                    await this.attackTarget?.hurt(dam, 'fire', this)
+                    let dam = Math.floor(Math.sqrt(Math.random()) * this.magic_level)
+                    dam *= this.attackTarget?.damage_modifier(dam, 'fire') || 1
+                    await this.attackTarget?.hurt(dam, this)
                 }
             }
         })
@@ -4706,6 +4709,7 @@ const characters = {
         return new A2dCharacter({
             name: 'grogren',
             pronouns: pronouns.male,
+            alignment: 'orc',
             ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.biadon) {
