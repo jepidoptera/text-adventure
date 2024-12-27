@@ -526,10 +526,10 @@ class Character {
         return damage;
     }
 
-    async slay(character: Character) {
+    async slay(character: Character | Character[]) {
         // gloat or whatever
         await this._onSlay?.(character);
-        if (this.attackTarget == character) {
+        if (this.attackTarget && (this.attackTarget == character || (Array.isArray(character) && character.includes(this.attackTarget)))) {
             this.fight(null);
         }
     }
@@ -737,7 +737,7 @@ class Character {
         return this;
     }
 
-    onSlay(action: (this: Character, character: Character) => Promise<void>) {
+    onSlay(action: (this: Character, character: Character | Character[]) => Promise<void>) {
         this._onSlay = action.bind(this);
         return this;
     }

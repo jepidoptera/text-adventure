@@ -150,7 +150,7 @@ class A2dCharacter extends Character {
         return super.onLeave(this.bindMethod(action));
     }
 
-    onSlay(action: (this: A2dCharacter, character: Character) => Promise<void>) {
+    onSlay(action: (this: A2dCharacter, character: Character | Character[]) => Promise<void>) {
         return super.onSlay(this.bindMethod(action));
     }
 
