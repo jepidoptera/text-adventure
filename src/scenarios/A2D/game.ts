@@ -10,6 +10,7 @@ import { A2dCharacter, getCharacter, isValidCharacter, characters } from "./char
 import { BuffNames, getBuff, } from "./buffs.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
 import { get } from "http"
+import { time } from "console"
 
 class A2D extends GameState {
     respawnInterval!: ReturnType<typeof setInterval>;
@@ -20,7 +21,6 @@ class A2D extends GameState {
     flags: {
         cleric: boolean,
         ieadon: boolean,
-        soldiers_remaining: number,
         colonel_arach: boolean,
         biadon: boolean,
         ziatos: boolean,
@@ -34,7 +34,6 @@ class A2D extends GameState {
     } = {
             cleric: false,
             ieadon: false,
-            soldiers_remaining: 0,
             colonel_arach: false,
             biadon: false,
             ziatos: false,
@@ -118,22 +117,22 @@ class A2D extends GameState {
         console.log('starting main loop');
         while (!(['exit', 'quit'].includes(command)) && !this.player.dead) {
             // await this.player.turn();
-            let characters = this.characters.filter(char => !char.dead);
+            let characters = this.characters;
             if (!characters.includes(this.player)) {
                 throw new Error('player is not in characters list');
             }
             for (let character of characters) {
                 if (!character.dead) {
-                    character.tiemCounter += character.speed;
+                    character.timeCounter += character.speed;
                 } else if (character.respawnCountdown < 0) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
             }
-            console.log(`player turncounter: ${this.player.tiemCounter}`)
-            let activeCharacters = characters.filter(char => char.tiemCounter >= 1)
+            console.log(`player turncounter: ${this.player.timeCounter}`)
+            let activeCharacters = characters.filter(char => char.timeCounter >= 1 && !char.dead);
             while (activeCharacters.length > 0) {
-                for (let character of activeCharacters.sort((a, b) => b.tiemCounter - a.tiemCounter)) {
+                for (let character of activeCharacters.sort((a, b) => b.timeCounter - a.timeCounter)) {
                     if (!character.dead) {
                         await character.turn();
                         if (character.buffs) {
@@ -142,9 +141,9 @@ class A2D extends GameState {
                             }
                         }
                     }
-                    character.tiemCounter -= 1 / character.action_speed;
+                    character.timeCounter -= 1 / character.action_speed;
                 }
-                activeCharacters = this.characters.filter(char => !char.dead && char.tiemCounter >= 1)
+                activeCharacters = this.characters.filter(char => !char.dead && char.timeCounter >= 1)
             }
         }
         print('Press any key to continue.')
@@ -205,20 +204,6 @@ class A2D extends GameState {
         clearInterval(this.respawnInterval);
     }
 
-    async save(saveName: string): Promise<void> {
-
-        const gameStateObj: any = {
-            locations: {},
-            flags: this.flags
-        };
-
-        this.locations.forEach((location, key) => {
-            gameStateObj.locations[key] = location.save();
-        });
-
-        this._save(saveName, gameStateObj);
-    }
-
     async load(saveName: string): Promise<boolean> {
         const gamestate: {
             locations: { [key: string]: any },
@@ -245,7 +230,8 @@ class A2D extends GameState {
                             attackPlayer: character.attackPlayer,
                             chase: character.chase,
                             following: character.following,
-                            actionQueue: character.actionQueue,
+                            actionQueue: character.actionQueue || [],
+                            timeCounter: character.timeCounter || 0,
                             buffs: character.buffs ? Object.fromEntries(
                                 Object.entries(character.buffs).map(
                                     ([buffName, buffData]: [string, any]) => [buffName, getBuff(buffName as BuffNames)(buffData)]
@@ -316,6 +302,7 @@ class A2D extends GameState {
         this.addCharacter('voidrat', void_map[17])
         this.addCharacter('voidrat', void_map[18])
 
+        this.addItem('cranberries_cd', void_map[6], 100)
         this.addItem('mighty_warfork', void_map[0])
         this.addItem('banana', void_map[1])
         this.addItem('voidstone', void_map[19])
