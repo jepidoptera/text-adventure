@@ -106,8 +106,8 @@ interface CharacterParams {
     magic_level?: number;
     healing?: number;
     isPlayer?: boolean;
-    enemies?: Character[];
-    friends?: Character[];
+    enemies?: string[];
+    friends?: string[];
     powers?: { [key: string]: number };
     weapons?: { [key: string]: Item };
     weapon?: Item | { name: string, type: WeaponTypes, damage_type?: DamageTypes };
@@ -163,8 +163,8 @@ class Character {
     _healing: number = 0;
     _archery: number = 0;
     invisible: number = 0;
-    enemies: Character[] = [];
-    friends: Character[] = [];
+    enemies: string[] = [];
+    friends: string[] = [];
     weaponName: string = "";
     weaponType: WeaponTypes = 'club';
     damageType: DamageTypes = 'blunt';
@@ -201,7 +201,7 @@ class Character {
     respawnLocation: string | number | undefined;
     private _respawn: boolean = true;
     persist: boolean = true;
-    tiemCounter: number = 0;
+    timeCounter: number = 0;
     following: string = '';
     actionQueue: string[] = [];
 
@@ -368,11 +368,14 @@ class Character {
         } else if (character != this.attackTarget) {
             if (character.location == this.location) {
                 this._attackTarget = character;
-                if (!character.enemies.includes(this)) {
-                    character.enemies.push(this);
+                if (!this.enemies.includes(character.name)) {
+                    this.enemies.push(character.name);
                 }
-            } else if (!this.enemies.includes(character)) {
-                this.enemies.push(character);
+                if (!character.enemies.includes(this.name)) {
+                    character.enemies.push(this.name);
+                }
+            } else if (!this.enemies.includes(character.name)) {
+                this.enemies.push(character.name);
             }
         }
     }
@@ -596,18 +599,27 @@ class Character {
         return this.inventory.item(itemName);
     }
 
-    async go(direction: string): Promise<boolean> {
-        console.log(`${this.name} goes ${direction}`)
+    async can_go(direction: string): Promise<boolean> {
         if (!this.location?.adjacent?.has(direction)) {
             console.log(`Can't go ${direction} from ${this.location?.name}.`)
+            return false;
+        } else if (!this.location.adjacent.get(direction)) {
+            console.log(`Unexpected error: ${direction} exists but location is undefined.`);
             return false;
         }
         for (let character of this.location.characters) {
             if (!await character.allowDepart(this, direction)) {
-                console.log(`blocked from going ${direction} by ${character.name}`);
+                console.log(`${this.name} blocked from going ${direction} by ${character.name}`);
                 return false;
             }
         }
+        console.log(`${this.name} can go ${direction}`)
+        return true;
+    }
+
+    async go(direction: string): Promise<void> {
+        if (!this.location || !await this.can_go(direction)) { return }
+        console.log(`${this.name} goes ${direction}`)
         const newLocation = this.location.adjacent.get(direction);
         const lastLocation = this.location;
         if (newLocation) {
@@ -615,10 +627,6 @@ class Character {
             if (this.location?.adjacent?.keys) {
                 this.backDirection = Array.from(this.location?.adjacent?.keys()).find(key => this.location?.adjacent?.get(key) === lastLocation) || '';
             }
-            return true;
-        } else {
-            console.log(`Unexpected error: ${direction} exists but location is undefined.`);
-            return false;
         }
     }
 
@@ -680,7 +688,7 @@ class Character {
     async respawn() {
         if (!this._respawn) return;
         await this._onRespawn?.()
-        this.tiemCounter = 0;
+        this.timeCounter = 0;
         const location = randomChoice(this.game.find_all_locations(this.respawnLocation?.toString() ?? '0'))
         if (location) {
             console.log(`${this.name} respawns at ${location.name}`)
@@ -796,7 +804,7 @@ class Character {
 
     async encounter(character: Character) {
         await this._onEncounter?.(character);
-        if (this.enemies.includes(character)) {
+        if (this.enemies.includes(character.name)) {
             this.fight(character);
         } else if (this.attackPlayer && character.isPlayer) {
             this.fight(character);
@@ -910,8 +918,8 @@ class Character {
     }
 
     async defend(attacker: Character) {
-        if (!this.enemies.includes(attacker)) {
-            this.enemies.push(attacker);
+        if (!this.enemies.includes(attacker.name)) {
+            this.enemies.push(attacker.name);
         }
         if (!this.fighting) {
             this.fight(attacker);
@@ -919,7 +927,7 @@ class Character {
         for (let character of this.location?.characters ?? []) {
             if (character != this && character.alignment && character.alignment === this.alignment) {
                 console.log(`${character.name} defends ${this.name}!`)
-                if (!character.enemies.includes(attacker)) character.enemies.push(attacker);
+                if (!character.enemies.includes(attacker.name)) character.enemies.push(attacker.name);
             }
         }
         if (this._onAttack) {
@@ -939,7 +947,7 @@ class Character {
         }
         this.enemies = this.enemies.filter(enemy => enemy);
         if (!this.fighting) {
-            for (let enemy of this.enemies) {
+            for (let enemy of this.game.find_all_characters(this.enemies)) {
                 if (enemy.location === this.location) {
                     this.fight(enemy);
                     break;
@@ -976,10 +984,10 @@ class Character {
             key: this.key,
             respawn: this._respawn,
             respawnLocation: this.respawnLocation,
-            attackPlayer: this.attackPlayer || this.enemies.some(enemy => enemy.isPlayer),
+            attackPlayer: this.attackPlayer,
         }
-        if (this.tiemCounter != 0) {
-            saveObject['turnCounter'] = this.tiemCounter;
+        if (this.timeCounter != 0) {
+            saveObject['timeCounter'] = this.timeCounter;
         }
         if (this.chase) {
             saveObject['chase'] = true;
@@ -999,8 +1007,8 @@ class Character {
         if (Object.keys(this.buffs).length > 0) {
             saveObject['buffs'] = Object.values(this.buffs).map(buff => buff.save());
         }
-        if (Object.keys(this.enemies).length > 0) {
-            saveObject['enemies'] = this.enemies.map(enemy => enemy?.name).filter(name => name);
+        if (this.enemies.length > 0) {
+            saveObject['enemies'] = this.enemies;
         }
         if (Object.keys(this.items).length > 0) {
             saveObject['items'] = this.items.filter(item => item).map(item => item.save());
