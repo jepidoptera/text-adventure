@@ -42,7 +42,7 @@ class A2dCharacter extends Character {
             this.onEncounter(
                 async function (character: Character) {
                     if (character.flags.enemy_of_ierdale) {
-                        if (!this.enemies.includes(character)) this.enemies.push(character)
+                        if (!this.enemies.includes(character.name)) this.enemies.push(character.name)
                     }
                 }
             )
@@ -95,14 +95,15 @@ class A2dCharacter extends Character {
         if (this.alignment === 'evil' && character.alignment != 'evil' && !this.dead) {
             // evil characters fight everyone
             this.fight(character);
-        } else if (this.attackTarget == character || this.enemies.includes(character)) {
+        } else if (this.attackTarget == character || this.enemies.includes(character.name)) {
             this.fight(character);
         }
     }
 
-    async go(direction: string): Promise<boolean> {
+    async go(direction: string): Promise<void> {
         const oldLocation = this.location;
-        if (await super.go(direction)) {
+        await super.go(direction);
+        if (this.location !== oldLocation) {
             if (this.location?.playerPresent && !this.isPlayer && this.location && this.location.adjacent) {
                 const findEntryDirection = (currentLocation: Location, previousLocation: Location): string => {
                     if (!currentLocation.adjacent) return 'nowhere';
@@ -120,9 +121,6 @@ class A2dCharacter extends Character {
                 color(green)
                 print(`${this.name} leaves ${direction}.`);
             }
-            return true;
-        } else {
-            return false;
         }
     }
 
@@ -693,6 +691,7 @@ const characters = {
             }
         }).onDeath(async function (player) {
             if (player.isPlayer && !player.flags.enemy_of_ierdale) {
+                color(red)
                 print("Ierdale has turned against you!");
                 this.game.player.flags.enemy_of_ierdale = true;
             }
@@ -770,7 +769,6 @@ const characters = {
                 print(`${player.name}! ${player.name}! The hero returns!`)
             }
         }).onDeath(async function () {
-            this.game.flags.soldiers_remaining -= 1;
             this.game.player.flags.enemy_of_ierdale = true;
         }).fightMove(async function () {
             if (this.location?.playerPresent) {
@@ -809,7 +807,6 @@ const characters = {
                 print("We are ready to attack the filthy Orcs at a moments notice!");
             }
         }).onDeath(async function () {
-            this.game.flags.soldiers_remaining -= 1;
             this.game.player.flags.enemy_of_ierdale = true;
         }).onTurn(actions.wander({
             bounds: [
@@ -846,7 +843,6 @@ const characters = {
             respawn: false,
             ...args
         }).onDeath(async function () {
-            this.game.flags.soldiers_remaining -= 1;
             this.game.player.flags.enemy_of_ierdale = true;
         }).fightMove(async function () {
             this.game.find_all_characters('ierdale_soldier').forEach(soldier => {
@@ -883,7 +879,6 @@ const characters = {
             print("Orcs for helping Ieadon break free.  All the gates where the Orcs could enter");
             print("are locked.  Once you leave through a gate you won't be able to come back!");
         }).onDeath(async function () {
-            this.game.flags.soldiers_remaining -= 1;
             this.game.player.flags.enemy_of_ierdale = true;
         }).fightMove(async function () {
             this.game.find_all_characters('ierdale_soldier').forEach(soldier => {
@@ -955,10 +950,10 @@ const characters = {
             }
             player.flags.forest_pass = true
             // this is the signal for the farm goblins to appear
-            for (let location of [34, 35, 36, 39, 41]) {
-                this.game.locations.get(location)?.addCharacter(getCharacter('goblin_captain', this.game))
+            for (let location of [34, 35, 36, 39, 41].map(key => this.game.find_location(key))) {
+                location?.addCharacter(getCharacter('goblin_captain', this.game))
                 for (let i = 0; i < 4; i++) {
-                    this.game.locations.get(location)?.addCharacter(getCharacter('goblin_solider', this.game))
+                    location?.addCharacter(getCharacter('goblin_solider', this.game))
                 }
             }
         }).onRespawn(async function () {
@@ -1281,6 +1276,22 @@ const characters = {
             } else {
                 print("Greetings to you. All is well in Ierdale today.")
             }
+        }).onAttack(async function (attacker) {
+            if (this.location?.playerPresent) {
+                color(red)
+                print(`Colonel Arach -- Assassin!`);
+                print('              -- Soldiers!  To me!')
+                attacker.flags.enemy_of_ierdale = true;
+            }
+            for (let soldier of this.game.find_all_characters('ierdale soldier')) {
+                await soldier.goto(this.location!.key)
+            }
+            for (let guard of this.game.find_all_characters('security guard')) {
+                await guard.goto(this.location!.key)
+            }
+            for (let general of this.game.find_all_characters('ierdale general')) {
+                await general.goto(this.location!.key)
+            }
         }).fightMove(actions.heal);
     },
 
@@ -1344,7 +1355,7 @@ const characters = {
             this.location?.removeLandmark('locked_gate')
             this.location?.addLandmark(getLandmark('open_gate'))
             this.game.flags.cradel = true;
-            this.location?.adjacent?.set('south', this.game.locations.get(192) || this.location);
+            this.location?.adjacent?.set('south', this.game.find_location(192) || this.location);
         }).addAction('play lute', async function (player: Character) {
             if (!player.has('lute de lumonate')) {
                 color(gray);
@@ -1395,7 +1406,7 @@ const characters = {
                                 player.transferItem('ring of dreams', this)
                                 this.game.flags.cradel = true;
                                 this.location!.landmarks = [getLandmark('open_gate')];
-                                this.location?.adjacent?.set('south', this.game.locations.get(192) || this.location);
+                                this.location?.adjacent?.set('south', this.game.find_location(192) || this.location);
                             } else {
                                 print("Thankyou anyway.");
                                 print("If you change your mind play that wonderful tune again.");
@@ -1561,7 +1572,15 @@ const characters = {
         }).dialog(async function (player: Character) {
             print("Ierdale will stop at nothing to destroy us!");
             print("Join us against them, brother!");
-        }).onTurn(actions.wander({ bounds: ['grobin gates'] }));
+        }).onTurn(
+            actions.wander({ bounds: ['grobin gates'] })
+        ).onAttack(async function (attacker) {
+            if (attacker.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                attacker.flags.orc_pass = false;
+            };
+        })
     },
 
     orcish_citizen(args: { [key: string]: any }) {
@@ -1581,7 +1600,15 @@ const characters = {
         }).dialog(async function (player: Character) {
             print("Ierdale will stop at nothing to destroy us!");
             print("Join us against them, brother!");
-        }).onTurn(actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 }));
+        }).onTurn(
+            actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
+        ).onAttack(async function (attacker) {
+            if (attacker.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                attacker.flags.orc_pass = false;
+            };
+        })
     },
 
     orcish_child(args: { [key: string]: any }) {
@@ -1599,7 +1626,15 @@ const characters = {
             pronouns: randomChoice([pronouns.male, pronouns.female]),
         }).dialog(async function (player: Character) {
             print('Kill humans! Weeeee!')
-        }).onTurn(actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 }));
+        }).onTurn(
+            actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
+        ).onAttack(async function (attacker) {
+            if (attacker.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                attacker.flags.orc_pass = false;
+            };
+        })
     },
 
     orcish_soldier(args: { [key: string]: any }) {
@@ -1620,7 +1655,18 @@ const characters = {
             actions.wander({ bounds: ['grobin gates', 'peon house', 'orc house', 'house', 'orcish grocery'] })
         ).dialog(async function (player: Character) {
             print("Ten-hut! The humans will find no quarter with me!");
+        }).onEncounter(async function (player: Character) {
+            if (!player.flags.orc_pass && !player.alignment.includes('orc')) {
+                this.fight(player)
+            };
+        }).onAttack(async function (attacker) {
+            if (attacker.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                attacker.flags.orc_pass = false;
+            };
         })
+
     },
 
     dark_angel(args: { [key: string]: any }) {
@@ -1653,7 +1699,10 @@ const characters = {
             if (!player.flags.orc_pass && !player.alignment.includes('orc')) {
                 this.fight(player)
             };
-        });
+        }).onAttack(async function (attacker) {
+            // pass revoked
+            attacker.flags.orc_pass = false;
+        })
     },
 
     gerard(args: { [key: string]: any }) {
@@ -1738,7 +1787,8 @@ const characters = {
                 if (await getKey(['y', 'n']) == "y") {
                     print("Follow me, then.")
                     this.game.player.flags.orc_pass = true;
-                    this.goto('orc barracks')
+                    this.flags.lead_player = true;
+                    this.goto('Orcish Stronghold')
                 } else {
                     print("That means death.");
                     await pause(2);
@@ -1748,6 +1798,26 @@ const characters = {
                 print("I'm sorry to hear that. You die now.");
                 this.fight(player)
             }
+        }).onTurn(async function () {
+            if (this.flags.lead_player) {
+                if (this.location?.name == 'Orcish Stronghold') {
+                    delete this.flags.lead_player;
+                    color(magenta);
+                    print("Orcish emissary -- Blobin will tell you the rest.");
+                } else if (this.actionQueue.length == 0 && this.location?.playerPresent) {
+                    color(magenta);
+                    print("Orcish emissary -- follow me.");
+                    this.goto('Orcish Stronghold');
+                } else {
+                    this.actionQueue = [];
+                }
+            }
+        }).onAttack(async function (attacker) {
+            if (attacker.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                attacker.flags.orc_pass = false;
+            };
         })
     },
 
@@ -1766,7 +1836,13 @@ const characters = {
             ...args
         }).dialog(async function (player: Character) {
             print("Want some doo-dads?  They're really neat!");
-        });
+        }).onAttack(async function (attacker) {
+            if (attacker.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                attacker.flags.orc_pass = false;
+            };
+        })
     },
 
     orcish_grocer(args: { [key: string]: any }) {
@@ -1803,7 +1879,13 @@ const characters = {
             }
         }).addAction(
             'buy', actions.buy
-        )
+        ).onAttack(async function (attacker) {
+            if (attacker.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                attacker.flags.orc_pass = false;
+            };
+        })
     },
 
     farm_wife(args: { [key: string]: any }) {
@@ -2611,22 +2693,20 @@ const characters = {
                             print("Fine, if you can do it on your own, good luck.");
                             print("Just remember you must kill EVERY LAST soldier and general in Ierdale.");
                         }
-                        this.game.flags.soldiers_remaining = 22;
+                        print()
+                        print("Bring me Arach's sword to prove that it's done.")
                         this.game.flags.orc_mission = true;
                     } else {
                         print("Fine, but you won't get that ring without me telling you!");
                         print("KAHAHAHAHAEHEHEHEHEHEAHAHAHAHAOHOHOHOH!");
                     }
-                } else if (this.game.flags.soldiers_remaining > 0) {
-                    print("You must kill ALL the soldiers and generals in Ierdale before I tell you my");
-                    print("secret.");
-                    print("NOW GET BACK TO BATTLE!");
                 } else {
-                    // this.game.flags['For a'] = 0 To MaxPets - 1;
-                    // If Pet(a).Name = "orc amazon" Then Pet(a).Name = \"
-                    // If Pet(a).Name = "orc behemoth" Then Pet(a).Name = \"
-                    // If Pet(a).Name = "gryphon" Then Pet(a).Name = \"
-                    // Next
+                    const arach = this.game.find_character('colonel arach')
+                    if (arach && !arach.dead) {
+                        print("You must kill ALL the soldiers and generals in Ierdale before I tell you my");
+                        print("secret.");
+                        print("NOW GET BACK TO BATTLE!");
+                    }
                     print("Congradulations!  You have defeated the entire army of Ierdale. That will show");
                     print("thoes dirty HUMAN BASTARDS!");
                     print("I will now tell you the Vital secret.");
@@ -2763,7 +2843,7 @@ const characters = {
                 xp: 30 + 15 * player._healing
             }),
             classDiscount: {
-                'cleric': 0.5,
+                'cleric': 50,
             },
             result: (player: Character) => {
                 player.healing += 1;
@@ -2776,8 +2856,8 @@ const characters = {
                 xp: 15 + 8 * player._archery
             }),
             classDiscount: {
-                'cleric': 0.25,
-                'thief': 0.25
+                'cleric': 25,
+                'thief': 50
             },
             result: (player: Character) => {
                 player.archery += 1;
@@ -2790,7 +2870,8 @@ const characters = {
                 xp: 4 * player._max_mp
             }),
             classDiscount: {
-                'cleric': 0.5,
+                'spellcaster': 30,
+                'cleric': 25
             },
             result: (player: Character) => {
                 player.max_mp += 5;
@@ -3048,6 +3129,7 @@ const characters = {
                 }
             }
         }).onDeath(async function () {
+            color(red)
             print("Ierdale has turned against you!")
         }).onDeparture(async function (character: Character, direction: string) {
             if (!this.game.flags.colonel_arach) {
@@ -3537,7 +3619,7 @@ const characters = {
                     await evil_you.relocate(this.location)
                     evil_you.fight(player)
                     player.fight(evil_you)
-                    player.enemies = player.enemies.filter(e => e != this)
+                    player.enemies = player.enemies.filter(e => e != this.name)
                     this.fight(null)
                 } else {
                     print("Now you will be punished!")
@@ -4084,6 +4166,7 @@ const characters = {
             attackPlayer: true,
             alignment: 'evil',
             respawn: false,
+            exp: 650,
             ...args
         }).onEncounter(async function (player: Character) {
             if (player.isPlayer) {
@@ -4100,9 +4183,9 @@ const characters = {
             }
         }).onDeath(async function () {
             this.game.flags.henge = true;
-            const canyon1 = this.game.locations.get(114)
-            const canyon2 = this.game.locations.get(114.1)
-            const canyon3 = this.game.locations.get(114.2)
+            const canyon1 = this.game.find_location(114)
+            const canyon2 = this.game.find_location(114.1)
+            const canyon3 = this.game.find_location(114.2)
             if (canyon1 && canyon2) {
                 canyon1.description = '';
                 canyon2.description = '';
