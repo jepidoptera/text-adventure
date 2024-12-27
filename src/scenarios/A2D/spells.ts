@@ -3,9 +3,9 @@ import { A2dCharacter } from './characters.js';
 import { brightred, black, gray, magenta } from './colors.js';
 import { getBuff } from './buffs.js';
 import { WeaponTypes } from '../../game/item.js';
-import { highRandom } from '../../game/utils.js';
+import { highRandom, randomChoice } from '../../game/utils.js';
 type SpellAction = (this: A2dCharacter, target: Character) => Promise<void>;
-const abilityLevels = ["Novice", "Ameteur", "Competent", "Proficient", "Adept", "Expert", "Master", "Grand Master"]
+const abilityLevels = ["Novice", "Ameteur", "Competent", "Proficient", "Adept", "Expert", "Master", "Ultimate"]
 const spellPower = 1.0860331325016919
 
 const spells: Record<string, SpellAction> = {
@@ -47,6 +47,7 @@ const spells: Record<string, SpellAction> = {
             accuracy: Math.random() * (this.coordination + 2 + (this.abilities['fire'] || 1) / 3),
             damageType: 'fire',
             weaponType: 'fire',
+            damage_overflow: 0.5
         }).call(this, target)
     },
     blades: async function (this: A2dCharacter, target: Character) {
@@ -60,6 +61,7 @@ const spells: Record<string, SpellAction> = {
             accuracy: Math.random() * (Math.max(this.coordination - 1, 1) + (this.abilities['blades'] || 1) / 5),
             weaponType: 'blades',
             damageType: 'sharp',
+            damage_overflow: 0.8
         }).call(this, target)
     },
     powermaxout: async function (this: A2dCharacter, target: Character) {
@@ -72,7 +74,8 @@ const spells: Record<string, SpellAction> = {
             damage: highRandom() * (this.mp / 25 * (this.abilities['powermaxout'] || 1) ** spellPower) * this.magic_level,
             accuracy: highRandom() * 2 * (this.coordination + (this.abilities['powermaxout'] || 1) * 2),
             weaponType: 'magic',
-            damageType: 'magic'
+            damageType: 'magic',
+            damage_overflow: 1
         }).call(this, target)
     },
     shield: async function (this: A2dCharacter) {
@@ -142,12 +145,13 @@ function checkRequirements(this: A2dCharacter, spellName: string, magicCost: num
     return true;
 }
 
-function damageSpell({ spellName, damage, accuracy, damageType, weaponType }: {
+function damageSpell({ spellName, damage, accuracy, damageType, weaponType, damage_overflow = 0 }: {
     spellName: string,
     damage: number,
     accuracy: number,
     weaponType: WeaponTypes,
-    damageType: DamageTypes
+    damageType: DamageTypes,
+    damage_overflow?: number
 }) {
     return async function (this: A2dCharacter, target: Character) {
         // console.log(this.abilities)
@@ -162,6 +166,13 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType }: {
         await target.hurt(damage, damageType, this);
         if (target.dead) {
             console.log(`${target.name} is dead from ${spellName}!`)
+            if (damage_overflow) {
+                const newTarget = randomChoice(this.location?.characters.filter(character => character.enemies.includes(this.name)) || [])
+                if (newTarget) {
+                    damage *= (1 + target.hp / damage) * damage_overflow
+                    await damageSpell({ spellName, damage, accuracy, damageType, weaponType }).call(this, newTarget)
+                }
+            }
             await this.slay(target);
         }
     }
