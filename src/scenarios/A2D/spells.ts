@@ -1,6 +1,6 @@
 import { Character, DamageTypes } from '../../game/character.js';
 import { A2dCharacter } from './characters.js';
-import { brightred, black, gray, magenta } from './colors.js';
+import { brightred, black, gray, magenta } from '../../game/colors.js';
 import { getBuff } from './buffs.js';
 import { WeaponTypes } from '../../game/item.js';
 import { highRandom, randomChoice } from '../../game/utils.js';
@@ -66,12 +66,13 @@ const spells: Record<string, SpellAction> = {
     },
     powermaxout: async function (this: A2dCharacter, target: Character) {
         // maximum cost, very high damage, very high accuracy.
+        const mp = this.mp
         if (!checkRequirements.call(this, 'powermaxout', Math.max(this.mp, 50))) return;
         color(brightred);
         if (this.isPlayer) print(`$A booming wave of ULTIMATE POWER rolls towards ${target.name}.`);
         await damageSpell({
             spellName: 'powermaxout',
-            damage: highRandom() * (this.mp / 25 * (this.abilities['powermaxout'] || 1) ** spellPower) * this.magic_level,
+            damage: highRandom() * (mp / 25 * (this.abilities['powermaxout'] || 1) ** spellPower) * this.magic_level,
             accuracy: highRandom() * 2 * (this.coordination + (this.abilities['powermaxout'] || 1) * 2),
             weaponType: 'magic',
             damageType: 'magic',
@@ -145,35 +146,46 @@ function checkRequirements(this: A2dCharacter, spellName: string, magicCost: num
     return true;
 }
 
-function damageSpell({ spellName, damage, accuracy, damageType, weaponType, damage_overflow = 0 }: {
+function damageSpell({ spellName, damage, accuracy, damageType, weaponType, damage_overflow = 0, casualties = [] }: {
     spellName: string,
     damage: number,
     accuracy: number,
     weaponType: WeaponTypes,
     damageType: DamageTypes,
-    damage_overflow?: number
+    damage_overflow?: number,
+    casualties?: Character[]
 }) {
     return async function (this: A2dCharacter, target: Character) {
         // console.log(this.abilities)
         const hit = accuracy > target.evasion;
         if (!hit) {
             damage = -1;
+            console.log(`${target.name} dodges ${spellName}!`)
         } else {
-            damage = Math.max(this.damage_modifier(damage, damageType), 0);
+            damage = Math.max(target.damage_modifier(damage, damageType), 0);
+            console.log(`${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
         }
         color(damage ? black : gray)
         print(this.describeAttack(target, spellName, weaponType, damage, false))
-        await target.hurt(damage, damageType, this);
-        if (target.dead) {
+        if (damage >= target.hp) {
+            casualties.push(target)
+            damage = (damage - target.hp) * damage_overflow
             console.log(`${target.name} is dead from ${spellName}!`)
             if (damage_overflow) {
-                const newTarget = randomChoice(this.location?.characters.filter(character => character.enemies.includes(this.name)) || [])
+                const targetRemaining = this.location?.characters.filter(character => character.enemies.includes(this.name) && !casualties.includes(character)) || []
+                console.log(`damage overflows to ${targetRemaining.length} remaining enemies`)
+                const newTarget = randomChoice(targetRemaining)
                 if (newTarget) {
-                    damage *= (1 + target.hp / damage) * damage_overflow
-                    await damageSpell({ spellName, damage, accuracy, damageType, weaponType }).call(this, newTarget)
-                }
+                    await damageSpell({ spellName, damage, accuracy, damageType, weaponType, damage_overflow, casualties }).call(this, newTarget)
+                } else { damage = 0 }
+            } else { damage = 0 }
+        } else { damage = 0 }
+        if (damage == 0 && casualties.length > 0) {
+            // all damage potential is expended
+            for (const char of casualties) {
+                await char.die(this);
             }
-            await this.slay(target);
+            await this.slay(casualties)
         }
     }
 }
