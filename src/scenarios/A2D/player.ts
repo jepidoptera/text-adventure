@@ -3,9 +3,9 @@ import { Item } from "../../game/item.js"
 import { Character, BonusKeys, Buff, DamageTypes } from "../../game/character.js"
 import { A2dCharacter } from "./characters.js"
 import { getItem, isValidItemKey, ItemNames } from "./items.js"
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { GameState } from "../../game/game.js";
-import { caps, plural, randomChoice } from "../../game/utils.js";
+import { caps, plural, printCharacters, randomChoice } from "../../game/utils.js";
 import { spells, abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js"
 import { getLandmark } from "./landmarks.js"
@@ -359,7 +359,7 @@ class Player extends A2dCharacter {
         this.hunger += diff / 10
         color(magenta)
         if (this.hungerPenalty >= 1) {
-            this.hurt(this.hunger - this._max_sp, null, 'hunger')
+            this.hurt(this.hunger - this._max_sp, 'hunger')
             print('You are starving!')
         } else if (this.hungerPenalty && this.flags.hungry) {
             print('You are hungry.')
@@ -982,47 +982,44 @@ class Player extends A2dCharacter {
         if (character instanceof Character) {
             character = [character];
         }
+        let exp_gained = 0;
+        let gold_gained = 0;
+        print()
+        color(yellow)
+        print(`You defeat `, 1)
+        printCharacters({
+            characters: character,
+            basecolor: yellow,
+            charcolor: yellow
+        });
+        print('!')
+        color(black)
         for (let char of character) {
             await super.slay(char);
-            print()
-            color(yellow)
-            print(`You defeat ${char.name}!`)
-            color(green)
-            this.experience += char.exp_value;
-            print(` you gain ${char.exp_value} exp.`)
+            exp_gained += char.exp_value;
             if (char.has('gold')) {
-                print(` you gain ${char.itemCount('gold')} gold.`)
-                this.getItem('gold', this.location || undefined, char.itemCount('gold'));
+                gold_gained += char.itemCount('gold');
             }
-            color(black)
             for (let item of char.items) {
                 if (item.name !== 'gold') print(`${char.name} drops ${item.display}`)
             }
-            this.fight(null);
         }
+        // sum up gold and exp all together
+        color(green)
+        print(` you gain ${gold_gained} gold.`)
+        this.getItem('gold', this.location || undefined, gold_gained);
+        color(green)
+        print(` you gain ${exp_gained} exp.`)
+        this.experience += exp_gained;
+
         // who else wants some??
         const enemies_remaining = this.location?.characters.filter(char => char !== this && char.attackTarget === this);
         if (enemies_remaining?.length) {
             // group them by name and list them
-            const enemy_numbers = enemies_remaining?.reduce((acc, char) => {
-                if (acc[char.name]) acc[char.name]++;
-                else acc[char.name] = 1;
-                return acc;
-            }, {} as { [key: string]: number });
-            const enemy_names = Object.keys(enemy_numbers).sort((a, b) => enemy_numbers[a] - enemy_numbers[b]);
-            const enemy_list = enemy_names.map(name => enemy_numbers[name] > 1 ? plural(name) : name)
-            color(black)
-            for (let i = 0; i < enemy_list.length; i++) {
-                if (enemy_numbers[enemy_names[i]] > 1) print(`${enemy_numbers[enemy_names[i]]} `, 1)
-                color(red)
-                print(i == 0 ? caps(enemy_list[i]) : enemy_list[i], 1)
-                color(black)
-                if (i < enemy_list.length - 2) print(', ', 1)
-                else if (i < enemy_list.length - 1) print(' and ', 1)
-            }
+            printCharacters({ characters: enemies_remaining, capitalize: true });
             print(` ${enemies_remaining.length > 1 ? 'continue' : 'continues'} the attack!`)
             this.fight(enemies_remaining[0]);
-        }
+        } else { this.fight(null) }
     }
 
     async turn() {
