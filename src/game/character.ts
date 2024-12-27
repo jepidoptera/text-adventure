@@ -884,7 +884,7 @@ class Character {
         //Output screen
         if (this.location?.playerPresent)
             print(this.describeAttack(target, weaponName, weaponType, tdam))
-        await target.hurt(tdam, null, this)
+        await target.hurt(tdam, this)
 
         if (target.dead) {
             await this.slay(target);
@@ -894,8 +894,7 @@ class Character {
         }
     }
 
-    async hurt(damage: number, type: DamageTypes | null = null, cause: any): Promise<number> {
-        if (type) damage = Math.max(this.damage_modifier(damage, type), 0)
+    async hurt(damage: number, cause: any): Promise<number> {
         this.hp -= damage;
         console.log(`${this.name} takes ${damage} damage, ${this.hp} hp left.`)
         if (this.hp <= 0) {
