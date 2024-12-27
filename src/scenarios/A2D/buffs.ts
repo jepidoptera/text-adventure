@@ -1,6 +1,6 @@
 import { randomChoice } from "../../game/utils.js";
 import { Buff, Character, DamageTypes } from "../../game/character.js";
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js";
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js";
 
 type BuffCreator = (({ power, duration }: { power: number, duration: number }) => Buff) | (() => Buff);
 const buffs: { [key: string]: BuffCreator } = {

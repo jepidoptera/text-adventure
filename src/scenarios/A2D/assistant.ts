@@ -1,5 +1,5 @@
 import { Player } from "./player.ts";
-import { magenta } from "./colors.ts";
+import { magenta } from "../../game/colors.ts";
 type hintParameters = {
     name: string,
     text: string[],

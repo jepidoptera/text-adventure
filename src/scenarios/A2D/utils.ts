@@ -1,4 +1,4 @@
-import { qbColors, black, darkwhite } from "./colors.js";
+import { qbColors, black, darkwhite } from "../../game/colors.js";
 import { randomChoice } from "../../game/utils.js";
 
 function musicc$(n: number) {

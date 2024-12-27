@@ -1,9 +1,9 @@
 import { Item, ItemParams } from "../../game/item.js";
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js";
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js";
 import { Character, Buff } from "../../game/character.js";
 import { getBuff } from "./buffs.js";
 import { play, musicc$ } from "./utils.js";
-import { lineBreak } from "src/game/utils.js";
+import { lineBreak } from "../../game/utils.js";
 
 const items = {
     gold(args: ItemParams) {
@@ -1616,7 +1616,7 @@ const items = {
                 max_mp: 100,
             },
         })).on_acquire(async function (player) {
-            player.abilities.powermaxout = Math.max(player.abilities.powermaxout, 7)
+            player.abilities.powermaxout = Math.max(player.abilities.powermaxout || 0, 7)
         })
     },
     shovel(args: ItemParams) {

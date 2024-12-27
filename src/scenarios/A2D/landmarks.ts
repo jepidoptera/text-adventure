@@ -1,6 +1,6 @@
 import { Landmark } from "../../game/location.js";
 import { Item, Container } from "../../game/item.js";
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { potions } from "./items.js"
 import { Character } from "../../game/character.js";
 

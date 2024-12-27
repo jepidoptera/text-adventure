@@ -8,7 +8,7 @@ import { GameMap, locationTemplates } from "./map.js"
 import { Player } from "./player.js"
 import { A2dCharacter, getCharacter, isValidCharacter, characters } from "./characters.js"
 import { BuffNames, getBuff, } from "./buffs.js"
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "./colors.js"
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { get } from "http"
 import { time } from "console"
 
