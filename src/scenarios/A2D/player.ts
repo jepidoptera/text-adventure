@@ -168,7 +168,7 @@ class Player extends A2dCharacter {
         this.addAction('up', async () => await this.go('up'));
         this.addAction('go', this.go);
         this.addAction('flee', async () => { if (this.backDirection) await this.go(this.backDirection); else { color(black); print('you are cornered!') } });
-        this.addAction('i', async () => this.listInventory());
+        this.addAction('i', async () => this.checkInventory());
         this.addAction('look', this.look);
         this.addAction('read', this.read);
         this.addAction('eat', this.eat);
@@ -463,19 +463,18 @@ class Player extends A2dCharacter {
     }
 
     async go(direction: string) {
+        const prevLocation = this.location?.key;
         console.log('go!', direction)
         color(black)
         if (this.sp <= 0) {
             print("You are too weak!");
-            return false;
-        }
-        if (await super.go(direction)) {
-            this.recoverStats({ sp: -0.5 });
-            return true;
-        }
-        else {
+        } else if (!this.location?.adjacent.has(direction)) {
             print('You can\'t go that way.')
-            return false
+        } else {
+            await super.go(direction)
+            if (this.location?.key != prevLocation) {
+                this.recoverStats({ sp: -0.5 });
+            }
         }
     }
 
@@ -500,7 +499,7 @@ class Player extends A2dCharacter {
         return Math.round(this.items.reduce((acc, item) => acc + item.size * item.quantity, 0) * 10) / 10
     }
 
-    async listInventory() {
+    async checkInventory() {
         let lines = 4;
         async function nextLine() {
             lines += 1;
@@ -1018,14 +1017,8 @@ class Player extends A2dCharacter {
             }
             print(` ${enemies_remaining.length > 1 ? 'continue' : 'continues'} the attack!`)
         }
-
-        for (let enemy in this.enemies) {
-            if (this.enemies[enemy] === character) {
-                delete this.enemies[enemy];
-            } else if (this.enemies[enemy].location === this.location) {
-                this.fight(this.enemies[enemy]);
-            }
-        }
+        // who else wants some??
+        this.fight(this.location?.characters.find(char => char.enemies.includes(this.name)) || null);
     }
 
     async turn() {
@@ -1129,7 +1122,7 @@ class Player extends A2dCharacter {
                     break;
                 case ('regen'):
                     this.game.loadScenario(new GameMap(this.game).locations)
-                    this.relocate(this.game.locations.get(this.location?.key || '') || null);
+                    this.relocate(this.game.find_location(this.location?.key || '') || null);
                     print('map regenerated.')
                     break;
                 case ('enable'):
