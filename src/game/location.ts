@@ -87,7 +87,7 @@ class Location extends Container {
     }
     addCharacter(character: Character) {
         this._characters.add(character);
-        character.relocate(this);
+        // character.relocate(this);
         return this;
     }
     removeCharacter(character: Character) {

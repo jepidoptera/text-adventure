@@ -27,8 +27,8 @@ function randomChoice<T>(arr: T[]): T {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function highRandom() {
-    return Math.sqrt(Math.random());
+function highRandom(times = 1): number {
+    return Math.sqrt(Math.random()) * times;
 }
 
 function lineBreak(text: string) {

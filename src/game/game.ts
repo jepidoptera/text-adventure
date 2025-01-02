@@ -1,10 +1,10 @@
 import { WebSocket } from 'ws';
-import { Location, findPath } from './location.js';
+import { Landmark, Location, findPath } from './location.js';
 import { Item, ItemParams, Container } from './item.js'
-import { Character } from './character.js'
+import { Character, Buff } from './character.js'
 import { randomChoice } from './utils.js'
 
-class GameState {
+abstract class GameState {
     static current: GameState | null = null;
     private static contextLock: Promise<void> = Promise.resolve();
     private static contextRelease: (() => void) | null = null;
@@ -15,10 +15,12 @@ class GameState {
     send: (output: object) => void;
     _save: (saveName: string, gameState: object) => Promise<void>;
     _load: (saveName: string) => Promise<object | null>;
-    itemTemplates: { [key: string]: (args: ItemParams) => Item } = {};
+    itemTemplates: { [key: string]: (game: GameState) => Item } = {};
     locationTemplates: { [key: string]: (game: GameState, args: any) => Location } = {};
-    characterTemplates: { [key: string]: (args: any) => Character } = {};
+    buffTemplates: { [key: string]: ({ character, power, duration }: { character: Character, power: number, duration: number }) => Buff } = {};
+    abstract readonly characterTemplates: Record<string, (game: GameState) => Character>;
     player!: Character;
+    playerData: any = {};
     constructor(
         wss: WebSocket,
         save: (saveName: string, gameState: object) => Promise<void>,
@@ -129,28 +131,28 @@ class GameState {
             title: "choose your class:",
             options: classOptions
         })];
-        let player = new Character({ name: "you" });
+        let player = new Character({ name: "you", game: this });
         switch (className) {
             case 'Warrior':
-                player.strength = 10;
-                player.max_hp = 50;
-                player.max_sp = 40;
-                player.max_mp = 5;
+                player.base_stats.strength = 10;
+                player.base_stats.max_hp = 50;
+                player.base_stats.max_sp = 40;
+                player.base_stats.max_mp = 5;
                 player.abilities = { 'berserk': 5 }
                 break;
             case 'Mage':
-                player.strength = 5;
-                player.max_hp = 30;
-                player.max_sp = 20;
-                player.max_mp = 50;
-                player.magic_level = 10;
+                player.base_stats.strength = 5;
+                player.base_stats.max_hp = 30;
+                player.base_stats.max_sp = 20;
+                player.base_stats.max_mp = 50;
+                player.base_stats.magic_level = 10;
                 player.abilities = { 'bolt': 5 }
                 break;
             case 'Rogue':
-                player.strength = 8;
-                player.max_hp = 40;
-                player.max_sp = 40;
-                player.max_mp = 10;
+                player.base_stats.strength = 8;
+                player.base_stats.max_hp = 40;
+                player.base_stats.max_sp = 40;
+                player.base_stats.max_mp = 10;
                 player.abilities = { 'sneak': 5 }
                 break;
         }
@@ -226,21 +228,95 @@ class GameState {
 
     // ^^ webinterface stuff ^^ //
     // vv   gamestate stuff  vv //
-    loadScenario(locations: { [key: string | number]: Location }) {
-        this._locations = new Map(Object.entries(locations).map(([k, v]) => [k.toString(), v]));
+
+    async loadScenario(
+        scenario: {
+            locations: {
+                [key: string | number]: {
+                    name: string,
+                    description?: string,
+                    adjacent: { [key: string]: string | number },
+                    x?: number,
+                    y?: number,
+                    landmarks?: {
+                        name: string,
+                        description?: string,
+                        text?: string | string[],
+                        items?: { key?: string, name?: string, quantity?: number }[]
+                    }[],
+                    items?: {
+                        key?: string,
+                        name?: string,
+                        quantity?: number
+                    }[],
+                    characters?: {
+                        key?: string,
+                        name?: string,
+                        respawn?: boolean,
+                        respawnLocation?: string | number,
+                        respawnCountdown?: number,
+                        attackPlayer?: boolean,
+                        chase?: boolean,
+                        following?: string,
+                        actionQueue?: string[],
+                        timeCounter?: number,
+                        buffs?: { name: string, power: number, duration: number }[],
+                        items?: { key?: string, name?: string, quantity: number }[],
+                        isPlayer?: boolean
+                    }[]
+                }
+            },
+            flags: { [key: string]: any }
+        }
+    ) {
+        console.log('loading scenario');
+        this.locations.clear();
+        for (let [key, location] of Object.entries(scenario.locations)) {
+            this._locations.set(key.toString(), new Location({
+                game: this,
+                name: location.name,
+                key: key.toString(),
+                description: location.description || '',
+            }));
+        }
         for (let [key, location] of this.locations.entries()) {
-            // since we have to link locations by id initially, we now link to the actual location object
-            location.key = key.toString();
-            location.game = this;
-            // console.log(`loading location ${location.name}, ${Object.entries(location.adjacent_ids).reduce((acc, [k, v]) => (acc + `${k}: ${v}, `), '')}`);
-            location.adjacent = new Map(Object.entries(location.adjacent_ids).map(([direction, id]) => [direction, this.locations.get(id.toString()) || location]));
-            // console.log(`adjacent locations: ${Array.from(location.adjacent.values()).map(loc => loc.name).join(', ')}`);
-            // link characters to game
-            for (let character of location.characters) {
-                character.game = this;
-                character.relocate(location);
+            console.log(`loading location ${key}`);
+            const temp = scenario.locations[key];
+            for (let [direction, adjacent] of Object.entries(temp.adjacent || {})) {
+                const neighbor = this.find_location(adjacent.toString());
+                if (neighbor) location.adjacent.set(direction, neighbor);
+                else (console.log(`could not find location ${adjacent} ${direction} of ${location.name}`));
+            }
+            for (let character of temp.characters || []) {
+                if (!character.isPlayer) {
+                    if (character.key) character.name = ''
+                    this.addCharacter({
+                        location: location,
+                        name: character.key || character.name || '',
+                        ...character
+                    });
+                } else {
+                    console.log(`found player at ${location.name}`);
+                    this.playerData = { location: location, ...character };
+                    console.log(this.playerData);
+                }
+            }
+            for (let landmark of temp.landmarks || []) {
+                const newLandmark = new Landmark({
+                    name: landmark.name,
+                    description: landmark.description || '',
+                    text: Array.isArray(landmark.text) ? landmark.text?.join('\n') : landmark.text,
+                });
+                for (let item of landmark.items || []) {
+                    this.addItem({ name: item.key || item.name || '', quantity: item.quantity || 1, container: newLandmark.contents });
+                }
+                location.addLandmark(newLandmark);
+            }
+            for (let item of temp.items || []) {
+                this.addItem({ name: item.key || item.name || '', quantity: item.quantity || 1, container: location });
             }
         }
+        this.flags = scenario.flags;
     }
 
     animate_characters() {
@@ -270,6 +346,81 @@ class GameState {
             chars.push(...this.characters.filter(character => character.name.toLowerCase() === name || character.key == name));
         }
         return chars;
+    }
+
+    addCharacter<K extends keyof this['characterTemplates']>(
+        {
+            name,
+            location,
+            respawn = true,
+            respawnLocation = null,
+            respawnCountdown = 0,
+            attackPlayer = false,
+            chase = false,
+            following = '',
+            actionQueue = [],
+            timeCounter = 0,
+            persist = true,
+            items,
+            buffs
+        }: {
+            name: K,
+            location: string | number | Location,
+            respawn?: boolean,
+            respawnLocation?: string | number | null,
+            respawnCountdown?: number,
+            attackPlayer?: boolean,
+            chase?: boolean,
+            following?: string,
+            actionQueue?: string[],
+            timeCounter?: number,
+            persist?: boolean,
+            buffs?: { name: string, power: number, duration: number }[],
+            items?: { name?: string, key?: string, quantity: number }[]
+        }
+    ) {
+
+        if (!Object.keys(this.characterTemplates).includes(name.toString())) {
+            console.log('invalid character name', name);
+            return;
+        }
+        const newCharacter = this.characterTemplates[name as keyof typeof this.characterTemplates](this);
+        Object.assign(newCharacter, { respawnLocation, respawnCountdown, attackPlayer, chase, following, actionQueue, timeCounter, persist });
+        newCharacter.respawns = respawn;
+        newCharacter.key = name.toString();
+        const newLocation = location instanceof Location ? location : this.find_location(location.toString());
+        newLocation?.addCharacter(newCharacter);
+        newCharacter.location = newLocation;
+        if (items) {
+            newCharacter.clearInventory();
+            for (let item of items) {
+                this.addItem({ name: item.key || item.name || '', quantity: item.quantity, container: newCharacter.inventory });
+            }
+        }
+        if (buffs) {
+            for (let buff of buffs) {
+                newCharacter.addBuff(this.buffTemplates[buff.name]({ character: newCharacter, power: buff.power, duration: buff.duration }));
+            }
+        }
+        if (newCharacter?.respawns && newLocation && !respawnLocation) {
+            newCharacter.respawnLocation = newLocation.key
+        }
+        console.log(`Created ${newCharacter.name} at ${newLocation?.name}`)
+        return newCharacter;
+    }
+
+    async removeCharacter(character: string | number | Character | null) {
+        if (typeof character === 'number') {
+            character = character.toString();
+        }
+        if (typeof character === 'string') {
+            character = this.find_character(character) || null;
+        }
+        if (!character) {
+            console.log('character not found');
+            return;
+        }
+        character.location?.removeCharacter(character);
     }
 
     private get locations() {
@@ -303,12 +454,20 @@ class GameState {
         return Array.from(this.locations.values()).flatMap(location => [...location.characters]);
     }
 
-    addLocation(name: keyof typeof this.locationTemplates, params: any) {
-        if (!this.locationTemplates[name]) {
+    addLocation<K extends keyof this['locationTemplates']>(
+        {
+            name,
+            x,
+            y,
+        }: {
+            name: K, x: number, y: number
+        }
+    ) {
+        if (!Object.keys(this.locationTemplates).includes(name.toString())) {
             console.log('invalid location name', name);
             return;
         }
-        const newLocation = this.locationTemplates[name](this, params);
+        const newLocation = this.locationTemplates[name as keyof typeof this.locationTemplates](this, { x, y });
         newLocation.game = this;
         newLocation.key = name.toString();
         let i = 0;
@@ -332,6 +491,28 @@ class GameState {
         this.locations.delete(location.key);
     }
 
+    addItem<K extends keyof typeof this['itemTemplates']>(
+        {
+            name,
+            quantity = 1,
+            container,
+        }: {
+            name: K,
+            quantity?: number,
+            container?: Container
+        }
+    ) {
+        if (!Object.keys(this.itemTemplates).includes(name.toString())) {
+            console.log('invalid item name', name);
+            return;
+        }
+        const newItem = this.itemTemplates[name as keyof typeof this.itemTemplates](this);
+        newItem.quantity = quantity;
+        newItem.key = name.toString();
+        if (container) container.add(newItem);
+        return newItem;
+    }
+
     async spawnArea(
         areaName: keyof typeof this.locationTemplates,
         areaSize: number,
@@ -339,7 +520,7 @@ class GameState {
         portality: number = 0) {
 
         // spawn the void!
-        const origin = this.addLocation(areaName, { x: 0, y: 0 })
+        const origin = this.addLocation({ name: areaName, x: 0, y: 0 })
         if (!origin) return [];
         const grid = new Map([[`0,0`, origin]])
 
@@ -391,7 +572,7 @@ class GameState {
             // console.log(`round ${i}:\n`, borderLands)
             const coors = randomChoice(borderLands)
             // console.log(`chose ${coors}`)
-            const newLocation = this.addLocation(areaName, { x: coors[0], y: coors[1] })!
+            const newLocation = this.addLocation({ name: areaName, x: coors[0], y: coors[1] })!
             grid.set(`${coors[0]},${coors[1]}`, newLocation)
             // draw connections to existing locations
             let connects = 0;
@@ -439,40 +620,6 @@ class GameState {
 
         return Array.from(grid.values())
     }
-
-    addItem(name: keyof typeof this.itemTemplates, container: Container | null, params?: any) {
-        if (!this.itemTemplates[name]) {
-            console.log('invalid item name', name);
-            return;
-        }
-        const newItem = this.itemTemplates[name](params || {});
-        newItem.game = this;
-        newItem.key = name.toString();
-        if (typeof params === 'number') {
-            newItem.quantity = params;
-        }
-        if (container) container.add(newItem);
-        return newItem;
-    }
-
-    addCharacter(name: keyof typeof this.characterTemplates, location: string | number | Location, args?: any): Character | undefined {
-        if (!this.characterTemplates[name]) {
-            console.log('invalid character name', name);
-            return;
-        }
-        const newCharacter = this.characterTemplates[name](args);
-        newCharacter.game = this;
-        newCharacter.key = name.toString();
-        const newLocation = location instanceof Location ? location : this.find_location(location.toString());
-        newLocation?.addCharacter(newCharacter);
-        newCharacter.location = newLocation;
-        if (newCharacter?.respawns && newLocation) {
-            newCharacter.respawnLocation = newLocation.key
-        }
-        console.log(`Created ${newCharacter.name} at ${newLocation?.name}`)
-        return newCharacter;
-    }
-
 
     async save(saveName: string): Promise<void> {
 

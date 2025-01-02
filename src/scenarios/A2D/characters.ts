@@ -1,10 +1,9 @@
 import { Location } from "../../game/location.js";
-import { Character, CharacterParams, pronouns } from "../../game/character.js";
+import { Character, CharacterParams, pronouns, DamageTypes } from "../../game/character.js";
 import { Player } from "./player.js";
 import { Item, WeaponTypes } from "../../game/item.js";
-import { plural, caps, randomChoice, lineBreak } from "../../game/utils.js";
+import { plural, caps, randomChoice, lineBreak, highRandom } from "../../game/utils.js";
 import { play, musicc$ } from "./utils.js";
-import { getItem } from "./items.js";
 import { getLandmark } from "./landmarks.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { GameState } from "../../game/game.js";
@@ -25,16 +24,15 @@ class A2dCharacter extends Character {
     tripping: number = 0;
     drunk: number = 0;
     respawnTime: number = 500;
-    declare game: A2D
+    declare game: A2D;
 
-    constructor({ spellChance, respawnTime, action, ...baseParams }: A2dCharacterParams) {
+    constructor({ spellChance, respawnTime, ...baseParams }: A2dCharacterParams) {
         super(baseParams)
         // recover 100% of max hp per turn (when not in combat)
-        if (!baseParams.hp_recharge) this.hp_recharge = 1
+        if (!baseParams.hp_recharge) this.base_stats.hp_recharge = 1
         if (!this.weaponName) {
             this.weaponName = 'fists';
-            this.weaponType = 'club';
-            this.damageType = 'blunt';
+            this.attackVerb = 'club';
         }
         this._spellChance = spellChance?.bind(this)
         this.respawnTime = respawnTime || this.respawnTime
@@ -49,9 +47,9 @@ class A2dCharacter extends Character {
         }
         if (!this.exp_value) {
             this.exp_value = Math.floor(
-                this.max_hp / 2
-                + this.sharp_damage() + this.blunt_damage() + this.magic_damage()
-                + this.blunt_armor + this.sharp_armor + this.magic_armor
+                this.max_hp / Object.values(this.defenseBuffs.times).reduce((sum, value) => sum + value, 0)
+                + Object.values(this.base_damage).reduce((sum, value) => sum + value, 0)
+                + Object.values(this.defenseBuffs.plus).reduce((sum, value) => sum + value, 0)
                 + this.magic_level * 2
                 + this.coordination * 2 + this.agility * 2
                 + Object.values(this.abilities).reduce((sum, value) => sum + value, 0) * 10
@@ -175,9 +173,13 @@ class A2dCharacter extends Character {
         return this._spellChance ? this._spellChance() : true;
     }
 
-    async attack(target: Character | null = null, weapon: Item | null = null) {
+    async attack(
+        target: Character | null = null,
+        weapon: Item | null = null,
+        damage_potential: Partial<{ [key in DamageTypes]: number }> = this.base_damage
+    ) {
         color(black)
-        await super.attack(target, weapon);
+        await super.attack(target, weapon, damage_potential);
     }
 
     describeAttack(
@@ -265,10 +267,10 @@ class A2dCharacter extends Character {
                 break;
             case ("bow"):
                 if (DT >= 0) does = `${target.name} barely ${t_s('notices')} ${attackerPronouns.possessive} arrow striking ${target.pronouns.object}.`;
-                if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${s('take')} minimal damage.` };
+                if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('take')} minimal damage.` };
                 if (DT >= 12) { does = `${caps(targetPronouns.subject)} ${t_be} minorly wounded.` };
-                if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${s('sustain')} a major injury.` };
-                if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${s('suffer')} damage to vital organs.` };
+                if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${t_s('sustain')} a major injury.` };
+                if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${t_s('suffer')} damage to vital organs.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_be} slain instantly.` };
                 if (DT >= 400) { does = `${caps(targetPronouns.subject)} ${t_be} ripped messily in half.` };
                 if (DT >= 1000) { does = `Tiny pieces of ${caps(targetPronouns.subject)} fly in all directions.` };
@@ -320,7 +322,7 @@ class A2dCharacter extends Character {
                 if (DT >= 220) { does = `${caps(attackerPronouns.possessive)} ${weaponName} pierces ${targetPronouns.object} like a sword, freezing the blood in ${target.pronouns.possessive} veins.` };
                 if (DT >= 500) { does = `${caps(attackerPronouns.possessive)} ${weaponName} whips through ${targetPronouns.possessive} body, and ${target.pronouns.possessive} frozen limbs shatter like fine crystal."   ` };
                 break;
-            case ("teeth"):
+            case ("bite"):
                 if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('nip')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
                 if (DT >= 10) { does = `${caps(attackerPronouns.subject)} ${s('rake')} ${targetPronouns.object} with ${weaponName}, leaving a trail of scratches.` };
                 if (DT >= 20) { does = `${caps(attackerPronouns.subject)} ${s('bite')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
@@ -530,20 +532,20 @@ const actions = {
 }
 
 const characters = {
-    player(args: { [key: string]: any }) {
+    player(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'player',
             isPlayer: true,
-            ...args
         });
     },
-    sick_old_cleric(args: { [key: string]: any }) {
+    sick_old_cleric(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'A sick old cleric, lying in bed',
             aliases: ['cleric', 'old cleric', 'sick cleric', 'sick old cleric'],
             description: 'A sick old cleric, lying in bed',
-            items: [getItem('clear_liquid'), getItem('blue_liquid'), getItem('red_liquid')],
-            ...args
+            items: ['clear_liquid', 'blue_liquid', 'red_liquid'],
         }).dialog(async function (player: Character) {
             print("A young fresh piece of meat... how nice.  I am leaving this world, I can feal")
             print("it.  Please, I have something to ask of you.  My father's father was alive in")
@@ -567,21 +569,20 @@ const characters = {
         })
     },
 
-    ierdale_forester(args: { [key: string]: any }) {
+    ierdale_forester(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'ierdale forester',
-            items: [getItem('long_dagger'), getItem('gold', 12)],
+            items: ['long_dagger', { name: 'gold', quantity: 12 }],
             max_hp: 54,
-            blunt_damage: 6,
-            sharp_damage: 20,
-            weapon: getItem('long_dagger'),
+            damage: { blunt: 6, sharp: 20 },
+            weaponName: 'long_dagger',
+            attackVerb: 'stab',
             description: 'forester',
-            blunt_armor: 0,
             agility: 4,
             coordination: 2,
             pronouns: randomChoice([pronouns.male, pronouns.female]),
             aliases: ['forester'],
-            ...args
         }).dialog(async function (player: Character) {
             if (!player.flags.forest_pass) {
                 print("You need a pass to get in to this forest.");
@@ -614,22 +615,21 @@ const characters = {
         });
     },
 
-    guard_captain(args: { [key: string]: any }) {
+    guard_captain(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'guard captain',
-            items: [getItem('gold', 25), getItem('longsword')],
+            items: [{ name: 'gold', quantity: 25 }, 'longsword'],
             max_hp: 100,
-            blunt_damage: 10,
-            sharp_damage: 40,
-            weapon: getItem('longsword'),
+            damage: { blunt: 10, sharp: 40 },
+            weaponName: 'longsword',
+            attackVerb: 'slice',
             description: 'guard captain',
             coordination: 7,
             agility: 2,
-            blunt_armor: 13,
-            sharp_armor: 20,
+            armor: { blunt: 13, sharp: 20 },
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             alignment: 'ierdale',
-            ...args
         }).dialog(async function (player: Character) {
             const assignMission = async () => {
                 this.game.flags.ierdale_mission = 'yes';
@@ -637,7 +637,7 @@ const characters = {
                 await pause(2)
                 print("Half now, half when you return. You may need this to equip yourself for")
                 print("the journey.")
-                player.giveItem(getItem('gold', 5000))
+                player.giveItem({ name: 'gold', quantity: 5000 })
                 await pause(2)
                 print("This may also help you - ")
                 color(magenta)
@@ -703,61 +703,60 @@ const characters = {
         });
     },
 
-    minotaur(args: { [key: string]: any }) {
+    minotaur(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'minotaur',
             pronouns: pronouns.male,
-            items: [getItem('spiked_club')],
+            items: ['spiked_club'],
             max_hp: 760,
-            blunt_damage: 280,
-            sharp_damage: 13,
-            weapon: getItem('spiked_club'),
+            damage: { blunt: 280, sharp: 13 },
+            weaponName: 'spiked_club',
+            attackVerb: 'club',
             description: 'labyrinth minotaur',
             coordination: 15,
             agility: 2,
             alignment: 'evil/areaw',
-            respawn: false,
-            ...args
+            respawns: false,
         });
     },
 
-    stone_ogre(args: { [key: string]: any }) {
+    stone_ogre(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'stone ogre',
             pronouns: pronouns.male,
-            items: [getItem('gold', 5), getItem('spiked_club')],
+            items: [{ name: 'gold', quantity: 5 }, 'spiked_club'],
             max_hp: 100,
-            blunt_damage: 20,
-            sharp_damage: 5,
-            weapon: getItem('spiked_club'),
+            damage: { blunt: 20, sharp: 5 },
+            weaponName: 'spiked_club',
+            attackVerb: 'club',
             description: 'stone ogre',
-            blunt_armor: 2,
+            armor: { blunt: 2 },
             coordination: 3,
             agility: 2,
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         });
     },
 
-    ierdale_soldier(args: { [key: string]: any }) {
+    ierdale_soldier(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'ierdale soldier',
             pronouns: pronouns.male,
-            items: [getItem('gold', 50), getItem('claymoore')],
+            items: [{ name: 'gold', quantity: 50 }, 'claymoore'],
             max_hp: 300,
-            blunt_damage: 50,
-            sharp_damage: 50,
-            weapon: getItem('claymoore'),
+            damage: { blunt: 50, sharp: 50 },
+            weaponName: 'claymoore',
+            attackVerb: 'slice',
             description: 'ierdale soldier',
             coordination: 14,
             agility: 3,
-            blunt_armor: 15,
-            sharp_armor: 25,
+            armor: { blunt: 15, sharp: 25 },
             aliases: ['soldier'],
             alignment: 'ierdale',
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             if (!player.has('mighty_gigasarm')) {
                 if (!this.flags.dialog) {
@@ -782,24 +781,23 @@ const characters = {
         });
     },
 
-    ierdale_patrol(args: { [key: string]: any }) {
+    ierdale_patrol(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'ierdale soldier',
             pronouns: pronouns.male,
-            items: [getItem('gold', 50), getItem('claymoore')],
+            items: [{ name: 'gold', quantity: 50 }, 'claymoore'],
             max_hp: 300,
-            blunt_damage: 50,
-            sharp_damage: 50,
-            weapon: getItem('claymoore'),
+            damage: { blunt: 50, sharp: 50 },
+            weaponName: 'claymoore',
+            attackVerb: 'slice',
             description: 'ierdale soldier',
             coordination: 14,
             agility: 3,
-            blunt_armor: 15,
-            sharp_armor: 25,
+            armor: { blunt: 15, sharp: 25 },
             aliases: ['soldier'],
             alignment: 'ierdale',
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             if (player.has('mighty_gigasarm')) {
                 print("Let the hero pass!")
@@ -824,24 +822,22 @@ const characters = {
         });;
     },
 
-    general_kerry(args: { [key: string]: any }) {
+    general_kerry(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'ierdale general',
             pronouns: pronouns.male,
-            items: [getItem('gold', 200), getItem('silver_sword')],
+            items: [{ name: 'gold', quantity: 200 }, 'silver_sword'],
             max_hp: 700,
-            blunt_damage: 50,
-            sharp_damage: 120,
-            weapon: getItem('silver_sword'),
+            damage: { blunt: 50, sharp: 120 },
+            weaponName: 'silver_sword',
+            attackVerb: 'slice',
             description: 'ierdale general',
             coordination: 16,
             agility: 8,
-            blunt_armor: 30,
-            sharp_armor: 45,
-            magic_armor: 10,
+            armor: { blunt: 30, sharp: 45, magic: 10 },
             aliases: ['general'],
-            respawn: false,
-            ...args
+            respawns: false,
         }).onDeath(async function () {
             this.game.player.flags.enemy_of_ierdale = true;
         }).fightMove(async function () {
@@ -856,24 +852,22 @@ const characters = {
         });
     },
 
-    general_gant(args: { [key: string]: any }) {
+    general_gant(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'ierdale general',
             pronouns: pronouns.male,
-            items: [getItem('gold', 200), getItem('silver_sword')],
+            items: [{ name: 'gold', quantity: 200 }, 'silver_sword'],
             max_hp: 700,
-            blunt_damage: 120,
-            sharp_damage: 50,
-            weapon: getItem('silver_sword'),
+            damage: { blunt: 120, sharp: 50 },
+            weaponName: 'silver_sword',
+            attackVerb: 'slice',
             description: 'ierdale general',
             coordination: 16,
             agility: 8,
-            blunt_armor: 30,
-            sharp_armor: 45,
-            magic_armor: 10,
+            armor: { blunt: 30, sharp: 45, magic: 10 },
             aliases: ['general'],
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             print("Back in LINE!  This is a time of seriousness.  We are planning on crushing the");
             print("Orcs for helping Ieadon break free.  All the gates where the Orcs could enter");
@@ -888,19 +882,19 @@ const characters = {
         });
     },
 
-    security_page(args: { [key: string]: any }) {
+    security_page(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'security page',
-            items: [getItem('dagger'), getItem('gold', Math.random() * 300 + 500)],
+            items: ['dagger', { name: 'gold', quantity: Math.random() * 300 + 500 }],
             max_hp: 21,
-            blunt_damage: 5,
-            sharp_damage: 3,
-            weapon: getItem('dagger'),
+            damage: { blunt: 5, sharp: 3 },
+            weaponName: 'dagger',
+            attackVerb: 'stab',
             description: 'Ierdale page',
             pronouns: pronouns.female,
             aliases: ['page'],
             alignment: 'ierdale',
-            ...args
         }).dialog(async function (player: Character) {
             print("HI!  Isn't the police chief sexy!  He's my boy friend.  Would you like a pass");
             print("to the forest?  It costs 30 gp and requires 500 exp, however we don't need to");
@@ -950,10 +944,10 @@ const characters = {
             }
             player.flags.forest_pass = true
             // this is the signal for the farm goblins to appear
-            for (let location of [34, 35, 36, 39, 41].map(key => this.game.find_location(key))) {
-                location?.addCharacter(getCharacter('goblin_captain', this.game))
+            for (let location of [34, 35, 36, 39, 41]) {
+                this.game.addCharacter({ name: 'goblin_captain', location: location })
                 for (let i = 0; i < 4; i++) {
-                    location?.addCharacter(getCharacter('goblin_solider', this.game))
+                    this.game.addCharacter({ name: 'goblin_soldier', location: location })
                 }
             }
         }).onRespawn(async function () {
@@ -961,21 +955,21 @@ const characters = {
         });
     },
 
-    toothless_man(args: { [key: string]: any }) {
+    toothless_man(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'toothless man',
             pronouns: pronouns.male,
-            items: [getItem('battle_axe'), getItem('gold', 1000)],
+            items: ['battle_axe', { name: 'gold', quantity: 1000 }],
             max_hp: 70,
-            blunt_damage: 0,
-            sharp_damage: 40,
-            weapon: getItem('battle_axe'),
+            damage: { blunt: 0, sharp: 40 },
+            weaponName: 'battle_axe',
+            attackVerb: 'axe',
             coordination: 10,
             agility: 6,
-            blunt_armor: 50,
+            armor: { blunt: 50 },
             description: '',
             spellChance: () => Math.random() < 3 / 4,
-            ...args
         }).dialog(async function (player: Character) {
             print("Welcome to my thop.  Here we buy and thell many an ithem.");
             print("Read my thign to learn more bucko.  Teehhehehehe.");
@@ -997,7 +991,7 @@ const characters = {
             const payment = item.value * quantity;
             if (quantity > 0) {
                 print("Thanks, here's your money - HEHEHAHAHOHOHO!!")
-                player.giveItem(getItem('gold', payment));
+                player.giveItem({ name: 'gold', quantity: payment });
                 player.removeItem(itemName, quantity);
             }
             if (quantity === 1) {
@@ -1008,37 +1002,37 @@ const characters = {
         }).fightMove(actions.heal);
     },
 
-    armor_merchant(args: { [key: string]: any }) {
+    armor_merchant(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'armor merchant',
             pronouns: pronouns.male,
             items: [
-                getItem('leather_armor'),
-                getItem('studded_leather'),
-                getItem('light_chainmail'),
-                getItem('chain_mail'),
-                getItem('banded_mail'),
-                getItem('light_plate'),
-                getItem('full_plate'),
+                'leather_armor',
+                'studded_leather',
+                'light_chainmail',
+                'chain_mail',
+                'banded_mail',
+                'light_plate',
+                'full_plate',
             ],
             max_hp: 130,
-            blunt_damage: 30,
-            sharp_damage: 0,
-            weapon: getItem('fist'),
+            damage: { blunt: 30, sharp: 0 },
+            weaponName: 'fist',
+            attackVerb: 'club',
             coordination: 2,
             agility: 1,
-            blunt_armor: 30,
+            armor: { blunt: 30 },
             aliases: ['merchant'],
             alignment: 'armor shop',
-            respawn: false,
+            respawns: false,
             spellChance: () => Math.random() < 1 / 3,
-            ...args
         }).dialog(async function (player: Character) {
             print("May I aid in assisting you?  Read the sign.  It contains all of our products.");
             print("Also: I've heard thiers a ring somewhere in the caves off the meadow.");
         }).onDeath(async function () {
             this.clearInventory();
-            this.giveItem(getItem('gold', 1418));
+            this.giveItem({ name: 'gold', quantity: 1418 });
             color(red);
             print("armor merchant lets out a strangled cry as he dies.  The blacksmith is pissed.");
             const blacksmith = this.game.find_character('blacksmith')
@@ -1052,24 +1046,23 @@ const characters = {
         ).addAction('buy', actions.buy);
     },
 
-    blacksmith(args: { [key: string]: any }) {
+    blacksmith(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'blacksmith',
-            items: [getItem('gold', 50), getItem('battle_axe')],
+            items: [{ name: 'gold', quantity: 50 }, 'battle_axe'],
             max_hp: 500,
-            blunt_damage: 40,
-            sharp_damage: 100,
-            weapon: getItem('battle_axe'),
+            damage: { blunt: 40, sharp: 100 },
+            weaponName: 'battle_axe',
+            attackVerb: 'axe',
             coordination: 10,
             agility: 6,
-            blunt_armor: 50,
-            sharp_armor: 50,
+            armor: { blunt: 50, sharp: 50 },
             description: 'blacksmith',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             alignment: 'armor shop',
-            respawn: false,
+            respawns: false,
             spellChance: () => Math.random() < 3 / 4,
-            ...args
         }).dialog(async function (player: Character) {
             print("'Ello me'lad.  Please, I am not much of a talker, talk to the other un'");
         }).fightMove(
@@ -1077,22 +1070,21 @@ const characters = {
         );
     },
 
-    bag_boy(args: { [key: string]: any }) {
+    bag_boy(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'bag boy',
             pronouns: pronouns.male,
-            items: [getItem('gold', 4), getItem('banana')],
+            items: [{ name: 'gold', quantity: 4 }, 'banana'],
             description: 'worthless little bag boy',
             max_hp: 30,
             weaponName: 'banana',
-            weaponType: 'club',
-            blunt_damage: 5,
-            sharp_damage: 0,
-            blunt_armor: 2,
+            attackVerb: 'club',
+            damage: { blunt: 5, sharp: 0 },
+            armor: { blunt: 2 },
             coordination: 1,
             agility: 1,
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             print("Hello SIR!  How are you on this fine day!  I love life!  Isn't this a great");
             print("job I have here!  I get to bag groceries all day long!  Weeee!");
@@ -1116,21 +1108,20 @@ const characters = {
         });
     },
 
-    baby_spritzer(args: { [key: string]: any }) {
+    baby_spritzer(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'baby spritzer',
             pronouns: randomChoice([pronouns.male, pronouns.female]),
-            items: [getItem('gold', 6), getItem('spritzer_hair')],
+            items: [{ name: 'gold', quantity: 6 }, 'spritzer_hair'],
             description: 'potent baby spritzer',
             max_hp: 25,
-            magic_damage: 18,
-            blunt_armor: 1,
+            armor: { blunt: 1, magic: 18 },
             coordination: 1,
             agility: 1.5,
             weaponName: 'spritzer power',
-            weaponType: 'magic',
+            attackVerb: 'magic',
             spellChance: () => Math.random() < 1 / 4,
-            ...args
         }).dialog(async function (player: Character) {
             print("Wanna play?");
         }).onDeath(async function () {
@@ -1144,25 +1135,25 @@ const characters = {
         });
     },
 
-    colonel_arach(args: { [key: string]: any }) {
+    colonel_arach(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Colonel Arach',
             pronouns: pronouns.male,
-            items: [getItem('gold', 500), getItem('mighty_excalabor')],
+            items: [{ name: 'gold', quantity: 500 }, 'mighty_excalabor'],
             description: 'Arach the Terrible',
             max_hp: 1500,
-            sharp_damage: 500,
-            weapon: getItem('mighty_excalabor'),
-            blunt_armor: 60,
-            sharp_armor: 40,
+            damage: { sharp: 500 },
+            weaponName: 'mighty_excalabor',
+            attackVerb: 'slice',
+            armor: { blunt: 60, sharp: 40 },
             coordination: 20,
             agility: 20,
             aliases: ['colonel', 'arach'],
             alignment: 'ierdale',
-            respawn: false,
+            respawns: false,
             spellChance: () => true,  // always heals
             magic_level: 50,
-            ...args
         }).dialog(async function (player: Character) {
             if (player.has("bug repellent")) {
                 print("Whats that you're holding in your hand?");
@@ -1295,24 +1286,23 @@ const characters = {
         }).fightMove(actions.heal);
     },
 
-    sift(args: { [key: string]: any }) {
+    sift(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Sift',
             pronouns: pronouns.male,
-            items: [getItem('gold', 200), getItem('ring_of_dreams')],
+            items: [{ name: 'gold', quantity: 200 }, 'ring_of_dreams'],
             max_hp: 580,
-            blunt_damage: 20,
-            sharp_damage: 100,
+            damage: { blunt: 20, sharp: 100 },
             weaponName: 'claws',
-            weaponType: 'slice',
+            attackVerb: 'slice',
             description: 'Sift',
             coordination: 25,
             agility: 15,
-            blunt_armor: 25,
+            armor: { blunt: 25 },
             attackPlayer: true,
             alignment: 'evil',
-            respawn: false,
-            ...args
+            respawns: false,
         }).onDeath(async function () {
             this.game.flags.sift = true;
         }).fightMove(async function () {
@@ -1320,23 +1310,23 @@ const characters = {
         });
     },
 
-    cradel(args: { [key: string]: any }) {
+    cradel(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'cradel',
             pronouns: pronouns.male,
-            items: [getItem('gold', 100), getItem('spiked_club')],
+            items: [{ name: 'gold', quantity: 100 }, 'spiked_club'],
             description: 'Cradel the troll',
             max_hp: 1000,
-            blunt_damage: 250,
-            sharp_damage: 150,
-            weapon: getItem('spiked_club'),
-            blunt_armor: 26,
+            damage: { blunt: 250, sharp: 150 },
+            weaponName: 'spiked_club',
+            attackVerb: 'club',
+            armor: { blunt: 26 },
             coordination: 5,
             agility: 5,
             spellChance: () => Math.random() < 5 / 7,
             magic_level: 25,
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             if (!this.game.flags.cradel) {
                 print("mumble mumble");
@@ -1418,22 +1408,22 @@ const characters = {
         })
     },
 
-    mino(args: { [key: string]: any }) {
+    mino(game: GameState) {
 
         return new A2dCharacter({
+            game: game,
             name: 'Mino',
             pronouns: pronouns.male,
-            items: [getItem('gold', 15), getItem('long_dagger'), getItem('lute_de_lumonate')],
+            items: [{ name: 'gold', quantity: 15 }, 'long_dagger', 'lute_de_lumonate'],
             description: 'musical Mino',
             max_hp: 250,
-            blunt_damage: 0,
-            sharp_damage: 40,
-            weapon: getItem('long_dagger'),
-            blunt_armor: 20,
+            damage: { blunt: 0, sharp: 40 },
+            weaponName: 'long_dagger',
+            attackVerb: 'stab',
+            armor: { blunt: 20 },
             agility: 40,
             coordination: 12,
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             if (this.flags.won) {
                 print("You have already won the lute de lumonate.");
@@ -1555,20 +1545,20 @@ const characters = {
         }).fightMove(actions.sleep);
     },
 
-    peon(args: { [key: string]: any }) {
+    peon(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'peon',
-            items: [getItem('gold', 2)],
+            items: [{ name: 'gold', quantity: 2 }],
             max_hp: 50,
-            blunt_damage: 10,
-            sharp_damage: 2,
-            weapon: getItem('fist'),
+            damage: { blunt: 10, sharp: 2 },
+            weaponName: 'fist',
+            attackVerb: 'club',
             description: 'helpless peon',
             coordination: 2,
             agility: 3,
             pronouns: randomChoice([pronouns.female, pronouns.male]),
             alignment: 'orc',
-            ...args
         }).dialog(async function (player: Character) {
             print("Ierdale will stop at nothing to destroy us!");
             print("Join us against them, brother!");
@@ -1583,20 +1573,20 @@ const characters = {
         })
     },
 
-    orcish_citizen(args: { [key: string]: any }) {
+    orcish_citizen(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'orcish citizen',
-            items: [getItem('gold', 29), getItem('rapier')],
+            items: [{ name: 'gold', quantity: 29 }, 'rapier'],
             max_hp: 80,
-            sharp_damage: 20,
+            damage: { sharp: 20 },
             weaponName: 'rapier',
-            weaponType: 'stab',
+            attackVerb: 'stab',
             description: 'orcish citizen',
             coordination: 3,
             agility: 2,
             pronouns: pronouns.male,
             alignment: 'orc',
-            ...args
         }).dialog(async function (player: Character) {
             print("Ierdale will stop at nothing to destroy us!");
             print("Join us against them, brother!");
@@ -1611,13 +1601,13 @@ const characters = {
         })
     },
 
-    orcish_child(args: { [key: string]: any }) {
+    orcish_child(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'orcish child',
-            items: [getItem('toy_sword')],
+            items: ['toy_sword'],
             max_hp: 10,
-            blunt_damage: 1,
-            sharp_damage: 0,
+            damage: { blunt: 1, sharp: 0 },
             weaponName: 'toy sword',
             description: 'orcish child',
             coordination: 1,
@@ -1637,17 +1627,17 @@ const characters = {
         })
     },
 
-    orcish_soldier(args: { [key: string]: any }) {
+    orcish_soldier(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'orcish soldier',
             pronouns: pronouns.male,
-            items: [getItem('gold', 5), getItem('halberd')],
+            items: [{ name: 'gold', quantity: 5 }, 'halberd'],
             description: 'orcish soldier',
             max_hp: 120,
-            blunt_damage: 30,
-            sharp_damage: 45,
+            damage: { blunt: 30, sharp: 45 },
             weaponName: 'halberd',
-            weaponType: 'axe',
+            attackVerb: 'axe',
             coordination: 5,
             agility: 3,
             alignment: 'orc',
@@ -1669,14 +1659,15 @@ const characters = {
 
     },
 
-    dark_angel(args: { [key: string]: any }) {
+    dark_angel(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'dark angel',
-            items: [getItem('gold', 50), getItem('dark_sword'), getItem('banana')],
+            items: [{ name: 'gold', quantity: 50 }, 'dark_sword', 'banana'],
             max_hp: 300,
-            magic_damage: 40,
-            sharp_damage: 40,
-            weapon: getItem('dark_sword'),
+            damage: { sharp: 40, magic: 40 },
+            weaponName: 'dark_sword',
+            attackVerb: 'slice',
             magic_level: 150,
             description: 'angel of death',
             coordination: 25,
@@ -1684,7 +1675,6 @@ const characters = {
             pronouns: pronouns.female,
             aliases: ['angel'],
             alignment: 'orc',
-            ...args
         }).dialog(async function (player: Character) {
             print("hissss..... deeeeeathhhhh...");
         }).fightMove(async function () {
@@ -1705,23 +1695,22 @@ const characters = {
         })
     },
 
-    gerard(args: { [key: string]: any }) {
+    gerard(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'gerard',
-            items: [getItem('gold', 50)],
+            items: [{ name: 'gold', quantity: 50 }],
             max_hp: 200,
-            blunt_damage: 100,
-            sharp_damage: 50,
+            damage: { blunt: 100, sharp: 50 },
             weaponName: 'a bomb',
-            weaponType: 'magic',
+            attackVerb: 'magic',
             description: 'Gerard',
-            blunt_armor: 20,
+            armor: { blunt: 20 },
             coordination: 5,
             agility: 2,
             pronouns: pronouns.male,
-            respawn: false,
+            respawns: false,
             alignment: 'orc',
-            ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.ieadon) {
                 print("A hang glider is nice... for gliding from high places.");
@@ -1731,26 +1720,23 @@ const characters = {
         });
     },
 
-    orc_emissary(args: { [key: string]: any }) {
+    orc_emissary(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'orcish emissary',
             aliases: ['emissary', 'orc'],
             pronouns: pronouns.female,
             description: 'orc emissary',
             max_hp: 250,
-            blunt_damage: 19,
-            sharp_damage: 74,
-            magic_damage: 24,
-            weapon: getItem('mighty_gigasarm'),
-            items: [getItem('gold', 5), getItem('mighty_gigasarm')],
-            sharp_armor: 20,
-            blunt_armor: 20,
-            magic_armor: 20,
+            damage: { blunt: 19, sharp: 74, magic: 24 },
+            weaponName: 'mighty_gigasarm',
+            attackVerb: 'axe',
+            items: [{ name: 'gold', quantity: 5 }, 'mighty_gigasarm'],
+            armor: { blunt: 20, sharp: 20, magic: 20 },
             coordination: 5,
             agility: 3,
             alignment: 'orc',
             chase: true,
-            ...args
         }).dialog(async function (player: Character) {
             print(`I am the emissary of the orcs. I'm seeking you in particular, `, 1)
             color(red)
@@ -1822,19 +1808,19 @@ const characters = {
         })
     },
 
-    doo_dad_man(args: { [key: string]: any }) {
+    doo_dad_man(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'doo dad man',
-            items: [getItem('gold', 150), getItem('long_dagger')],
+            items: [{ name: 'gold', quantity: 150 }, 'long_dagger'],
             max_hp: 90,
-            blunt_damage: 45,
-            sharp_damage: 10,
+            damage: { blunt: 45, sharp: 10 },
             coordination: 3,
             agility: 2,
-            weapon: getItem('club', { name: 'jackhammer' }),
+            weaponName: 'jackhammer',
+            attackVerb: 'club',
             description: 'doo-dad man',
             pronouns: pronouns.male,
-            ...args
         }).dialog(async function (player: Character) {
             print("Want some doo-dads?  They're really neat!");
         }).onAttack(async function (attacker) {
@@ -1846,31 +1832,30 @@ const characters = {
         })
     },
 
-    orcish_grocer(args: { [key: string]: any }) {
+    orcish_grocer(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'orcish grocer',
             aliases: ['grocer'],
             pronouns: pronouns.female,
             items: [
-                getItem('banana'),
-                getItem('muffin'),
-                getItem('wheel_of_cheese'),
-                getItem('asparagus'),
-                getItem('dog_steak'),
-                getItem('nip_of_gin'),
-                getItem('barrel_of_grog'),
+                'banana',
+                'muffin',
+                'wheel_of_cheese',
+                'asparagus',
+                'dog_steak',
+                'nip_of_gin',
+                'barrel_of_grog',
             ],
             description: 'orcish grocer',
             max_hp: 30,
             weaponName: 'banana',
-            weaponType: 'club',
-            blunt_damage: 5,
-            sharp_damage: 0,
-            blunt_armor: 2,
+            attackVerb: 'club',
+            damage: { blunt: 5, sharp: 0 },
+            armor: { blunt: 2 },
             coordination: 1,
             agility: 1,
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             print("Hello sir! I hope your enjoy our fine orcish cuisine.");
             print("Here is what I have for sale:");
@@ -1889,18 +1874,18 @@ const characters = {
         })
     },
 
-    farm_wife(args: { [key: string]: any }) {
+    farm_wife(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'farm wife',
             items: [],
             max_hp: 12,
-            blunt_damage: 3,
-            sharp_damage: 0,
-            weapon: getItem('fist', { name: 'hands' }),
+            damage: { blunt: 3, sharp: 0 },
+            weaponName: 'hands',
+            attackVerb: 'club',
             description: 'screaming farm wife',
             pronouns: pronouns.female,
             aliases: ['wife'],
-            ...args
         }).dialog(async function (player: Character) {
             if (player.flags.forest_pass) {
                 print("Help!  Help!, please save us!  There are treacherous evil things invaiding");
@@ -1921,37 +1906,39 @@ const characters = {
         });
     },
 
-    clubman(args: { [key: string]: any }) {
+    clubman(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'clubman',
-            items: [getItem('club'), getItem('gold', 5)],
+            items: ['club', { name: 'gold', quantity: 5 }],
             max_hp: 21,
-            blunt_damage: 7,
+            damage: { blunt: 7 },
             coordination: 2,
             agility: 1,
-            weapon: getItem('club'),
+            weaponName: 'club',
+            attackVerb: 'club',
             description: 'clubman',
             alignment: 'clubmen clan',
             pronouns: pronouns.male,
-            ...args
         }).dialog(async function (player: Character) {
             print("Duuuu... Ummmmmm... How me I forget to breathe...");
         });
     },
 
-    wandering_clubman(args: { [key: string]: any }) {
+    wandering_clubman(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'clubman',
-            items: [getItem('club'), getItem('gold', 5)],
+            items: ['club', { name: 'gold', quantity: 5 }],
             max_hp: 21,
-            blunt_damage: 7,
+            damage: { blunt: 7 },
             coordination: 2,
             agility: 1,
-            weapon: getItem('club'),
+            weaponName: 'club',
+            attackVerb: 'club',
             description: 'clubman',
             alignment: 'clubmen clan',
             pronouns: pronouns.male,
-            ...args
         }).dialog(async function (player: Character) {
             print("Duuuu... Ummmmmm... How me I forget to breathe...");
         }).onTurn(
@@ -1959,219 +1946,215 @@ const characters = {
         );
     },
 
-    rush_lurker(args: { [key: string]: any }) {
+    rush_lurker(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'rush lurker',
-            items: [getItem('gold', 10)],
+            items: [{ name: 'gold', quantity: 10 }],
             max_hp: 31,
-            blunt_damage: 8,
-            sharp_damage: 3,
+            damage: { blunt: 8, sharp: 3 },
             coordination: 3,
             agility: 2,
             weaponName: 'claws',
-            weaponType: 'slice',
+            attackVerb: 'slice',
             description: 'rush lurker',
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
-            ...args
         });
     },
 
-    swordsman(args: { [key: string]: any }) {
+    swordsman(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'swordsman',
-            items: [getItem('shortsword'), getItem('gold', 5)],
+            items: ['shortsword', { name: 'gold', quantity: 5 }],
             max_hp: 72,
-            blunt_damage: 14,
-            sharp_damage: 8,
-            weapon: getItem('shortsword'),
+            damage: { blunt: 14, sharp: 8 },
+            weaponName: 'shortsword',
+            attackVerb: 'slice',
             description: 'swordsman',
-            blunt_armor: 2,
+            armor: { blunt: 2 },
             coordination: 3,
             agility: 1,
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    evil_forester(args: { [key: string]: any }) {
+    evil_forester(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'evil forester',
             aliases: ['forester'],
-            items: [getItem('wooden_stick'), getItem('gold', 8)],
+            items: ['wooden_stick', { name: 'gold', quantity: 8 }],
             max_hp: 50,
-            blunt_damage: 20,
-            sharp_damage: 0,
+            damage: { blunt: 20, sharp: 0 },
             coordination: 5,
             agility: 2,
-            weapon: getItem('wooden_stick'),
+            weaponName: 'wooden_stick',
+            attackVerb: 'club',
             description: 'evil forester',
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    dirty_thief(args: { [key: string]: any }) {
+    dirty_thief(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'dirty thief',
             aliases: ['thief'],
-            items: [getItem('dagger'), getItem('gold', 6)],
+            items: ['dagger', { name: 'gold', quantity: 6 }],
             max_hp: 52,
-            blunt_damage: 0,
-            sharp_damage: 10,
+            damage: { blunt: 0, sharp: 10 },
             coordination: 3,
             agility: 2,
-            weapon: getItem('dagger'),
+            weaponName: 'dagger',
+            attackVerb: 'stab',
             description: 'dirty thiefing rascal',
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    fat_merchant_thief(args: { [key: string]: any }) {
+    fat_merchant_thief(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'fat merchant-thief',
-            items: [getItem('whip'), getItem('gold', 20)],
+            items: ['whip', { name: 'gold', quantity: 20 }],
             aliases: ['fat merchant', 'merchant-thief', 'merchant', 'thief'],
             max_hp: 61,
-            blunt_damage: 12,
-            sharp_damage: 0,
+            damage: { blunt: 12, sharp: 0 },
             coordination: 9,
             agility: 2,
-            weapon: getItem('whip'),
+            weaponName: 'whip',
+            attackVerb: 'slice',
             description: 'fat merchant',
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    snarling_thief(args: { [key: string]: any }) {
+    snarling_thief(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'snarling thief',
             aliases: ['thief'],
-            items: [getItem('flail'), getItem('gold', 7)],
+            items: ['flail', { name: 'gold', quantity: 7 }],
             max_hp: 82,
-            blunt_damage: 7,
-            sharp_damage: 11,
+            damage: { blunt: 7, sharp: 11 },
             coordination: 4,
             agility: 2,
-            weapon: getItem('flail'),
+            weaponName: 'flail',
+            attackVerb: 'club',
             description: 'thief',
             pronouns: pronouns.female,
-            ...args
         });
     },
 
-    dark_rider(args: { [key: string]: any }) {
+    dark_rider(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'dark rider',
-            items: [getItem('hand_axe'), getItem('gold', 3)],
+            items: ['hand_axe', { name: 'gold', quantity: 3 }],
             max_hp: 115,
-            blunt_damage: 20,
-            sharp_damage: 10,
+            damage: { blunt: 20, sharp: 10 },
             coordination: 3,
             agility: 5,
-            weapon: getItem('hand_axe'),
+            weaponName: 'hand_axe',
+            attackVerb: 'axe',
             description: 'dark rider',
-            blunt_armor: 3,
+            armor: { blunt: 3 },
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    fine_gentleman(args: { [key: string]: any }) {
+    fine_gentleman(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'fine gentleman',
             aliases: ['gentleman'],
-            items: [getItem('rapier'), getItem('gold', 26)],
+            items: ['rapier', { name: 'gold', quantity: 26 }],
             max_hp: 103,
-            blunt_damage: 0,
-            sharp_damage: 16,
+            damage: { blunt: 0, sharp: 16 },
             coordination: 5,
             agility: 3,
-            weapon: getItem('rapier'),
+            weaponName: 'rapier',
+            attackVerb: 'stab',
             description: 'gentleman',
-            blunt_armor: 1,
+            armor: { blunt: 1 },
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    little_goblin_thief(args: { [key: string]: any }) {
+    little_goblin_thief(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'little goblin thief',
             aliases: ['goblin thief', 'goblin', 'thief'],
-            items: [getItem('metal_bar'), getItem('gold', 6)],
+            items: ['metal_bar', { name: 'gold', quantity: 6 }],
             max_hp: 100,
-            blunt_damage: 30,
-            sharp_damage: 10,
+            damage: { blunt: 30, sharp: 10 },
             coordination: 2,
             agility: 6,
-            weapon: getItem('metal_bar'),
+            weaponName: 'metal_bar',
+            attackVerb: 'club',
             description: 'goblin',
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    orc_amazon(args: { [key: string]: any }) {
+    orc_amazon(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'orc amazon',
             aliases: ['amazon', 'orc'],
-            items: [getItem('claymoore'), getItem('gold', 17)],
+            items: ['claymoore', { name: 'gold', quantity: 17 }],
             max_hp: 250,
-            blunt_armor: 5,
-            sharp_armor: 30,
-            magic_armor: 15,
+            armor: { blunt: 5, sharp: 30, magic: 15 },
             coordination: 10,
             agility: 5,
-            blunt_damage: 29,
-            sharp_damage: 16,
-            weapon: getItem('claymoore'),
+            damage: { blunt: 29, sharp: 16 },
+            weaponName: 'claymoore',
+            attackVerb: 'slice',
             pronouns: pronouns.female,
-            ...args
         }).onAttack(async function (character: Character) {
             // SB_Gend she
         });
     },
 
-    orc_behemoth(args: { [key: string]: any }) {
+    orc_behemoth(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'orc behemoth',
             aliases: ['behemoth', 'orc'],
             pronouns: pronouns.male,
-            items: [getItem('mighty_warhammer')],
+            items: ['mighty_warhammer'],
             max_hp: 300,
-            blunt_armor: 11,
-            sharp_armor: 12,
-            magic_armor: 13,
+            armor: { blunt: 11, sharp: 12, magic: 13 },
             coordination: 6,
             agility: 1,
-            blunt_damage: 19,
-            sharp_damage: 16,
-            weapon: getItem('mighty_warhammer'),
-            ...args
+            damage: { blunt: 19, sharp: 16 },
+            weaponName: 'mighty_warhammer',
+            attackVerb: 'club',
         });
     },
 
-    //, getItem('87_then_wg', 1)(), getItem('gold', 98), getItem('94_then_wg', 1)(), getItem('gold', 1), getItem('1_then_wg', 1)(), getItem('gold', 7)
-    peddler(args: { [key: string]: any }) {
+    //, getItem('87_then_wg', 1)(), {name: 'gold', quantity: 98}, getItem('94_then_wg', 1)(), {name: 'gold', quantity: 1}, getItem('1_then_wg', 1)(), {name: 'gold', quantity: 7}
+    peddler(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'peddler',
-            items: [getItem('spy_o_scope'), getItem('gold', 100)],
+            items: ['spy_o_scope', { name: 'gold', quantity: 100 }],
             max_hp: 100,
-            weapon: getItem('dagger'),
+            weaponName: 'dagger',
+            attackVerb: 'stab',
             coordination: 2,
             agility: 5,
-            sharp_damage: 25,
+            damage: { sharp: 25 },
             description: 'spy o scope peddler',
             pronouns: pronouns.male,
-            ...args
         }).dialog(async function (player: Character) {
             print("They would hang me for saying this... BUT, it is a good idea sometime during");
             print("your adventure to turn AGAINST Ierdale.  I would recomend this after you can");
@@ -2195,143 +2178,142 @@ const characters = {
         }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
-    rock_hydra(args: { [key: string]: any }) {
+    rock_hydra(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'rock hydra',
             aliases: ['hydra'],
-            items: [getItem('gold', 29)],
+            items: [{ name: 'gold', quantity: 29 }],
             max_hp: 200,
-            blunt_damage: 60,
-            sharp_damage: 5,
+            damage: { blunt: 60, sharp: 5 },
             weaponName: 'his heads',
             description: 'Hydra',
-            blunt_armor: 5,
+            armor: { blunt: 5 },
             coordination: 4,
             agility: 1,
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    nightmare(args: { [key: string]: any }) {
+    nightmare(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'nightmare',
-            items: [getItem('gold', 50), getItem('longsword')],
+            items: [{ name: 'gold', quantity: 50 }, 'longsword'],
             max_hp: 450,
-            blunt_damage: 112,
-            sharp_damage: 21,
-            weapon: getItem('longsword'),
+            damage: { blunt: 112, sharp: 21 },
+            weaponName: 'longsword',
+            attackVerb: 'slice',
             description: 'nightmare',
             coordination: 9,
             agility: 5,
-            blunt_armor: 28,
+            armor: { blunt: 28 },
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
-            ...args
         }).fightMove(async function () {
             if (Math.random() * 1 < 8) { print('TODO: armorkill') }
         });
     },
 
-    mogrim(args: { [key: string]: any }) {
+    mogrim(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'mogrim',
-            items: [getItem('gold', Math.random() * 30), getItem('hardened_club')],
+            items: [{ name: 'gold', quantity: Math.random() * 30 }, 'hardened_club'],
             max_hp: 490,
-            blunt_damage: 56,
-            sharp_damage: 20,
-            weapon: getItem('hardened_club'),
+            damage: { blunt: 56, sharp: 20 },
+            weaponName: 'hardened_club',
+            attackVerb: 'club',
             description: 'mogrim',
             coordination: 5,
             agility: 3,
-            blunt_armor: 36,
+            armor: { blunt: 36 },
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
-            ...args
         }).onRespawn(async function () {
             this.item('gold')!.quantity = Math.random() * 30;
         })
     },
 
-    reaper(args: { [key: string]: any }) {
+    reaper(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'reaper',
-            items: [getItem('scythe'), getItem('gold', Math.random() * 50)],
+            items: ['scythe', { name: 'gold', quantity: Math.random() * 50 }],
             max_hp: 150,
-            blunt_damage: 0,
-            sharp_damage: 250,
-            weapon: getItem('scythe'),
+            damage: { blunt: 0, sharp: 250 },
+            weaponName: 'scythe',
+            attackVerb: 'slice',
             description: 'reaper',
             coordination: 55,
             agility: 25,
-            blunt_armor: 0,
+            armor: { blunt: 0 },
             pronouns: pronouns.inhuman,
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         }).onRespawn(async function () {
             this.item('gold')!.quantity = Math.random() * 50;
         })
     },
 
-    goblin_hero(args: { [key: string]: any }) {
+    goblin_hero(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'goblin hero',
-            items: [getItem('jagged_polearm'), getItem('gold', Math.random() * 56 + 1)],
+            items: ['jagged_polearm', { name: 'gold', quantity: Math.random() * 56 + 1 }],
             max_hp: 230,
-            blunt_damage: 120,
-            sharp_damage: 70,
-            weapon: getItem('jagged_polearm'),
+            damage: { blunt: 120, sharp: 70 },
+            weaponName: 'jagged_polearm',
+            attackVerb: 'axe',
             description: 'goblin hero',
             coordination: 12,
             agility: 4,
-            blunt_armor: 26,
+            armor: { blunt: 26 },
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.male,
-            ...args
         }).onRespawn(async function () {
             this.item('gold')!.quantity = Math.random() * 56 + 1;
         })
     },
 
-    stone_golem(args: { [key: string]: any }) {
+    stone_golem(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'stone golem',
-            items: [getItem('warhammer'), getItem('gold', 19)],
+            items: ['warhammer', { name: 'gold', quantity: 19 }],
             max_hp: 120,
-            blunt_damage: 45,
-            sharp_damage: 15,
-            weapon: getItem('warhammer'),
+            damage: { blunt: 45, sharp: 15 },
+            weaponName: 'warhammer',
+            attackVerb: 'club',
             description: 'Huge stone golem',
             coordination: 4,
             agility: 1,
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
-            ...args
         });
     },
 
-    wood_troll(args: { [key: string]: any }) {
+    wood_troll(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'wood troll',
             pronouns: pronouns.male,
-            items: [getItem('club')],
+            items: ['club'],
             max_hp: 250,
-            blunt_damage: 52,
-            sharp_damage: 1,
-            weapon: getItem('club'),
+            damage: { blunt: 52, sharp: 1 },
+            weaponName: 'club',
+            attackVerb: 'club',
             description: 'wood troll',
             coordination: 15,
             agility: 5,
-            blunt_armor: 16,
+            armor: { blunt: 16 },
             alignment: 'evil/areaw',
-            ...args
         }).onTurn(
             actions.wander({})
         ).fightMove(async function () {
@@ -2341,59 +2323,59 @@ const characters = {
         });
     },
 
-    cat_woman(args: { [key: string]: any }) {
+    cat_woman(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'cat woman',
-            items: [getItem('axe_of_the_cat'), getItem('gold', 25)],
+            items: ['axe_of_the_cat', { name: 'gold', quantity: 25 }],
             max_hp: 400,
-            blunt_damage: 75,
-            sharp_damage: 100,
+            damage: { blunt: 75, sharp: 100 },
             magic_level: 200,
-            weapon: getItem('axe_of_the_cat'),
+            weaponName: 'axe_of_the_cat',
+            attackVerb: 'axe',
             description: 'cat woman',
             coordination: 20,
             agility: 15,
-            blunt_armor: 25,
+            armor: { blunt: 25, magic: 150 },
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             spellChance: () => Math.random() < 1 / 5,
-            respawn: false,
-            ...args
+            respawns: false,
+            alignment: 'evil',
         }).fightMove(actions.max_heal)
     },
 
-    megara(args: { [key: string]: any }) {
+    megara(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'megara',
             pronouns: pronouns.inhuman,
-            items: [getItem('megarian_club'), getItem('gold', 50)],
+            items: ['megarian_club', { name: 'gold', quantity: 50 }],
             max_hp: 300,
-            blunt_damage: 200,
-            sharp_damage: 10,
-            weapon: getItem('megarian_club'),
+            damage: { blunt: 200, sharp: 10 },
+            weaponName: 'megarian_club',
+            attackVerb: 'club',
             description: 'megara',
             coordination: 10,
             agility: 0,
-            blunt_armor: 50,
+            armor: { blunt: 50 },
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         });
     },
 
-    cow(args: { [key: string]: any }) {
+    cow(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'cow',
-            items: [getItem('side_of_meat')],
+            items: ['side_of_meat'],
             max_hp: 51,
-            blunt_damage: 4,
-            sharp_damage: 4,
+            damage: { blunt: 4, sharp: 4 },
             weaponName: 'horns',
-            weaponType: 'stab',
+            attackVerb: 'stab',
             description: 'cow',
             coordination: 3,
             agility: 0,
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            ...args
         }).onDeath(async function (cause: Character) {
             if (cause.isPlayer) {
                 color(brightblue);
@@ -2407,38 +2389,37 @@ const characters = {
         })
     },
 
-    bull(args: { [key: string]: any }) {
+    bull(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'bull',
             pronouns: pronouns.male,
-            items: [getItem('side_of_meat')],
+            items: ['side_of_meat'],
             max_hp: 55,
-            blunt_damage: 8,
-            sharp_damage: 5,
+            damage: { blunt: 8, sharp: 5 },
             weaponName: 'horns',
-            weaponType: 'stab',
+            attackVerb: 'stab',
             description: 'bull',
             coordination: 4,
             agility: 1,
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         });
     },
 
-    jury_member(args: { [key: string]: any }) {
+    jury_member(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'jury member',
-            items: [getItem('gold', 1)],
+            items: [{ name: 'gold', quantity: 1 }],
             max_hp: 20,
-            blunt_damage: 3,
-            sharp_damage: 0,
+            damage: { blunt: 3, sharp: 0 },
             coordination: 2,
             agility: 3,
-            weapon: getItem('fist'),
+            weaponName: 'fist',
+            attackVerb: 'club',
             description: 'jury member',
             pronouns: randomChoice([pronouns.male, pronouns.female]),
-            ...args
         }).dialog(async function (player: Character) {
             print("GUILTY!");
         }).onDeath(async function (cause) {
@@ -2451,14 +2432,14 @@ const characters = {
         });
     },
 
-    peasant_elder(args: { [key: string]: any }) {
+    peasant_elder(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'peasant elder',
             pronouns: pronouns.female,
-            items: [getItem('magic_ring')],
-            respawn: false,
+            items: ['magic_ring'],
+            respawns: false,
             flags: { 'talk': 0 },
-            ...args
         }).dialog(async function (player: Character) {
             switch (this.flags['talk']) {
                 case 0:
@@ -2554,78 +2535,78 @@ const characters = {
         });
     },
 
-    scarecrow_gaurd(args: { [key: string]: any }) {
+    scarecrow_gaurd(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'scarecrow gaurd',
-            items: [getItem('pitchfork'), getItem('gold', 10)],
+            items: ['pitchfork', { name: 'gold', quantity: 10 }],
             max_hp: 210,
-            blunt_damage: 31,
-            sharp_damage: 57,
-            weapon: getItem('pitchfork'),
+            damage: { blunt: 31, sharp: 57 },
+            weaponName: 'pitchfork',
+            attackVerb: 'stab',
             description: 'scarecrow gaurd',
             coordination: 4,
             agility: 3,
-            blunt_armor: 6,
+            armor: { blunt: 6 },
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    scarecrow_worker(args: { [key: string]: any }) {
+    scarecrow_worker(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'scarecrow worker',
-            items: [getItem('pitchfork')],
+            items: ['pitchfork'],
             max_hp: 130,
-            blunt_damage: 25,
-            sharp_damage: 48,
-            weapon: getItem('pitchfork'),
+            damage: { blunt: 25, sharp: 48 },
+            weaponName: 'pitchfork',
+            attackVerb: 'stab',
             description: 'scarecrow worker',
             coordination: 3,
             agility: 3,
-            blunt_armor: 1,
+            armor: { blunt: 1 },
             alignment: 'nice scarecrow',
             pronouns: pronouns.male,
-            ...args
         });
     },
 
-    scarecrow_king(args: { [key: string]: any }) {
+    scarecrow_king(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'scarecrow king',
-            items: [getItem('golden_pitchfork'), getItem('gold', 38)],
+            items: ['golden_pitchfork', { name: 'gold', quantity: 38 }],
             max_hp: 260,
-            blunt_damage: 43,
-            sharp_damage: 75,
-            weapon: getItem('golden_pitchfork'),
+            damage: { blunt: 43, sharp: 75 },
+            weaponName: 'golden_pitchfork',
+            attackVerb: 'stab',
             description: 'scarecrow king',
             coordination: 5,
             agility: 3,
-            blunt_armor: 12,
+            armor: { blunt: 12 },
             attackPlayer: true,
             alignment: 'evil',
             pronouns: pronouns.male,
-            respawn: false,
-            ...args
+            respawns: false,
         });
     },
 
-    grocer(args: { [key: string]: any }) {
+    grocer(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'grocer',
             pronouns: pronouns.male,
             items: [
-                getItem('banana'),
-                getItem('side_of_meat'),
-                getItem('chicken_leg'),
-                getItem('satchel_of_peas'),
-                getItem('full_ration'),
-                getItem('ear_of_corn'),
-                getItem('flask_of_wine'),
-                getItem('keg_of_wine')
+                'banana',
+                'side_of_meat',
+                'chicken_leg',
+                'satchel_of_peas',
+                'full_ration',
+                'ear_of_corn',
+                'flask_of_wine',
+                'keg_of_wine'
             ],
-            ...args
         }).dialog(async function (player: Character) {
             print("Please ignore my bag boy.  He scares away the majority of our customers.");
             print("Unfortunatley he's my grandson and I can't really fire him.");
@@ -2636,12 +2617,12 @@ const characters = {
         ).addAction('buy', actions.buy);
     },
 
-    old_woman(args: { [key: string]: any }) {
+    old_woman(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'old woman',
             pronouns: pronouns.female,
             max_hp: 1000,
-            ...args
         }).dialog(async function (player: Character) {
             print("Hello little one...");
             print("This music box here is more valuable than you may think.  Crafted by the great");
@@ -2655,17 +2636,17 @@ const characters = {
         }).onAttack(actions.pish2)
     },
 
-    blobin(args: { [key: string]: any }) {
+    blobin(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Blobin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             description: 'N',
             max_hp: 6000,
             agility: 10000,
-            blunt_armor: 1000,
-            respawn: false,
+            armor: { blunt: 1000 },
+            respawns: false,
             alignment: 'orc',
-            ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.biadon) {
                 print("Visit Gerard's shop for the latest equipment!");
@@ -2683,10 +2664,10 @@ const characters = {
                         if (await getKey(['y', 'n']) == "y") {
                             this.game.player.flags.enemy_of_ierdale = true
                             const soldiers = [
-                                this.game.addCharacter('orc_amazon', this.location!),
-                                this.game.addCharacter('orc_behemoth', this.location!),
-                                this.game.addCharacter('orc_behemoth', this.location!),
-                                this.game.addCharacter('gryphon', this.location!)
+                                await this.game.addCharacter({ name: 'orc_amazon', location: this.location! }),
+                                await this.game.addCharacter({ name: 'orc_behemoth', location: this.location! }),
+                                await this.game.addCharacter({ name: 'orc_behemoth', location: this.location! }),
+                                await this.game.addCharacter({ name: 'gryphon', location: this.location! })
                             ].filter(c => c) as Character[];
                             soldiers.forEach(soldier => soldier.following = player.name);
                             print("Here, take these soldiers and this gryphon on your way.");
@@ -2748,10 +2729,10 @@ const characters = {
                             ieadon.fight(player);
                         }
                     }
-                    this.location?.addCharacter(getCharacter('gryphon', this.game).onDeath(soldierDown));
-                    this.location?.addCharacter(getCharacter('orc_behemoth', this.game).onDeath(soldierDown));
-                    this.location?.addCharacter(getCharacter('orc_behemoth', this.game).onDeath(soldierDown));
-                    this.location?.addCharacter(getCharacter('orc_amazon', this.game).onDeath(soldierDown));
+                    this.game.addCharacter({ name: 'gryphon', location: this.location! })?.onDeath(soldierDown);
+                    this.game.addCharacter({ name: 'orc_behemoth', location: this.location! })?.onDeath(soldierDown);
+                    this.game.addCharacter({ name: 'orc_behemoth', location: this.location! })?.onDeath(soldierDown);
+                    this.game.addCharacter({ name: 'orc_amazon', location: this.location! })?.onDeath(soldierDown);
                     (player as Player).disableCommands(['save'], 'no.')
                     // Fight 157
                     // print("Ieadon is hiding in a mysterious place know as ", 1);
@@ -2777,17 +2758,17 @@ const characters = {
         }).onAttack(actions.pish2);
     },
 
-    beggar(args: { [key: string]: any }) {
+    beggar(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'beggar',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 35,
             coordination: 3,
             agility: 2,
-            blunt_damage: 5,
-            sharp_damage: 0,
-            weapon: getItem('fist'),
-            ...args
+            damage: { blunt: 5, sharp: 0 },
+            weaponName: 'fist',
+            attackVerb: 'club',
         }).dialog(async function (player: Character) {
             print("Hmmmmfff...");
             if (!player.has('gold', 10)) return;
@@ -2812,19 +2793,20 @@ const characters = {
         }).onTurn(actions.wander({ bounds: [] }));
     },
 
-    cleric_tendant(args: { [key: string]: any }) {
+    cleric_tendant(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'cleric tendant',
             pronouns: pronouns.male,
             agility: 2,
             max_hp: 100,
-            blunt_armor: 10,
-            weapon: getItem('fist'),
+            armor: { blunt: 10 },
+            weaponName: 'fist',
+            attackVerb: 'club',
             coordination: 3,
-            blunt_damage: 4,
+            damage: { blunt: 4 },
             description: 'cleric tendant',
             aliases: ['cleric'],
-            ...args
         }).dialog(async function (player: Character) {
             print("Welcome.  I must be stern with you when I say NO TALKING, read the sign.");
         }).onAttack(async function (attacker: Character) {
@@ -2841,43 +2823,43 @@ const characters = {
         }).addAction('train healing', actions.train({
             skillName: 'healing',
             requirements: (player: Character) => ({
-                gold: 20 + player._healing * 5 / 8,
-                xp: 30 + 15 * player._healing
+                gold: 20 + player.base_stats.healing * 5 / 8,
+                xp: 30 + 15 * player.base_stats.healing
             }),
             classDiscount: {
                 'cleric': 50,
             },
             result: (player: Character) => {
-                player.healing += 1;
-                print(`Your healing capabilitys Improved.  Congradulations, you now heal by: ${player._healing}`);
+                player.base_stats.healing += 1;
+                print(`Your healing capabilitys Improved.  Congradulations, you now heal by: ${player.base_stats.healing}`);
             }
         })).addAction('train archery', actions.train({
             skillName: 'archery',
             requirements: (player: Character) => ({
-                gold: 10 + player._archery / 4,
-                xp: 15 + 8 * player._archery
+                gold: 10 + player.base_stats.archery / 4,
+                xp: 15 + 8 * player.base_stats.archery
             }),
             classDiscount: {
                 'cleric': 25,
                 'thief': 50
             },
             result: (player: Character) => {
-                player.archery += 1;
-                print(`Your archery skills improved.  Congradulations, you now have Archery: ${player._archery}`);
+                player.base_stats.archery += 1;
+                print(`Your archery skills improved.  Congradulations, you now have Archery: ${player.base_stats.archery}`);
             }
         })).addAction('train mindfulness', actions.train({
             skillName: 'mindfulness',
             requirements: (player: Character) => ({
-                gold: 30 + 10 * player._max_mp / 50,
-                xp: 4 * player._max_mp
+                gold: 30 + 10 * player.base_stats.max_mp / 50,
+                xp: 4 * player.base_stats.max_mp
             }),
             classDiscount: {
                 'spellcaster': 30,
                 'cleric': 25
             },
             result: (player: Character) => {
-                player.max_mp += 5;
-                print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player._max_mp}`);
+                player.base_stats.max_mp += 5;
+                print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player.base_stats.max_mp}`);
             }
         })).addAction('train', async function (player) {
             color(black)
@@ -2885,15 +2867,15 @@ const characters = {
         });
     },
 
-    blind_hermit(args: { [key: string]: any }) {
+    blind_hermit(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'blind hermit',
             pronouns: pronouns.male,
             agility: 1,
             max_hp: 30,
             description: 'blind hermit',
             aliases: ['hermit'],
-            ...args
         }).dialog(async function (player: Character) {
             print("'The sight of a blind man probes beyond visual perceptions'");
             print("           - Vershi, tempest shaman");
@@ -2938,24 +2920,23 @@ const characters = {
                     color(blue);
                     print("<recieved a list>");
                     print("<recieved an amber chunk>");
-                    player.giveItem(getItem('list'));
-                    player.giveItem(getItem('amber_chunk'));
+                    player.giveItem('list');
+                    player.giveItem('amber_chunk');
                 }
             }
         }).onAttack(actions.pish2);
     },
 
-    butcher(args: { [key: string]: any }) {
+    butcher(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'butcher',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 1000,
-            sharp_damage: 20,
-            blunt_damage: 20,
-            blunt_armor: 20,
+            damage: { sharp: 20, blunt: 20 },
+            armor: { blunt: 20 },
             agility: 100,
             coordination: 10,
-            ...args
         }).dialog(async function (player: Character) {
             color(red);
             print("<*chop*>");
@@ -2984,15 +2965,15 @@ const characters = {
         });
     },
 
-    adder(args: { [key: string]: any }) {
+    adder(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'adder',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 32,
-            blunt_damage: 2,
-            sharp_damage: 10,
+            damage: { blunt: 2, sharp: 10 },
             weaponName: 'fangs',
-            weaponType: 'stab',
+            attackVerb: 'stab',
             coordination: 6,
             agility: 4,
             description: 'poisonus adder',
@@ -3004,20 +2985,20 @@ const characters = {
         });
     },
 
-    bridge_troll(args: { [key: string]: any }) {
+    bridge_troll(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'bridge troll',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 61,
-            blunt_damage: 16,
-            sharp_damage: 2,
+            damage: { blunt: 16, sharp: 2 },
             coordination: 3,
             agility: 1,
-            weapon: getItem('fist', { name: 'huge fists' }),
+            weaponName: 'huge fists',
+            attackVerb: 'club',
             description: 'troll',
-            blunt_armor: 1,
+            armor: { blunt: 1 },
             aliases: ['troll'],
-            ...args
         }).dialog(async function (player: Character) {
             print("trying to bother me?");
             print("worthless little human...");
@@ -3027,91 +3008,89 @@ const characters = {
         });
     },
 
-    swamp_thing(args: { [key: string]: any }) {
+    swamp_thing(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'swamp thing',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 46,
-            blunt_damage: 15,
-            sharp_damage: 1,
+            damage: { blunt: 15, sharp: 1 },
             coordination: 4,
             agility: 1,
             weaponName: 'whip-like fingers',
             description: 'swamp thing',
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         });
     },
 
-    dryad(args: { [key: string]: any }) {
+    dryad(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'dryad',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 130,
-            blunt_damage: 12,
-            sharp_damage: 5,
+            damage: { blunt: 12, sharp: 5 },
             coordination: 3,
             agility: 1,
             weaponName: 'trunkish arms',
             description: 'dryad',
-            ...args
         });
     },
 
-    goblin_solider(args: { [key: string]: any }) {
+    goblin_soldier(game: GameState) {
         return new A2dCharacter({
-            name: 'goblin solider',
+            game: game,
+            name: 'goblin soldier',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 21,
-            blunt_damage: 15,
-            sharp_damage: 3,
+            damage: { blunt: 15, sharp: 3 },
             coordination: 2,
             agility: 4,
-            weapon: getItem('wooden_stick'),
-            items: [getItem('gold', 3), getItem('wooden_stick')],
+            weaponName: 'wooden_stick',
+            attackVerb: 'club',
+            items: [{ name: 'gold', quantity: 3 }, 'wooden_stick'],
             description: 'evil looking goblin',
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         });
     },
 
-    goblin_captain(args: { [key: string]: any }) {
+    goblin_captain(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'goblin captain',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 48,
-            blunt_damage: 29,
-            sharp_damage: 10,
-            weapon: getItem('broadsword'),
-            items: [getItem('gold', 9), getItem('broadsword')],
+            damage: { blunt: 29, sharp: 10 },
+            weaponName: 'broadsword',
+            attackVerb: 'slice',
+            items: [{ name: 'gold', quantity: 9 }, 'broadsword'],
             description: 'horifying goblin captain',
-            blunt_armor: 9,
+            armor: { blunt: 9 },
             agility: 3,
             coordination: 2,
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         })
     },
 
-    security_guard(args: { [key: string]: any }) {
+    security_guard(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'security guard',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 35,
-            blunt_damage: 17,
-            sharp_damage: 7,
+            damage: { blunt: 17, sharp: 7 },
             coordination: 3,
             agility: 2,
-            weapon: getItem('shortsword'),
-            items: [getItem('shortsword')],
+            weaponName: 'shortsword',
+            attackVerb: 'slice',
+            items: ['shortsword'],
             description: 'Ierdale guard',
-            blunt_armor: 2,
+            armor: { blunt: 2 },
             aliases: ['guard'],
             alignment: 'ierdale',
-            ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.colonel_arach) {
                 print("Sorry... we can't let you past.  Colonel Arach has us locking these gates down");
@@ -3156,20 +3135,20 @@ const characters = {
         })
     },
 
-    snotty_page(args: { [key: string]: any }) {
+    snotty_page(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'snotty page',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 1,
-            blunt_damage: 6,
-            sharp_damage: 5,
+            damage: { blunt: 6, sharp: 5 },
             coordination: 5,
             agility: 1,
-            weapon: getItem('dagger'),
+            weaponName: 'dagger',
+            attackVerb: 'stab',
             description: 'snotty ASS page',
             aliases: ['page'],
             alignment: 'ierdale',
-            ...args
         }).dialog(async function (player: Character) {
             print("What do you want... wait I am too good and too cool to be talking to you,");
             print("Eldfarl picked me to mentor him because I am the BEST!!!  Way better than you!");
@@ -3184,23 +3163,22 @@ const characters = {
         });
     },
 
-    police_chief(args: { [key: string]: any }) {
+    police_chief(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'police chief',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 150,
-            blunt_damage: 65,
-            sharp_damage: 30,
-            weapon: getItem('silver_sword'),
-            items: [getItem('silver_sword'), getItem('gold', 15)],
+            damage: { blunt: 65, sharp: 30 },
+            weaponName: 'silver_sword',
+            attackVerb: 'slice',
+            items: ['silver_sword', { name: 'gold', quantity: 15 }],
             description: 'Police chief',
-            blunt_armor: 29,
-            sharp_armor: 35,
+            armor: { blunt: 29, sharp: 35 },
             coordination: 7,
             agility: 9,
             aliases: ['chief'],
             alignment: 'ierdale',
-            ...args
         }).dialog(async function (player: Character) {
             if (this.game.flags.biadon && !this.game.flags.ieadon) {
                 print("Mfrmf... Orcs mfrflm... Oh its you.  Stay OUT, we are at war!  Please show");
@@ -3216,89 +3194,87 @@ const characters = {
         });
     },
 
-    sandworm(args: { [key: string]: any }) {
+    sandworm(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'sandworm',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 450,
-            blunt_damage: 18,
-            sharp_damage: 0,
-            weapon: getItem('fist', { name: 'sand he throws' }),
-            items: [getItem('gold', 7)],
+            damage: { blunt: 18, sharp: 0 },
+            weaponName: 'sand he throws',
+            attackVerb: 'club',
+            items: [{ name: 'gold', quantity: 7 }],
             description: 'HUGE sandworm',
             coordination: 4,
             agility: 0,
-            ...args
         });
     },
 
-    sand_scout(args: { [key: string]: any }) {
+    sand_scout(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'sand scout',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 45,
-            blunt_damage: 0,
-            sharp_damage: 40,
-            weapon: getItem('long_rapier'),
-            items: [getItem('gold', 12), getItem('partial_healing_potion'), getItem('long_rapier')],
+            damage: { blunt: 0, sharp: 40 },
+            weaponName: 'long_rapier',
+            attackVerb: 'stab',
+            items: [{ name: 'gold', quantity: 12 }, 'partial_healing_potion', 'long_rapier'],
             description: 'quick sand scout',
             agility: 7,
             coordination: 10,
-            blunt_armor: 7,
-            ...args
+            armor: { blunt: 7 },
         });
     },
 
-    hen(args: { [key: string]: any }) {
+    hen(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'hen',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 5,
-            blunt_damage: 2,
-            sharp_damage: 0,
+            damage: { blunt: 2, sharp: 0 },
             coordination: 1,
             agility: 3,
             weaponName: 'beak',
-            weaponType: 'stab',
-            items: [getItem('chicken_leg')],
+            attackVerb: 'stab',
+            items: ['chicken_leg'],
             description: 'clucking hen',
-            ...args
         });
     },
 
-    large_rooster(args: { [key: string]: any }) {
+    large_rooster(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'large rooster',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 5,
-            blunt_damage: 7,
-            sharp_damage: 2,
+            damage: { blunt: 7, sharp: 2 },
             weaponName: 'claws',
-            weaponType: 'slice',
-            items: [getItem('chicken_leg')],
+            attackVerb: 'slice',
+            items: ['chicken_leg'],
             description: 'furious rooster',
             coordination: 4,
             agility: 2,
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         });
     },
 
-    chief_judge(args: { [key: string]: any }) {
+    chief_judge(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'chief judge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 30,
-            blunt_damage: 9,
-            sharp_damage: 0,
+            damage: { blunt: 9, sharp: 0 },
             coordination: 4,
             agility: 1,
-            weapon: getItem('gavel'),
-            items: [getItem('gold', 10), getItem('gavel')],
+            weaponName: 'gavel',
+            attackVerb: 'club',
+            items: [{ name: 'gold', quantity: 10 }, 'gavel'],
             description: 'Judge',
             aliases: ['judge'],
-            ...args
         }).dialog(async function (player: Character) {
             print("Hello, would you like a trial?");
         }).onDeath(async function (cause) {
@@ -3311,22 +3287,22 @@ const characters = {
         });
     },
 
-    elite_guard(args: { [key: string]: any }) {
+    elite_guard(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'elite guard',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 50,
-            blunt_damage: 22,
-            sharp_damage: 10,
-            weapon: getItem('broadsword'),
-            items: [getItem('broadsword'), getItem('gold', 6)],
+            damage: { blunt: 22, sharp: 10 },
+            weaponName: 'broadsword',
+            attackVerb: 'slice',
+            items: ['broadsword', { name: 'gold', quantity: 6 }],
             description: 'Ierdale elite',
             coordination: 2,
             agility: 2,
-            blunt_armor: 5,
+            armor: { blunt: 5 },
             aliases: ['gaurd'],
             alignment: 'ierdale',
-            ...args
         }).dialog(async function (player: Character) {
             print("Be careful...");
             print("It is very dangerous here in the desert.");
@@ -3339,22 +3315,22 @@ const characters = {
         })
     },
 
-    dreaugar_dwarf(args: { [key: string]: any }) {
+    dreaugar_dwarf(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'dreaugar dwarf',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 175,
-            blunt_damage: 90,
-            sharp_damage: 10,
-            weapon: getItem('axe'),
-            items: [getItem('gold', Math.random() * 15 + 1), getItem('axe')],
+            damage: { blunt: 90, sharp: 10 },
+            weaponName: 'axe',
+            attackVerb: 'axe',
+            items: [{ name: 'gold', quantity: Math.random() * 15 + 1 }, 'axe'],
             description: 'evil dwarf',
             coordination: 8,
             agility: 5,
-            blunt_armor: 20,
+            armor: { blunt: 20 },
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         }).fightMove(async function () {
             if (Math.random() < 1 / 5) {
                 // heal
@@ -3363,22 +3339,22 @@ const characters = {
         });
     },
 
-    orkin_the_animal_trainer(args: { [key: string]: any }) {
+    orkin_the_animal_trainer(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Orkin the animal trainer',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 220,
-            blunt_damage: 20,
-            sharp_damage: 10,
-            weapon: getItem('fist'),
-            items: [getItem('gold', 43)],
+            damage: { blunt: 20, sharp: 10 },
+            weaponName: 'fist',
+            attackVerb: 'club',
+            items: [{ name: 'gold', quantity: 43 }],
             description: 'orkin and his animals',
             coordination: 2,
             agility: 1,
-            blunt_armor: 10,
+            armor: { blunt: 10 },
             aliases: ['orkin'],
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             print("Echoo Dakeee??  Wul you like to buy some any-mas!");
         }).fightMove(async function () {
@@ -3386,24 +3362,23 @@ const characters = {
         });
     },
 
-    lion(args: { [key: string]: any }) {
+    lion(game: GameState) {
         const gender = randomChoice(['male', 'female']) as keyof typeof pronouns;
         return new A2dCharacter({
+            game: game,
             name: gender == 'male' ? 'lion' : 'lioness',
             pronouns: gender == 'male' ? pronouns.male : pronouns.female,
             max_hp: 155,
-            blunt_damage: 12,
-            sharp_damage: 30,
+            damage: { blunt: 12, sharp: 30 },
             weaponName: 'claws',
-            weaponType: 'slice',
+            attackVerb: 'slice',
             description: 'Lion',
             coordination: 5,
             agility: 6,
-            blunt_armor: 2,
+            armor: { blunt: 2 },
             magic_level: 6,
             alignment: 'nice lion',
             spellChance: () => Math.random() < 2 / 3,
-            ...args
         }).dialog(async function (player: Character) {
             color(red);
             // If QBRed = QBDefault Then SetColor QBBlue
@@ -3411,88 +3386,87 @@ const characters = {
         }).fightMove(actions.growl);
     },
 
-    mutant_bat(args: { [key: string]: any }) {
+    mutant_bat(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'mutant bat',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 500,
-            magic_damage: 20,
+            damage: { sonic: 20 },
             weaponName: 'high pitched screech',
-            weaponType: 'sonic',
+            attackVerb: 'sonic',
             description: 'mutant bat',
             coordination: 40,
             agility: 5,
-            blunt_armor: 25,
-            ...args
+            armor: { blunt: 25 },
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
-                this.location?.addCharacter(getCharacter(
-                    'mutant_bat', this.game, { respawn: false, persist: false }
-                ).onTurn(
+                this.game.addCharacter({
+                    name: 'mutant_bat', location: this.location!, respawn: false, persist: false
+                })?.onTurn(
                     async function () { await this.die() }
-                ));
+                );
             }
         });
     },
 
-    kobalt_captain(args: { [key: string]: any }) {
+    kobalt_captain(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'kobalt captain',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 240,
-            blunt_damage: 10,
-            sharp_damage: 30,
-            weapon: getItem('spear'),
-            items: [getItem('gold', 12), getItem('spear')],
+            damage: { blunt: 10, sharp: 30 },
+            weaponName: 'spear',
+            attackVerb: 'stab',
+            items: [{ name: 'gold', quantity: 12 }, 'spear'],
             description: 'captain',
             coordination: 4,
             agility: 2,
-            blunt_armor: 13,
+            armor: { blunt: 13 },
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
                 color(magenta);
                 print("Kobalt Captain calls for reinforcements!");
-                this.location?.addCharacter(getCharacter('kobalt_soldier', this.game));
+                this.game.addCharacter({ name: 'kobalt_soldier', location: this.location! });
             }
         });
     },
 
-    kobalt_soldier(args: { [key: string]: any }) {
+    kobalt_soldier(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'kobalt soldier',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 50,
-            blunt_damage: 15,
-            sharp_damage: 5,
+            damage: { blunt: 15, sharp: 5 },
             weaponName: 'mace',
-            items: [getItem('gold', 5), getItem('mace')],
+            items: [{ name: 'gold', quantity: 5 }, 'mace'],
             description: 'kobalt soldier',
             coordination: 2,
             agility: 3,
-            blunt_armor: 5,
+            armor: { blunt: 5 },
             attackPlayer: true,
             alignment: 'evil',
-            respawn: false,
+            respawns: false,
             persist: false,
-            ...args
         }).onTurn(async function () { await this.die() })
     },
 
-    bow_maker(args: { [key: string]: any }) {
+    bow_maker(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'bow maker',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 65,
-            blunt_damage: 20,
-            sharp_damage: 20,
-            weapon: getItem('ballista_bolt'),
+            damage: { blunt: 20, sharp: 20 },
+            weaponName: 'ballista_bolt',
+            attackVerb: 'stab',
             description: 'bow fletcher',
             coordination: 2,
-            blunt_armor: 10,
-            ...args
+            armor: { blunt: 10 },
         }).dialog(async function (player: Character) {
             print("Hi, want some arrows... OR BOWS!");
         }).onDeath(async function (cause) {
@@ -3505,20 +3479,20 @@ const characters = {
         });
     },
 
-    peasant_man(args: { [key: string]: any }) {
+    peasant_man(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'peasant man',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 100,
-            sharp_damage: 25,
+            damage: { sharp: 25 },
             weaponName: 'cudgel',
-            items: [getItem('cudgel'), getItem('gold', 3)],
+            items: ['cudgel', { name: 'gold', quantity: 3 }],
             description: 'peasant man',
             coordination: 2,
-            blunt_armor: 4,
+            armor: { blunt: 4 },
             aliases: ['peasant'],
             alignment: 'wander',
-            ...args
         }).dialog(async function (player: Character) {
             print("Nice day aint it?");
             print("I Heard about these 4 jewels once...  heard one was in the forest 'o theives.");
@@ -3535,20 +3509,19 @@ const characters = {
         }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
-    peasant_woman(args: { [key: string]: any }) {
+    peasant_woman(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'peasant woman',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 90,
-            blunt_damage: 0,
-            sharp_damage: 15,
+            damage: { blunt: 0, sharp: 15 },
             weaponName: 'pocket knife',
-            weaponType: 'slice',
+            attackVerb: 'slice',
             description: 'peasant woman',
             coordination: 2,
-            blunt_armor: 3,
+            armor: { blunt: 3 },
             aliases: ['peasant'],
-            ...args
         }).dialog(async function (player: Character) {
             print("Excuse me I need to get to my work.");
             print();
@@ -3565,31 +3538,30 @@ const characters = {
         }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
-    dog(args: { [key: string]: any }) {
+    dog(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'dog',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 45,
-            blunt_damage: 10,
-            sharp_damage: 15,
+            damage: { blunt: 10, sharp: 15 },
             weaponName: 'teeth',
-            weaponType: 'teeth',
+            attackVerb: 'bite',
             description: 'yapping dog',
             coordination: 2,
             agility: 2,
-            blunt_armor: 4,
+            armor: { blunt: 4 },
             alignment: 'wander',
-            ...args
         }).dialog(async function (player: Character) {
             print("BOW WOW WOW!");
         }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse'] }))
     },
 
-    peasant_child(args: { [key: string]: any }) {
+    peasant_child(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'peasant child',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-            ...args
         }).onAttack(async function (character: Character) {
             console.log(this.name, 'onAttack')
             if (character.isPlayer) {
@@ -3602,19 +3574,19 @@ const characters = {
                         name: `evil ${player.name}`,
                         pronouns: player.pronouns,
                         max_hp: player.hp,
-                        weapon: player.equipment['right hand'] || getItem('fist'),
-                        blunt_damage: player.strength * (player.equipment['right hand']?.weapon_stats?.blunt_damage || 0),
-                        sharp_damage: player.strength * (player.equipment['right hand']?.weapon_stats?.sharp_damage || 0),
-                        magic_damage: (player.strength + player.magic_level) * (player.equipment['right hand']?.weapon_stats?.magic_damage || 0),
-                        blunt_armor: player.blunt_armor,
-                        sharp_armor: player.sharp_armor,
-                        magic_armor: player.magic_armor,
+                        weaponName: player.equipment['right hand']?.name || 'fist',
+                        damage: {
+                            blunt: player.strength * (player.equipment['right hand']?.buff?.times?.damage?.blunt || 0),
+                            sharp: player.strength * (player.equipment['right hand']?.buff?.times?.damage?.sharp || 0),
+                            magic: (player.strength + player.magic_level) * (player.equipment['right hand']?.buff?.times?.damage?.magic || 0),
+                        },
+                        armor: player.defenseBuffs.plus,
                         coordination: player.coordination,
                         agility: player.agility,
                         strength: player.strength,
                         magic_level: player.healing,
                         game: player.game,
-                        respawn: false,
+                        respawns: false,
                         persist: false
                     })
                     evil_you.fightMove(actions.heal)
@@ -3638,21 +3610,21 @@ const characters = {
         }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
-    peasant_worker(args: { [key: string]: any }) {
+    peasant_worker(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'peasant worker',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 190,
-            blunt_damage: 0,
-            sharp_damage: 70,
-            weapon: getItem('sickle'),
+            damage: { blunt: 0, sharp: 70 },
+            weaponName: 'sickle',
+            attackVerb: 'slice',
             description: 'work-hardened peasant',
             coordination: 2,
             agility: 2,
-            blunt_armor: 10,
+            armor: { blunt: 10 },
             aliases: ['peasant', 'worker'],
             alignment: 'wander',
-            ...args
         }).dialog(async function (player: Character) {
             print("*grumble* darn this town *grumble* *grumble*");
             print("Oh Hi there!  Rings?  Dont know, heard something about the path of Nod.");
@@ -3668,26 +3640,23 @@ const characters = {
         });
     },
 
-    ieadon(args: { [key: string]: any }) {
+    ieadon(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Ieadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 1000,
-            blunt_damage: 2000,
-            sharp_damage: 2000,
-            magic_damage: 300,
+            damage: { blunt: 2000, sharp: 2000, magic: 300 },
             hp_recharge: 0.01, // he won't heal right away
-            weapon: getItem('glory_blade'),
-            items: [getItem('gold', 1000), getItem('glory_blade'), getItem('ring_of_ultimate_power')],
+            weaponName: 'glory_blade',
+            attackVerb: 'slice',
+            items: [{ name: 'gold', quantity: 1000 }, 'glory_blade', 'ring_of_ultimate_power'],
             description: 'the ledgendary Ieadon',
             coordination: 35,
             agility: 15,
-            blunt_armor: 100,
-            magic_armor: 100,
-            sharp_armor: 100,
+            armor: { blunt: 100, sharp: 100, magic: 100 },
             magic_level: 20,
-            respawn: false,
-            ...args
+            respawns: false,
         }).dialog(async function (player: Character) {
             print("I am the most renound fighter in all the Land.");
             print("Have you heard about thoes rings, thats a PITY!");
@@ -3699,35 +3668,35 @@ const characters = {
         }).addAction('train strength', actions.train({
             skillName: 'strength',
             requirements: (player: Character) => ({
-                xp: 80 + 25 * player._strength,
-                gold: 25 + 5 * Math.floor(player._strength / 5)
+                xp: 80 + 25 * player.base_stats.strength,
+                gold: 25 + 5 * Math.floor(player.base_stats.strength / 5)
             }),
             classDiscount: { 'fighter': 50, 'thief': 25 },
             result: (player: Character) => {
-                player.strength += 1;
-                if (player.isPlayer) print(`Your raw fighting POWER increased.  Congradulations, your Attack is now: ${player._strength}`);
+                player.base_stats.strength += 1;
+                if (player.isPlayer) print(`Your raw fighting POWER increased.  Congradulations, your Attack is now: ${player.base_stats.strength}`);
             }
         })).addAction('train stamina', actions.train({
             skillName: 'stamina',
             requirements: (player: Character) => ({
-                xp: 2 * player._max_sp,
-                gold: 15 + 5 * Math.floor(player._max_sp / 50)
+                xp: 2 * player.base_stats.max_sp,
+                gold: 15 + 5 * Math.floor(player.base_stats.max_sp / 50)
             }),
             classDiscount: { 'fighter': 25, 'cleric': 25 },
             result: (player: Character) => {
-                player.max_sp += 5;
-                if (player.isPlayer) print(`Your Stamina improved.  Congradulations, it is now: ${player._max_sp}`);
+                player.base_stats.max_sp += 5;
+                if (player.isPlayer) print(`Your Stamina improved.  Congradulations, it is now: ${player.base_stats.max_sp}`);
             }
         })).addAction('train toughness', actions.train({
             skillName: 'toughness',
             requirements: (player: Character) => ({
-                xp: 2 * player._max_hp,
-                gold: 30 + 10 * Math.floor(player._max_hp / 50)
+                xp: 2 * player.base_stats.max_hp,
+                gold: 30 + 10 * Math.floor(player.base_stats.max_hp / 50)
             }),
             classDiscount: { 'fighter': 25 },
             result: (player: Character) => {
-                player.max_hp += 5;
-                if (player.isPlayer) print(`Your toughness increased.  Congradulations your Hit Points are now: ${player._max_hp}`);
+                player.base_stats.max_hp += 5;
+                if (player.isPlayer) print(`Your toughness increased.  Congradulations your Hit Points are now: ${player.base_stats.max_hp}`);
             }
         })).onDeath(async function (player) {
             // win
@@ -3753,25 +3722,24 @@ const characters = {
         })
     },
 
-    mythin(args: { [key: string]: any }) {
+    mythin(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Mythin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 550,
-            blunt_damage: 40,
-            sharp_damage: 120,
-            magic_damage: 40,
-            weapon: getItem('psionic_dagger', { name: 'glowing dagger' }),
-            items: [getItem('psionic_dagger'), getItem('gold', 300)],
+            damage: { blunt: 40, sharp: 120, magic: 40 },
+            weaponName: 'glowing dagger',
+            attackVerb: 'stab',
+            items: ['psionic_dagger', { name: 'gold', quantity: 300 }],
             description: 'the outcast Mythin',
             coordination: 25,
             agility: 25,
-            blunt_armor: 30,
-            respawn: false,
+            armor: { blunt: 30 },
+            respawns: false,
             flags: { 'gave_directions': false, 'met_biadon': false },
             spellChance: () => Math.random() < 3 / 5,
             magic_level: 50,
-            ...args
         }).dialog(async function (player: Character) {
             if (!this.flags.gave_directions) {
                 print("Since you have been able to get here, I will tell you directions");
@@ -3793,42 +3761,42 @@ const characters = {
         }).addAction('train coordination', actions.train({
             skillName: 'coordination',
             requirements: (player) => ({
-                xp: 100 + 150 * player._coordination,
-                gold: 30 + 20 * player._coordination
+                xp: 100 + 150 * player.base_stats.coordination,
+                gold: 30 + 20 * player.base_stats.coordination
             }),
             classDiscount: { 'thief': 25, 'fighter': 25 },
             result: (player) => {
-                player.coordination += 1;
-                if (player.isPlayer) print(`Your coordination increased.  Congradulations, it is now: ${player._coordination}`);
+                player.base_stats.coordination += 1;
+                if (player.isPlayer) print(`Your coordination increased.  Congradulations, it is now: ${player.base_stats.coordination}`);
             }
         })).addAction('train agility', actions.train({
             skillName: 'agility',
             requirements: (player) => ({
-                xp: 75 + 150 * player._agility,
-                gold: 35 + 20 * player._agility
+                xp: 75 + 150 * player.base_stats.agility,
+                gold: 35 + 20 * player.base_stats.agility
             }),
             classDiscount: { 'thief': 50 }, // thief specialty
             result: (player) => {
-                player.agility += 1;
-                if (player.isPlayer) print(`Your agility increased.  Congradulations, it is now: ${player._agility}`);
+                player.base_stats.agility += 1;
+                if (player.isPlayer) print(`Your agility increased.  Congradulations, it is now: ${player.base_stats.agility}`);
             }
         })).addAction('train offhand', actions.train({
             skillName: 'offhand',
             requirements: (player) => {
-                const ambidextrous = player.offhand >= 1;
+                const ambidextrous = player.base_stats.offhand >= 1;
                 if (ambidextrous && player.isPlayer) {
                     print("You are already fully ambidextrous.");
                 }
                 return {
-                    xp: 300 + 200 * (1 - player.offhand),
+                    xp: 300 + 200 * (1 - player.base_stats.offhand),
                     gold: 35,
                     other: !ambidextrous
                 }
             },
             classDiscount: { 'thief': 25, 'fighter': 25 },
             result: (player) => {
-                player.offhand += Math.min(Math.floor(((1 - player.offhand) / 4) * 100 + 1.5) / 100, 1);
-                if (player.isPlayer) print(`Your left-handed capabilities increased.  Congradulations, offhand is now: ${Math.floor(player.offhand * 100)}%`);
+                player.base_stats.offhand += Math.min(Math.floor(((1 - player.base_stats.offhand) / 4) * 100 + 1.5) / 100, 1);
+                if (player.isPlayer) print(`Your left-handed capabilities increased.  Congradulations, offhand is now: ${Math.floor(player.base_stats.offhand * 100)}%`);
             }
         })).addAction('train', async function (player) {
             color(black)
@@ -3844,22 +3812,21 @@ const characters = {
         }).fightMove(actions.heal);
     },
 
-    eldin(args: { [key: string]: any }) {
+    eldin(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Eldin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 450,
-            magic_damage: 180,
-            weapon: getItem('lightning_staff'),
-            items: [getItem('lightning_staff'), getItem('gold', 300), getItem('maple_leaf')],
+            damage: { magic: 180 },
+            weaponName: 'lightning_staff',
+            attackVerb: 'electric',
+            items: ['lightning_staff', { name: 'gold', quantity: 300 }, 'maple_leaf'],
             description: 'the mystical Eldin',
             coordination: 12,
             agility: 4,
-            blunt_armor: 29,
-            magic_armor: 100,
-            sharp_armor: 35,
-            respawn: false,
-            ...args
+            armor: { blunt: 29, sharp: 35, magic: 100 },
+            respawns: false,
         }).dialog(async function (player: Character) {
             print("Hello, nice to have company!!!")
             if (player.has("clear liquid") && this.has("maple leaf")) {
@@ -3897,13 +3864,13 @@ const characters = {
         }).addAction('train magic', actions.train({
             skillName: 'magic',
             requirements: (player) => ({
-                xp: 160 + 50 * player._magic_level,
-                gold: 50 + 10 * player._magic_level
+                xp: 160 + 50 * player.base_stats.magic_level,
+                gold: 50 + 10 * player.base_stats.magic_level
             }),
             classDiscount: { 'spellcaster': 50 },
             result: (player) => {
-                player.magic_level += 1;
-                if (player.isPlayer) print(`Your magical abilities increased. Congradulations, your magic level is now: ${player._magic_level}`);
+                player.base_stats.magic_level += 1;
+                if (player.isPlayer) print(`Your magical abilities increased. Congradulations, your magic level is now: ${player.base_stats.magic_level}`);
             }
         })).addAction('train newbie', actions.train({
             skillName: 'newbie',
@@ -4063,23 +4030,22 @@ const characters = {
         })
     },
 
-    eldfarl(args: { [key: string]: any }) {
+    eldfarl(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Eldfarl',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 450,
-            blunt_damage: 90,
-            sharp_damage: 0,
+            damage: { blunt: 90, sharp: 0 },
             weaponName: 'fist',
-            items: [getItem('gold', 400)],
+            items: [{ name: 'gold', quantity: 400 }],
             description: 'the respected Eldfarl',
             coordination: 12,
             agility: 4,
-            blunt_armor: 29,
+            armor: { blunt: 29 },
             magic_level: 100,
-            respawn: false,
+            respawns: false,
             spellChance: () => Math.random() < 3 / 5,
-            ...args
         }).dialog(async function (player: Character) {
             print("Ahh... nice to see you, please make yourself at home.  IF you would like to ");
             print("be instructed in a class, please visit my fantasic facitlitys to the south...");
@@ -4109,23 +4075,22 @@ const characters = {
         })
     },
 
-    turlin(args: { [key: string]: any }) {
+    turlin(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Turlin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 250,
-            blunt_damage: 60,
-            sharp_damage: 0,
+            damage: { blunt: 60, sharp: 0 },
             weaponName: 'huge fists',
-            items: [getItem('ring_of_nature')],
+            items: ['ring_of_nature'],
             description: 'Turlin',
-            blunt_armor: 4,
+            armor: { blunt: 4 },
             coordination: 3,
             agility: 1,
             attackPlayer: true,
             alignment: 'evil',
-            respawn: false,
-            ...args
+            respawns: false,
         }).onDeath(async function () {
             color(green);
             print("Defeated, the beast Turlin falls from the platform, crashing into the forest");
@@ -4151,25 +4116,25 @@ const characters = {
         })
     },
 
-    henge(args: { [key: string]: any }) {
+    henge(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Henge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 320,
-            blunt_damage: 50,
-            sharp_damage: 40,
-            weapon: getItem('longsword'),
-            items: [getItem('gold', 25), getItem('longsword'), getItem('ring_of_stone')],
+            damage: { blunt: 50, sharp: 40 },
+            weaponName: 'longsword',
+            attackVerb: 'slice',
+            items: [{ name: 'gold', quantity: 25 }, 'longsword', 'ring_of_stone'],
             description: 'Henge',
-            blunt_armor: 10,
-            sharp_armor: 50,
+            armor: { blunt: 10, sharp: 50 },
+            buff: { times: { damage: { sharp: 1.5 } } },
             coordination: 6,
             agility: 4,
             attackPlayer: true,
             alignment: 'evil',
-            respawn: false,
+            respawns: false,
             exp: 650,
-            ...args
         }).onEncounter(async function (player: Character) {
             if (player.isPlayer) {
                 color(black)
@@ -4196,23 +4161,23 @@ const characters = {
         })
     },
 
-    ziatos(args: { [key: string]: any }) {
+    ziatos(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'ziatos',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 750,
-            magic_damage: 50,
-            sharp_damage: 150,
-            weapon: getItem('blade_of_time'),
-            items: [getItem('blade_of_time'), getItem('gold', 125), getItem('ring_of_time')],
+            damage: { sharp: 150, magic: 50 },
+            weaponName: 'blade_of_time',
+            attackVerb: 'slice',
+            items: ['blade_of_time', { name: 'gold', quantity: 125 }, 'ring_of_time'],
             description: 'Ziatos',
             coordination: 35,
             agility: 8,
             speed: 2,
-            blunt_armor: 40,
-            respawn: false,
+            armor: { blunt: 40 },
+            respawns: false,
             alignment: 'evil',
-            ...args
         }).fightMove(async function () {
             print('TODO: time stop')
         }).onDeath(async function () {
@@ -4234,7 +4199,7 @@ const characters = {
             print()
             print("I must go now.")
             this.game.player.flags.enemy_of_ierdale = false;
-            this.game.addCharacter('biadon', 78)
+            this.game.addCharacter({ name: 'biadon', location: 78 })
             this.game.find_character('ieadon')?.relocate(this.game.find_location('the void'))
             await pause(15)
             color(black, black)
@@ -4245,21 +4210,21 @@ const characters = {
         });
     },
 
-    official(args: { [key: string]: any }) {
+    official(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'official',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            items: [getItem('gold', 25), getItem('long_dagger')],
+            items: [{ name: 'gold', quantity: 25 }, 'long_dagger'],
             description: 'orc official',
             max_hp: 200,
-            blunt_damage: 60,
-            sharp_damage: 100,
-            weapon: getItem('long_dagger'),
+            damage: { blunt: 60, sharp: 100 },
+            weaponName: 'long_dagger',
+            attackVerb: 'stab',
             coordination: 25,
             agility: 12,
-            blunt_armor: 10,
+            armor: { blunt: 10 },
             spellChance: () => true,
-            ...args
         }).dialog(async function (player: Character) {
             print("Grrr...");
             print("Will ye have a pass?");
@@ -4297,42 +4262,40 @@ const characters = {
         });
     },
 
-    wisp(args: { [key: string]: any }) {
+    wisp(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'wisp',
             pronouns: { "subject": "It", "object": "it", "possessive": "its" },
             max_hp: 110,
-            blunt_damage: 10,
-            magic_damage: 150,
+            damage: { blunt: 10, sonic: 150 },
             weaponName: 'piercing scream',
-            weaponType: 'sonic',
+            attackVerb: 'sonic',
             description: 'wandering wisp',
             coordination: 100,
             agility: 10,
-            blunt_armor: 100,
-            sharp_armor: 100,
+            armor: { blunt: 100, sharp: 100 },
             alignment: 'evil',
             attackPlayer: true,
-            ...args
         }).onTurn(
             actions.wander({ bounds: ['250', 'corroded gate'] })
         )
     },
 
-    biadon(args: { [key: string]: any }) {
+    biadon(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'Biadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 30000,
-            blunt_damage: 10,
-            sharp_damage: 0,
-            weapon: getItem('fist'),
+            damage: { blunt: 10, sharp: 0 },
+            weaponName: 'fist',
+            attackVerb: 'club',
             description: 'evasive Biadon',
             coordination: 1,
             agility: 32000,
-            blunt_armor: 32000,
-            respawn: false,
-            ...args
+            armor: { blunt: 32000 },
+            respawns: false,
         }).dialog(async function (player: Character) {
             print("Hehehehehe.");
             print("Me, holding The Ring of Ultimate Power???  Kahahaha.");
@@ -4355,7 +4318,7 @@ const characters = {
             } else if (!barracks) {
                 console.log('Orc barracks not found')
             }
-            this.game.addCharacter('orc_emissary', 197)
+            this.game.addCharacter({ name: 'orc_emissary', location: 197 })
             const dispatches = [
                 'center of town',
                 'beet street',
@@ -4370,13 +4333,13 @@ const characters = {
                 "Ieadon's house",
             ]
             for (let i = 0; i < dispatches.length; i++) {
-                const soldier = this.game.addCharacter('ierdale_soldier', 284)
+                const soldier = await this.game.addCharacter({ name: 'ierdale_soldier', location: 284 })
                 await soldier?.goto(dispatches[i])
             }
             for (let i = 0; i < 11; i++) {
-                this.game.addCharacter('ierdale_patrol', 284)
+                this.game.addCharacter({ name: 'ierdale_patrol', location: 284 })
             }
-            this.game.addCharacter('security_guard', 'center of town')
+            this.game.addCharacter({ name: 'security_guard', location: 'center of town' })
             this.game.flags.soldier_dialogue = [
                 "Something very serious has happened! Stay calm, but ARM YOURSELF TO THE TEETH! We need every fighter we can get.",
                 `I've heard of you, ${player.name}. You're the one who defeated the ogre king. Maybe you can help us! Talk to the security guards.`,
@@ -4389,29 +4352,28 @@ const characters = {
                 `It's good that you're here, ${player.name}. A strong ${player.class_name} like you could help us turn the tide in this fight.`,
                 "We have been dispatched to counter the rising threat of invasion from the orcs!"
             ]
-            this.game.addCharacter('general_gant', "Ierdale Barracks")
-            this.game.addCharacter('general_kerry', "Ieadon's house")
+            this.game.addCharacter({ name: 'general_gant', location: "Ierdale Barracks" })
+            this.game.addCharacter({ name: 'general_kerry', location: "Ieadon's house" })
             this.game.find_character('guard captain')?.goto('45')
         });
     },
 
-    cyclops(args: { [key: string]: any }) {
+    cyclops(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'cyclops',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 860,
-            blunt_damage: 174,
-            sharp_damage: 5,
+            damage: { blunt: 174, sharp: 5 },
             weaponName: 'uprooted tree',
             items: [],
             description: 'towering cyclops',
             coordination: 9,
             agility: -1,
-            blunt_armor: 26,
+            armor: { blunt: 26 },
             attackPlayer: true,
             alignment: 'evil',
-            respawn: false,
-            ...args
+            respawns: false,
         }).onDeath(async function () {
             color(green);
             print("  --  towering cyclops dropped uprooted tree.");
@@ -4421,70 +4383,68 @@ const characters = {
         });
     },
 
-    dragon(args: { [key: string]: any }) {
+    dragon(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'dragon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 1300,
-            blunt_damage: 40,
-            sharp_damage: 166,
+            damage: { blunt: 40, sharp: 166 },
             weaponName: "sharp claws",
-            weaponType: "sword",
+            attackVerb: "sword",
             items: [],
             description: 'fire-breathing dragon',
             coordination: 5,
             agility: -3,
-            blunt_armor: 60,
+            armor: { blunt: 60 },
             attackPlayer: true,
             alignment: 'evil',
-            respawn: false,
-            ...args
+            respawns: false,
         }).fightMove(async function () {
             if (Math.random() < 1 / 2) {
                 color(yellow)
                 if (this.location?.playerPresent) {
                     print(`A wave of fire erupts from ${this.name}, heading toward ${this.attackTarget?.name}!`)
-                    let dam = Math.floor(Math.sqrt(Math.random()) * this.magic_level)
-                    dam *= this.attackTarget?.damage_modifier(dam, 'fire') || 1
-                    await this.attackTarget?.hurt(dam, this)
+                    let dam = highRandom(this.magic_level)
+                    dam = this.attackTarget!.modify_damage(dam, 'fire')
+                    this.describeAttack(this.attackTarget!, 'scorching breath', 'fire', dam)
+                    await this.attackTarget!.hurt(dam, this)
                 }
             }
         })
     },
 
-    giant_scorpion(args: { [key: string]: any }) {
+    giant_scorpion(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'giant scorpion',
             pronouns: { "subject": "It", "object": "it", "possessive": "its" },
             max_hp: 100,
-            blunt_damage: 15,
-            sharp_damage: 6,
+            damage: { blunt: 15, sharp: 6 },
             weaponName: 'poison stinger',
-            weaponType: 'stab',
+            attackVerb: 'stab',
             description: 'scorpion',
             coordination: 5,
             agility: -1,
-            blunt_armor: 15,
+            armor: { blunt: 15 },
             alignment: 'evil',
-            ...args
         });
     },
 
-    mutant_hedgehog(args: { [key: string]: any }) {
+    mutant_hedgehog(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'mutant hedgehog',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 100,
-            blunt_damage: 6,
-            sharp_damage: 15,
+            damage: { blunt: 6, sharp: 15 },
             weaponName: 'horns',
-            weaponType: 'stab',
+            attackVerb: 'stab',
             description: 'mutant hedgehog',
             coordination: 0,
             agility: 18,
-            blunt_armor: 25,
+            armor: { blunt: 25 },
             alignment: 'evil',
-            ...args
         }).fightMove(async function () {
             if (Math.random() < 1 / 3) {
                 print("TODO: shootspike");
@@ -4492,225 +4452,208 @@ const characters = {
         });
     },
 
-    ogre(args: { [key: string]: any }) {
+    ogre(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'ogre',
             pronouns: pronouns.male,
-            items: [getItem('club')],
+            items: ['club'],
             max_hp: 120,
-            blunt_damage: 20,
-            sharp_damage: 0,
+            damage: { blunt: 20, sharp: 0 },
             weaponName: 'club',
-            weaponType: 'club',
+            attackVerb: 'club',
             description: 'giant ogre',
             coordination: 2,
             agility: 1,
-            blunt_armor: 2,
+            armor: { blunt: 2 },
             alignment: 'evil',
-            ...args
         });
     },
 
-    path_demon(args: { [key: string]: any }) {
+    path_demon(game: GameState) {
         const monsterOptions = [this.ogre, this.mutant_hedgehog, this.giant_scorpion]
         return randomChoice(monsterOptions)(
-            args
+            game
         ).onRespawn(async function () {
-            this.location?.removeCharacter(this)
-            this.location?.addCharacter(getCharacter('path_demon', this.game))
+            this.game.removeCharacter(this)
+            this.game.addCharacter({ name: 'path_demon', location: this.location! })
             console.log(`path demon respawned as ${this.location?.character('path_demon')?.name}`)
         }).onTurn(
             actions.wander({ bounds: ['96', '191', 'meadow', 'bog'] })
         )
     },
 
-    grizzly_bear(args: { [key: string]: any }) {
+    grizzly_bear(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'grizzly bear',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 350,
-            blunt_damage: 60,
-            sharp_damage: 6,
-            weapon: getItem('fist', { name: 'massive paws' }),
+            damage: { blunt: 60, sharp: 6 },
+            weaponName: 'massive paws',
+            attackVerb: 'club',
             description: 'grizzly bear',
             coordination: 15,
             agility: 1,
-            blunt_armor: 2,
+            armor: { blunt: 2 },
             alignment: 'B_a$(a) + "areaw',
             spellChance: () => Math.random() < 2 / 3,
-            ...args
         }).fightMove(actions.growl);
     },
 
-    striped_bear(args: { [key: string]: any }) {
+    striped_bear(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'striped bear',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 250,
-            blunt_damage: 42,
-            sharp_damage: 5,
-            weapon: getItem('fist', { name: 'heavy paws' }),
+            damage: { blunt: 42, sharp: 5 },
+            weaponName: 'heavy paws',
+            attackVerb: 'club',
             description: 'striped bear',
             coordination: 15,
             agility: 10,
-            blunt_armor: 5,
+            armor: { blunt: 5 },
             spellChance: () => Math.random() < 1 / 2,
             aliases: ['bear'],
             alignment: 'areaw',
-            ...args
         }).dialog(async function (player: Character) {
             print("Striped bear sniffs at you curiously.");
         }).fightMove(actions.growl);
     },
 
-    tiger(args: { [key: string]: any }) {
+    tiger(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'tiger',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 400,
-            blunt_damage: 40,
-            sharp_damage: 30,
+            damage: { blunt: 40, sharp: 30 },
             weaponName: 'sharp claws',
-            weaponType: 'slice',
+            attackVerb: 'slice',
             description: 'ferocious tiger',
             coordination: 25,
             agility: 18,
-            blunt_armor: 5,
+            armor: { blunt: 5 },
             spellChance: () => Math.random() < 1 / 2,
             alignment: 'evil/areaw',
-            ...args
         }).fightMove(
             actions.growl
         );
     },
 
-    wolf(args: { [key: string]: any }) {
+    wolf(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'wolf',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 80,
-            blunt_damage: 12,
-            sharp_damage: 35,
+            damage: { blunt: 12, sharp: 35 },
             weaponName: 'teeth',
-            weaponType: 'teeth',
+            attackVerb: 'bite',
             description: 'wolf',
             coordination: 15,
             agility: 11,
-            blunt_armor: 0,
+            armor: { blunt: 0 },
             spellChance: () => Math.random() < 1 / 2,
-            ...args
         }).dialog(async function (player: Character) {
             print("grrrr...");
         }).fightMove(actions.howl);
     },
 
-    rabid_wolf(args: { [key: string]: any }) {
+    rabid_wolf(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'rabid wolf',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 60,
-            blunt_damage: 12,
-            sharp_damage: 45,
+            damage: { blunt: 12, sharp: 45 },
             weaponName: 'teeth',
-            weaponType: 'teeth',
+            attackVerb: 'bite',
             description: 'rabid wolf',
             coordination: 5,
             agility: 0,
-            blunt_armor: 0,
+            armor: { blunt: 0 },
             powers: {
                 'poison fang': 1,
             },
             attackPlayer: true,
             alignment: 'evil',
-            ...args
         }).onTurn(actions.wander({}));
     },
 
-    gryphon(args: { [key: string]: any }) {
+    gryphon(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'gryphon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 64,
-            blunt_armor: 9,
+            armor: { blunt: 9 },
             coordination: 5,
             agility: 8,
-            blunt_damage: 19,
-            sharp_damage: 16,
+            damage: { blunt: 19, sharp: 16 },
             weaponName: 'talons',
-            weaponType: 'slice',
-            ...args
+            attackVerb: 'slice',
         });
     },
 
-    voidfish(args: { [key: string]: any }) {
+    voidfish(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'voidfish',
             description: 'slithering voidfish',
             pronouns: pronouns.inhuman,
             max_hp: 164,
-            blunt_armor: 9,
-            damage_modifier: {
-                'sharp': dam => dam * 2,
-                'blunt': dam => dam / 2
-            },
+            armor: { blunt: 9 },
+            buff: { times: { defense: { 'sharp': 1 / 2, 'blunt': 2 } } },
             coordination: 5,
             agility: 8,
-            sharp_damage: 160,
+            damage: { sharp: 160 },
             weaponName: 'needle teeth',
-            weaponType: 'teeth',
+            attackVerb: 'bite',
             alignment: 'evil',
-            ...args
         }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }));
     },
 
-    wraith(args: { [key: string]: any }) {
+    wraith(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'wraith',
             pronouns: pronouns.inhuman,
             max_hp: 640,
-            damage_modifier: {
-                'fire': dam => dam * 10,
-                'electric': dam => dam * 5,
-                'blunt': dam => 0,
-                'sharp': dam => 0,
-                'magic': dam => 0,
-                'cold': dam => 0,
-                'poison': dam => 0,
-            },
+            buff: { times: { defense: { 'fire': 0.1, 'electric': 0.2, 'blunt': 50, 'sharp': 100, 'magic': 10, 'cold': 10, 'poison': 10, 'sonic': 2 }, }, },
             coordination: 27,
             agility: 4,
-            magic_damage: 160,
+            damage: { magic: 160 },
             weaponName: 'blood-curdling shriek',
-            weaponType: 'sonic',
+            attackVerb: 'sonic',
             alignment: 'evil',
             chase: true,
-            ...args
         }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }));
     },
 
-    voidrat(args: { [key: string]: any }) {
+    voidrat(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'void rat',
             pronouns: pronouns.inhuman,
             max_hp: 400,
-            blunt_damage: 60,
-            sharp_damage: 40,
+            damage: { blunt: 60, sharp: 40 },
             coordination: 5,
             agility: 2,
             weaponName: 'teeth',
-            weaponType: 'teeth',
+            attackVerb: 'bite',
             description: 'monstrous rat',
             alignment: 'evil',
-            ...args
         }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }))
     },
 
-    grogren(args: { [key: string]: any }) {
+    grogren(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: 'grogren',
             pronouns: pronouns.male,
             alignment: 'orc',
-            ...args
         }).dialog(async function (player: Character) {
             if (!this.game.flags.biadon) {
                 print("Hi, nice day.  The tention between us and Ierdale is very high right now.");
@@ -4721,12 +4664,12 @@ const characters = {
         });
     },
 
-    mythins_employee(args: { [key: string]: any }) {
+    mythins_employee(game: GameState) {
         return new A2dCharacter({
+            game: game,
             name: "mythin's employee",
             pronouns: pronouns.male,
             aliases: ['employee'],
-            ...args
         }).dialog(async function (player: Character) {
             print("Welcome, please seek the true location of Mythin's shop deep in the Forest of");
             print("Thieves.  Mythin is a good thief, yet a thief at that.  If he were to have an");
@@ -4738,21 +4681,21 @@ const characters = {
     },
 } as const;
 
-type CharacterNames = keyof typeof characters;
+// type CharacterNames = keyof typeof characters;
 
-function isValidCharacter(key: string): key is CharacterNames {
-    return key in characters;
-}
+// function isValidCharacter(key: string): key is CharacterNames {
+//     return key in characters;
+// }
 
-function getCharacter(charName: CharacterNames, game: GameState, args?: any): A2dCharacter {
-    if (!characters[charName]) {
-        console.log(`Character "${charName}" not found`);
-        throw new Error(`Character "${charName}" not found`);
-    }
-    // console.log(`Creating character: ${charName}`);
-    const char = characters[charName]({ game: game, ...args });
-    char.key = charName;
-    return char
-}
+// function getCharacter(charName: CharacterNames, game: GameState, args?: any): A2dCharacter {
+//     if (!characters[charName]) {
+//         console.log(`Character "${charName}" not found`);
+//         throw new Error(`Character "${charName}" not found`);
+//     }
+//     // console.log(`Creating character: ${charName}`);
+//     const char = characters[charName]({ game: game, ...args });
+//     char.key = charName;
+//     return char
+// }
 
-export { A2dCharacter, A2dCharacterParams, getCharacter, isValidCharacter, characters, actions };
+export { A2dCharacter, A2dCharacterParams, characters, actions };

@@ -1,35 +1,37 @@
 import { findPath, Location } from "../../game/location.js"
 import { Item } from "../../game/item.js"
-import { Character, BonusKeys, Buff, DamageTypes } from "../../game/character.js"
+import { Character, BaseStats, Buff, DamageTypes } from "../../game/character.js"
 import { A2dCharacter } from "./characters.js"
-import { getItem, isValidItemKey, ItemNames } from "./items.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { GameState } from "../../game/game.js";
 import { caps, plural, printCharacters, randomChoice } from "../../game/utils.js";
 import { spells, abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js"
 import { getLandmark } from "./landmarks.js"
-import { GameMap } from "./map.js"
+import { scenario } from "./map.js"
 import { assistant } from "./assistant.js"
+import { isValidItemKey } from "./items.js"
+
+type EquipmentSlot = 'right hand' | 'left hand' | 'bow' | 'armor' | 'ring';
+type StatKey = BaseStats | `${DamageTypes}_damage` | `${DamageTypes}_defense`;
 
 class Player extends A2dCharacter {
     class_name: string = '';
     max_pets: number = 0;
-    offhand: number = 0;
     healed: boolean = false;
     isPlayer: boolean = true;
     cheatMode: boolean = false;
     pronouns = { subject: 'you', object: 'you', possessive: 'your' };
     disabledCommands: { [key: string]: string } = {};
+    right_fist = this.game.addItem({ name: 'fist' })!;
+    left_fist = this.game.addItem({ name: 'fist' })!;
+    activeEquipment: { [key in EquipmentSlot]: boolean } = { 'armor': true, 'bow': false, 'left hand': false, 'right hand': false, 'ring': true };
+
     equipment: {
-        'right hand': Item | null,
-        'left hand': Item | null,
-        'bow': Item | null,
-        'armor': Item | null,
-        'ring': Item | null,
+        [key in EquipmentSlot]: Item | null
     } = {
-            'right hand': getItem('fist', { name: 'fist' }),
-            'left hand': getItem('fist', { name: 'fist' }),
+            'right hand': this.right_fist,
+            'left hand': this.left_fist,
             'bow': null,
             'armor': null,
             'ring': null,
@@ -58,104 +60,116 @@ class Player extends A2dCharacter {
 
     constructor(characterName: string, className: string, game: GameState) {
         super({ name: characterName, game: game });
-        this.giveItem(getItem("banana"))
-        this.giveItem(getItem("side_of_meat"))
-        this.giveItem(getItem("club"))
+        this.game.addItem({ name: "banana", container: this.inventory })
+        this.game.addItem({ name: "side_of_meat", container: this.inventory })
+        this.game.addItem({ name: "club", container: this.inventory })
         this.class_name = className.toLowerCase();
         switch (this.class_name) {
             case ('thief'):
-                this.max_hp = 35
-                this.max_sp = 50
-                this.max_mp = 25
-                this.hp_recharge = 1 / 15
-                this.sp_recharge = 1 / 5
-                this.mp_recharge = 1 / 25
-                this.strength = 9
-                this.agility = 4
-                this.coordination = 4
-                this.offhand = 0.8
-                this.healing = 4
-                this.magic_level = 3
+                this.base_stats = {
+                    max_hp: 35,
+                    max_sp: 50,
+                    max_mp: 25,
+                    hp_recharge: 1 / 15,
+                    sp_recharge: 1 / 5,
+                    mp_recharge: 1 / 25,
+                    strength: 9,
+                    agility: 4,
+                    coordination: 4,
+                    healing: 4,
+                    magic_level: 3,
+                    archery: 24,
+                    offhand: 0.8,
+                    speed: 1
+                }
                 this.abilities = {}
-                this.archery = 24
                 this.max_pets = 4
-                this.giveItem(getItem("short_bow"))
-                this.giveItem(getItem('arrows', 25))
-                this.giveItem(getItem('gold', 155))
+                this.game.addItem({ name: "short_bow", container: this.inventory })
+                this.game.addItem({ name: 'arrow', quantity: 25, container: this.inventory })
+                this.game.addItem({ name: 'gold', quantity: 155, container: this.inventory })
                 break;
 
             case ('fighter'):
-                this.max_hp = 50
-                this.max_sp = 45
-                this.max_mp = 10
-                this.hp_recharge = 1 / 8
-                this.sp_recharge = 1 / 3
-                this.mp_recharge = 1 / 34
-                this.strength = 10
-                this.agility = 2
-                this.coordination = 4
-                this.offhand = 0.6
-                this.healing = 3
-                this.magic_level = 2
+                this.base_stats = {
+                    max_hp: 50,
+                    max_sp: 45,
+                    max_mp: 10,
+                    hp_recharge: 1 / 8,
+                    sp_recharge: 1 / 3,
+                    mp_recharge: 1 / 34,
+                    strength: 10,
+                    agility: 2,
+                    coordination: 4,
+                    healing: 3,
+                    magic_level: 2,
+                    archery: 10,
+                    speed: 1,
+                    offhand: 0.6
+                }
                 this.abilities = {}
-                this.archery = 10
                 this.max_pets = 3
                 this.abilities = {
                     bloodlust: 2,
                 }
-                this.giveItem(getItem('shortsword'))
-                this.giveItem(getItem('gold', 30))
+                this.game.addItem({ name: 'shortsword', container: this.inventory })
+                this.game.addItem({ name: 'gold', quantity: 30, container: this.inventory })
                 break;
 
             case ('spellcaster'):
-                this.max_hp = 30
-                this.max_sp = 30
-                this.max_mp = 70
-                this.hp_recharge = 1 / 20
-                this.sp_recharge = 1 / 7
-                this.mp_recharge = 1 / 7
-                this.strength = 6
-                this.agility = 2
-                this.coordination = 2
-                this.offhand = 0.4
-                this.healing = 4
-                this.magic_level = 7
+                this.base_stats = {
+                    max_hp: 30,
+                    max_sp: 30,
+                    max_mp: 70,
+                    hp_recharge: 1 / 20,
+                    sp_recharge: 1 / 7,
+                    mp_recharge: 1 / 7,
+                    strength: 6,
+                    agility: 2,
+                    coordination: 2,
+                    offhand: 0.4,
+                    healing: 4,
+                    magic_level: 7,
+                    archery: 6,
+                    speed: 1
+                }
                 this.abilities = {
                     'bolt': 2,
                     'newbie': 4,
                 }
-                this.archery = 6
                 this.max_pets = 4
-                this.giveItem(getItem("flask_of_wine", 2))
-                this.giveItem(getItem('gold', 50))
+                this.game.addItem({ name: "flask_of_wine", quantity: 2, container: this.inventory })
+                this.game.addItem({ name: 'gold', quantity: 50, container: this.inventory })
                 break;
 
             case ('cleric'):
-                this.max_hp = 35
-                this.max_sp = 35
-                this.max_mp = 40
-                this.hp_recharge = 0.10
-                this.sp_recharge = 0.20
-                this.mp_recharge = 0.10
-                this.strength = 8
-                this.agility = 3
-                this.coordination = 3
-                this.offhand = 0.65
-                this.healing = 5
-                this.magic_level = 4
+                this.base_stats = {
+                    max_hp: 35,
+                    max_sp: 35,
+                    max_mp: 40,
+                    hp_recharge: 0.10,
+                    sp_recharge: 0.20,
+                    mp_recharge: 0.10,
+                    strength: 8,
+                    agility: 3,
+                    coordination: 3,
+                    offhand: 0.65,
+                    healing: 5,
+                    magic_level: 4,
+                    archery: 22,
+                    speed: 1
+                }
                 this.abilities = {
                     'newbie': 3,
                 }
-                this.archery = 22
                 this.max_pets = 5
-                this.giveItem(getItem('gold', 0))
-                this.giveItem(getItem("healing_potion"))
+                this.game.addItem({ name: 'gold', quantity: 0, container: this.inventory })
+                this.game.addItem({ name: "healing_potion", container: this.inventory })
                 break;
         }
 
         this.addAction('save', this.saveGame);
         this.addAction('load', this.loadGame);
-        this.addAction('', async () => { if (this.flags.path.length > 0) this.go('') });
+        this.addAction('', async () => { if (this.flags.path?.length ?? 0 > 0) this.go('') });
         this.addAction('n', async () => await this.go('north'));
         this.addAction('s', async () => await this.go('south'));
         this.addAction('e', async () => await this.go('east'));
@@ -191,11 +205,7 @@ class Player extends A2dCharacter {
         this.addAction('cast', this.spell);
         this.addAction('cheatmode xfish9', async () => { this.cheatMode = true; color(magenta); print('Cheat mode activated.') });
         this.addAction('cheat', this.cheat);
-        this.addAction('buffs', async () => {
-            Object.values(this.buffs).forEach(buff => print(
-                `${buff.name}: ${Object.keys(buff.bonuses).reduce((prev, curr) => prev + '\n  ' + curr + ': ' + buff.bonuses[curr as BonusKeys], '')}`
-            ))
-        });
+        this.addAction('buffs', this.checkBuffs);
         this.addAction('goto', this.goto);
 
         console.log('loaded player actions.')
@@ -341,11 +351,6 @@ class Player extends A2dCharacter {
         return Math.max(super.max_sp * (1 - this.hungerPenalty), 1)
     }
 
-    set max_sp(value) {
-        // if we don't account for it in this way, and they train stamina while hungry, they will lose max sp permanently
-        this._max_sp = Math.round(this._max_sp + value - this.max_sp)
-    }
-
     get max_carry() {
         return this.strength * 2
     }
@@ -354,12 +359,12 @@ class Player extends A2dCharacter {
         console.log('autohealing')
         const prevstats = { hp: this.hp, sp: this.sp, mp: this.mp }
         this.recoverStats({ hp: this.hp_recharge * this.max_hp, sp: this.sp_recharge * this.max_sp, mp: this.mp_recharge * this.max_mp });
-        const diff = - prevstats.hp + this.hp - prevstats.sp + this.sp - prevstats.mp + this.mp
+        const diff = - prevstats.hp + this.hp - prevstats.sp + this.sp - prevstats.mp + this.mp + this.strength;
         console.log(`healed ${diff} points`)
-        this.hunger += diff / 10
+        this.hunger = Math.max(this.hunger + diff / 10, -this.max_sp / 4)
         color(magenta)
         if (this.hungerPenalty >= 1) {
-            this.hurt(this.hunger - this._max_sp, 'hunger')
+            this.hurt(this.hunger - this.base_stats.max_sp, 'hunger')
             print('You are starving!')
         } else if (this.hungerPenalty && this.flags.hungry) {
             print('You are hungry.')
@@ -384,21 +389,17 @@ class Player extends A2dCharacter {
         this.fight(target || this.attackTarget);
     }
 
+    useWeapon(weapon: 'left hand' | 'right hand' | 'bow' | 'none') {
+        this.activeEquipment['right hand'] = weapon == 'right hand';
+        this.activeEquipment['left hand'] = weapon == 'left hand';
+        this.activeEquipment['bow'] = weapon == 'bow';
+    }
+
     async left_attack(targetName: string) {
         if (targetName) {
             this.fight(this.location?.character?.(targetName) || this.attackTarget);
         }
-        if (this.offhand < 1) {
-            await this.addBuff(new Buff({
-                name: 'offhand',
-                duration: 1,
-                bonuses: {
-                    coordination: -this.coordination * (1 - this.offhand),
-                    strength: -this.strength * (1 - this.offhand),
-                }
-            }));
-        }
-        await this.attack(this.attackTarget, this.equipment['left hand']);
+        await this.attack(this.attackTarget, this.equipment['left hand'], this.weaponDamage('left hand'));
         this.removeBuff('offhand');
     }
 
@@ -497,6 +498,31 @@ class Player extends A2dCharacter {
 
     get inventoryWeight() {
         return Math.round(this.items.reduce((acc, item) => acc + item.size * item.quantity, 0) * 10) / 10
+    }
+
+    async checkBuffs() {
+        color(black)
+        for (let buff of Object.values(this.buffs)) {
+            const buffKeys = Array.from(new Set(Object.keys(buff.times).concat(Object.keys(buff.plus))))
+            print(
+                `${buff.name}: ${buffKeys.reduce(
+                    (prev, curr) => (
+                        prev + `\n  ${curr}: ${curr !== 'defense' && curr !== 'damage' ? (
+                            `${buff.plus[curr as BaseStats] ? `x ${buff.plus[curr as BaseStats]}` : ''
+                            } ${buff.times[curr as BaseStats] ? `x ${buff.times[curr as BaseStats]}` : ''
+                            }`
+                        ) : (`${curr}: ${Object.keys(buff.times[curr as 'defense' | 'damage'] || {}).reduce((prev, curr) => (
+                            prev + `\n    ${curr}: ${buff.plus[curr as BaseStats] ? `x ${buff.plus[curr as BaseStats]}` : ''
+                            } ${buff.times[curr as BaseStats] ? `x ${buff.times[curr as BaseStats]}` : ''
+                            }`
+                        ), '' as string)
+                            }`)
+                        }`
+                    )
+                    , '')
+                }`
+            )
+        }
     }
 
     async checkInventory() {
@@ -648,7 +674,7 @@ class Player extends A2dCharacter {
     async equip(item: string | Item | undefined, slot: keyof Player['equipment']) {
         color(black)
         if (item == 'fist') {
-            item = getItem('fist', { name: 'fist' })
+            item = slot == 'right hand' ? this.right_fist : this.left_fist;
         } else if (typeof item === 'string') {
             item = this.item(item);
         }
@@ -656,13 +682,15 @@ class Player extends A2dCharacter {
             print("You don't have that.")
             return;
         } else if (slot == 'right hand' || slot == 'left hand' || slot == 'bow') {
-            if (item.weapon_stats) {
-                if (item.weapon_stats.strength_required ?? 0 > this.strength) {
-                    print(`You are not strong enough to wield that(${this.strength}/${item.weapon_stats.strength_required}).`)
-                    return;
+            if (item.requirements) {
+                for (let key of Object.keys(item.requirements)) {
+                    if (item.requirements && this.base_stats[key as BaseStats] < (item.requirements[key as BaseStats] || 0)) {
+                        print(`Your ${key} is too low to use that ${item.requirements[key as BaseStats]} required.`)
+                        return;
+                    }
                 }
                 if (slot === 'bow') {
-                    if (item.weapon_stats.type === 'bow') {
+                    if (item.equipment_slot === 'bow') {
                         print(`Successfully readied ${item.name} for shooting.`)
                     } else {
                         print("That's not a bow.")
@@ -673,7 +701,7 @@ class Player extends A2dCharacter {
                         return;
                     }
                 } else if (slot === 'right hand' || slot === 'left hand') {
-                    if (item.weapon_stats.type === 'bow') {
+                    if ((item as Item)?.equipment_slot === 'bow') {
                         print("That's a bow, not a melee weapon.")
                         if (this.flags.assistant) {
                             color(magenta)
@@ -709,45 +737,82 @@ class Player extends A2dCharacter {
             'armor': 'Armor',
             'ring': 'Ring',
         }
+        const base_damage = {
+            'blunt': this.strength,
+            'sharp': this.strength,
+            'magic': (this.strength + this.magic_level),
+        }
         const displayItem = (slot: keyof Player['equipment']) => {
             const item = this.equipment[slot];
+            let totalDamage = 0;
             const lines: (() => any)[] = [
                 () => {
-                    color(black, white)
-                    print(slot_titles[slot], 1)
                     color(black, darkwhite)
-                    print(': ', 1)
+                    print(`${slot_titles[slot]}: `, 1)
+                    color(black, white)
                     print(item?.name ?? 'none', 1)
+                    color(black, darkwhite)
                 },
             ];
-            for (let buff of Object.keys(item?.buffs || {}) as BonusKeys[]) {
-                lines.push(() => {
-                    color(blue)
-                    print(`+${this.statValue(buff, item?.buff(buff) || 0)} `, 1)
-                    color(black)
-                    print(`${this.statName(buff).toLocaleLowerCase()}`, 1)
-                })
+            if (!item) return lines.concat(() => print('', 1));
+            const isBaseStat = (key: string): key is BaseStats => {
+                return !['damage', 'defense'].includes(key) &&
+                    Object.keys(this.base_stats).includes(key);
             }
-            if (item?.is_weapon) {
-                const weapon = item.weapon_stats!;
-                const damage_calc = {
-                    blunt_damage: weapon.blunt_damage * this.strength * (slot == 'left hand' ? this.offhand : 1),
-                    sharp_damage: weapon.sharp_damage * this.strength * (slot == 'left hand' ? this.offhand : 1),
-                    magic_damage: weapon.magic_damage * (this.strength + this.magic_level) * (slot == 'left hand' ? this.offhand : 1),
+
+            // bonuses
+            for (let buffType of ['times', 'plus'] as const) {
+                for (let [key, value] of Object.entries(item.buff?.[buffType as 'times' | 'plus'] ?? {})) {
+                    if (isBaseStat(key)) {
+                        lines.push(() => this.printBuff(key, buffType, value as number))
+                    } else {
+                        for (let [damageType, amount] of Object.entries(item.buff?.[buffType as 'times' | 'plus']?.[key as 'damage' | 'defense'] || {})) {
+                            if (item.is_weapon && key == 'damage' && damageType in base_damage && (slot == 'right hand' || slot == 'left hand') && buffType == 'times') {
+                                const typeDamage = Math.ceil(
+                                    base_damage[damageType as 'blunt' | 'sharp' | 'magic'] * amount * (slot == 'left hand' ? this.offhand : 1)
+                                )
+                                totalDamage += typeDamage;
+                                lines.push(() => {
+                                    color(black)
+                                    print(`${slot == 'left hand' ? `${Math.ceil(this.offhand * 100)}% of ` : ''}`, 1)
+                                    color(blue)
+                                    print(`${amount}x `, 1)
+                                    color(black)
+                                    print(`${damageType} damage`, 1)
+                                    print(` = `, 1)
+                                    color(red)
+                                    print(`${typeDamage}`, 1)
+                                })
+                            } else if (buffType == 'plus') {
+                                if (key == 'damage' && item.is_weapon)
+                                    totalDamage += amount;
+                                lines.push(() => {
+                                    color(blue)
+                                    print(`+${amount} `, 1)
+                                    color(black)
+                                    print(`${damageType} ${key}`, 1)
+                                })
+                            } else if (key == 'defense') {
+                                amount = (1 - 1 / amount)
+                                lines.push(() => {
+                                    color(blue)
+                                    print(`-${Math.ceil(amount * 100)}% `, 1)
+                                    color(black)
+                                    print(`${damageType} damage`, 1)
+                                })
+                            }
+                        }
+                    }
                 }
-                for (let [type, damage] of Object.entries(damage_calc)) {
-                    if (weapon[type as keyof typeof weapon]) lines.push(() => {
-                        color(black)
-                        print(`${caps(type.replace('_', ' '))}: ${slot == 'left hand' ? this.statValue('offhand') + ' of ' : ''}${weapon[type as keyof typeof weapon]}x = `, 1)
-                        color(red)
-                        print(`${Math.ceil(damage)}`, 1)
-                    })
-                }
+            }
+
+            if (item?.is_weapon && (slot == 'right hand' || slot == 'left hand')) {
+
                 lines.push(() => {
                     color(black)
                     print('total: ', 1)
                     color(red)
-                    print(`${Math.ceil(Object.values(damage_calc).reduce((prev, curr) => curr + prev))}`, 1)
+                    print(`${totalDamage}`, 1)
                 })
             }
             lines.push(() => print('', 1))
@@ -826,28 +891,22 @@ class Player extends A2dCharacter {
     async checkHP() {
         color(black);
         print(`[ HP:  ${Math.ceil(this.hp)}/`, 1);
-        if (this.buff('max_hp') > 0) color(blue); else color(black);
+        if (this.buff_additive('max_hp') > 0 || this.buff_multiplier('max_hp') > 1) color(blue);
+        else if (this.buff_additive('max_hp') < 0 || this.buff_multiplier('max_hp') < 1) color(brightred);
         print(`${Math.ceil(this.max_hp)}`, 1);
         color(black);
         print("  SP: ", 1);
         if (this.hungerPenalty * this.max_sp > 1) color(brightred);
         print(`${Math.ceil(this.sp)}/`, 1);
-        if (this.buff('max_sp') > 0) color(blue); else if (this.buff('max_sp') < 0) color(brightred);
+        if (this.buff_additive('max_sp') > 0 || this.buff_multiplier('max_sp') > 1) color(blue);
+        else if (this.buff_additive('max_sp') < 0 || this.buff_multiplier('max_sp') < 1) color(brightred);
         print(`${Math.ceil(this.max_sp)}`, 1);
         color(black);
         print(`  BP: ${Math.ceil(this.mp)}/`, 1)
-        if (this.buff('max_mp') > 0) color(blue); else color(black);
+        if (this.buff_additive('max_mp') > 0 || this.buff_multiplier('max_mp') > 1) color(blue);
+        else if (this.buff_additive('max_mp') < 0 || this.buff_multiplier('max_mp') < 1) color(brightred);
         print(`${Math.ceil(this.max_mp)} ]`)
         color(black)
-    }
-
-    set hunger(value: number) {
-        // allow hunger to go somewhat negative
-        this._hunger = Math.max(value, -this.max_sp / 4);
-    }
-
-    get hunger() {
-        return this._hunger
     }
 
     checkHunger() {
@@ -866,32 +925,37 @@ class Player extends A2dCharacter {
         // print(this.hunger.toString())
     }
 
-    statName(key: BonusKeys) {
-        switch (key) {
-            case ('max_hp'): return 'Max HP';
-            case ('max_mp'): return 'Max MP';
-            case ('max_sp'): return 'Max SP';
-            case ('strength'): return 'Strength';
-            case ('coordination'): return 'Coordination';
-            case ('agility'): return 'Agility';
-            case ('magic_level'): return 'Magic Level';
-            case ('healing'): return 'Healing';
-            case ('blunt_damage'): return 'Blunt Damage';
-            case ('sharp_damage'): return 'Sharp Damage';
-            case ('magic_damage'): return 'Magic Damage';
-            case ('blunt_armor'): return 'Blunt Armor';
-            case ('sharp_armor'): return 'Sharp Armor';
-            case ('magic_armor'): return 'Magic Armor';
-            case ('archery'): return 'Archery';
-            case ('hp_recharge'): return 'HP Recharge';
-            case ('mp_recharge'): return 'MP Recharge';
-            case ('sp_recharge'): return 'SP Recharge';
-            case ('speed'): return 'Speed';
-            default: return key;
+    statName(key: StatKey): string {
+        // Handle basic stats
+        switch (key as BaseStats) {
+            case 'max_hp': return 'Max HP';
+            case 'max_mp': return 'Max MP';
+            case 'max_sp': return 'Max SP';
+            case 'strength': return 'Strength';
+            case 'coordination': return 'Coordination';
+            case 'agility': return 'Agility';
+            case 'magic_level': return 'Magic Level';
+            case 'healing': return 'Healing';
+            case 'archery': return 'Archery';
+            case 'hp_recharge': return 'HP Recharge';
+            case 'mp_recharge': return 'MP Recharge';
+            case 'sp_recharge': return 'SP Recharge';
+            case 'speed': return 'Speed';
         }
+
+        // Handle damage and defense types
+        if (key.includes('_')) {
+            const [type, category] = key.split('_') as [DamageTypes, 'damage' | 'defense'];
+            // Capitalize first letter of damage type
+            const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
+            return `${capitalizedType} ${category === 'damage' ? 'Damage' : 'Defense'}`;
+        }
+
+        // Default case
+        return key;
     }
 
-    statValue(key: BonusKeys, value?: number) {
+    statValue(key: BaseStats, value?: number) {
         if (value === undefined) value = this[key] as number;
         switch (key) {
             case ('hp_recharge'): return `${Math.min(Math.round(value * 100), 100)}%`;
@@ -903,20 +967,49 @@ class Player extends A2dCharacter {
         }
     }
 
+    printBuff(statName: BaseStats, buffType: 'plus' | 'times', value: number) {
+        const defaultValue = buffType === 'plus' ? 0 : 1;
+        if (value == defaultValue) return;
+        color(value > defaultValue ? blue : brightred)
+        switch (statName) {
+            case 'hp_recharge':
+            case 'sp_recharge':
+            case 'mp_recharge':
+            case 'offhand':
+                if (buffType == 'plus') print(`${value > defaultValue ? '+' : ''}${value * 100}% `, 1)
+                break;
+            case 'offhand':
+                if (buffType == 'plus') print(`${value > defaultValue ? '+' : ''}${value * 100}% `, 1)
+                break;
+            default:
+                if (buffType == 'times') {
+                    if (value > defaultValue) print(`+${Math.ceil(value * 100 - 100)}% `, 1)
+                    else if (value < defaultValue) print(`-${Math.ceil(value * 100 - 100)}% `, 1)
+                } else if (buffType == 'plus') {
+                    if (value > defaultValue) print(`+${Math.ceil(value)} `, 1)
+                    else if (value < defaultValue) print(`${Math.ceil(value)} `, 1)
+                }
+        }
+        color(black);
+        print(this.statName(statName), 1)
+    }
+
     async checkStats() {
-        const printStat = (buffName: BonusKeys) => {
-            const buff = this.buff(buffName);
-            if (buff > 0) {
+        const printStat = (statName: BaseStats) => {
+            const plus = this.buff_additive(statName);
+            const times = this.buff_multiplier(statName);
+            if (this.base_stats[statName] < this[statName]) {
                 color(blue)
-            } else if (buff < 0) {
+            } else if (this.base_stats[statName] > this[statName]) {
                 color(brightred)
             } else {
                 color(black)
             }
-            print(this.statValue(buffName, (this[buffName] as number)), 1)
-            if (buff > 0) print(` (+${this.statValue(buffName, buff)})`)
-            else if (buff < 0) print(` (${this.statValue(buffName, buff)})`)
-            else print('')
+            print(this.statValue(statName, (this[statName] as number)), 1)
+            if (plus > 0) print(` (+${this.statValue(statName, plus)})`, 1)
+            else if (plus < 0) print(` (${this.statValue(statName, plus)})`, 1)
+            if (times !== 1) print(` (x${this.statValue(statName, times)})`, 1)
+            print()
             color(black)
         }
         color(black)
@@ -1006,10 +1099,10 @@ class Player extends A2dCharacter {
         }
         // sum up gold and exp all together
         color(green)
-        print(` you gain ${gold_gained} gold.`)
+        print(`you gain ${gold_gained} gold.`)
         this.getItem('gold', this.location || undefined, gold_gained);
         color(green)
-        print(` you gain ${exp_gained} exp.`)
+        print(`you gain ${exp_gained} exp.`)
         this.experience += exp_gained;
 
         // who else wants some??
@@ -1029,7 +1122,12 @@ class Player extends A2dCharacter {
         await this.getInput();
         this.enemies = this.enemies.filter(enemy => enemy);
         if (this.fighting) {
-            await this.attack(this.attackTarget, this.equipment['right hand']);
+            this.useWeapon('right hand');
+            await this.attack(
+                this.attackTarget,
+                this.equipment['right hand'],
+                this.weaponDamage('right hand')
+            );
             this.sp -= 1;
             if (this.sp < 0) {
                 this.hp -= 1;
@@ -1039,15 +1137,81 @@ class Player extends A2dCharacter {
 
     }
 
-    buff(key: BonusKeys): number {
+    buff_additive(key: BaseStats): number {
         // add items bonuses
-        const buff = Object.values(this.equipment || {}).reduce(
-            (total, item) => {
-                return (item?.buff(key) || 0) + total
-            },
-            super.buff(key)
-        );
+        let buff = super.buff_additive(key);
+        if (!this.equipment) return buff;
+        for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
+            buff += this.equipment?.[slot]?.buff?.plus?.[key] ?? 0;
+        }
         return buff;
+    }
+
+    buff_multiplier(key: BaseStats): number {
+        // add items bonuses
+        let buff = super.buff_multiplier(key);
+        if (!this.equipment) return buff;
+        for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
+            buff += (this.equipment?.[slot]?.buff?.times?.[key] ?? 1) - 1;
+        }
+        if (this.activeEquipment['left hand']) { buff *= this.offhand; }
+        return buff;
+    }
+
+    buff_damage_additive(type: DamageTypes): number {
+        // add items bonuses
+        let buff = super.buff_damage_additive(type);
+        if (!this.equipment) return buff;
+        for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
+            buff += this.equipment?.[slot]?.buff?.plus?.damage?.[type] ?? 0;
+        }
+        if (this.activeEquipment['left hand']) { buff *= this.offhand; }
+        return buff;
+    }
+
+    buff_damage_multiplier(type: DamageTypes): number {
+        // add items bonuses
+        let buff = super.buff_damage_multiplier(type) || 1;
+        if (!this.equipment) return buff;
+        for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
+            buff += (this.equipment?.[slot]?.buff?.times?.damage?.[type] ?? 1) - 1;
+        }
+        return buff;
+    }
+
+    buff_defense_additive(type: DamageTypes): number {
+        // add items bonuses
+        let buff = super.buff_defense_additive(type);
+        if (!this.equipment) return buff;
+        for (let slot of Object.keys(this.equipment) as (keyof this['equipment'])[]) {
+            buff += this.equipment?.[slot]?.buff?.plus?.defense?.[type] ?? 0;
+        }
+        return buff;
+    }
+
+    buff_defense_multiplier(type: DamageTypes): number {
+        // add items bonuses
+        let buff = super.buff_defense_multiplier(type) || 1;
+        if (!this.equipment) return buff;
+        for (let slot of Object.keys(this.equipment) as (keyof this['equipment'])[]) {
+            buff += (this.equipment?.[slot]?.buff?.times?.defense?.[type] ?? 1) - 1;
+        }
+        return buff;
+    }
+
+    weaponDamage(weapon: 'right hand' | 'left hand' | 'bow') {
+        const dam: { [key in DamageTypes]: number } = {
+            'blunt': this.strength * this.buff_damage_multiplier('blunt') + this.buff_damage_additive('blunt'),
+            'sharp': this.strength * this.buff_damage_multiplier('sharp') + this.buff_damage_additive('sharp'),
+            'magic': (this.strength + this.magic_level) * this.buff_damage_multiplier('magic') + this.buff_damage_additive('magic'),
+            'poison': this.buff_damage_additive('poison'),
+            'fire': this.buff_damage_additive('fire'),
+            'cold': this.buff_damage_additive('cold'),
+            'electric': this.buff_damage_additive('electric'),
+            'sonic': this.buff_damage_additive('sonic'),
+        }
+        console.log(`weapon damage: ${JSON.stringify(dam)}`)
+        return dam;
     }
 
     async cheat(command: string) {
@@ -1071,35 +1235,35 @@ class Player extends A2dCharacter {
                     await this.checkHP();
                     break;
                 case ('max_hp'):
-                    this._max_hp += parseInt(value) || 0;
+                    this.base_stats.max_hp += parseInt(value) || 0;
                     await this.checkHP();
                     break;
                 case ('max_sp'):
-                    this._max_sp += parseInt(value) || 0;
+                    this.base_stats.max_sp += parseInt(value) || 0;
                     await this.checkHP();
                     break;
                 case ('max_mp'):
-                    this._max_mp += parseInt(value) || 0;
+                    this.base_stats.max_mp += parseInt(value) || 0;
                     await this.checkHP();
                     break;
                 case ('strength'):
-                    this.strength += parseInt(value) || 0;
+                    this.base_stats.strength += parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('agility'):
-                    this.agility += parseInt(value) || 0;
+                    this.base_stats.agility += parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('coordination'):
-                    this.coordination += parseInt(value) || 0;
+                    this.base_stats.coordination += parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('healing'):
-                    this.healing += parseInt(value) || 0;
+                    this.base_stats.healing += parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('magic_level'):
-                    this.magic_level += parseInt(value) || 0;
+                    this.base_stats.magic_level += parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('xp'):
@@ -1107,13 +1271,13 @@ class Player extends A2dCharacter {
                     this.checkXP();
                     break;
                 case ('gold'):
-                    this.giveItem(getItem('gold', parseInt(value) || 0));
+                    this.game.addItem({ name: 'gold', quantity: parseInt(value) || 0, container: this.inventory });
                     color(yellow)
                     print(`ka-ching! +${value} = ${this.itemCount('gold')}`)
                     break;
                 case ('item'):
                     if (isValidItemKey(value)) {
-                        this.giveItem(getItem(value));
+                        this.game.addItem({ name: value, quantity: 1, container: this.inventory });
                         print(`${value} created ;)`)
                     }
                     break;
@@ -1122,7 +1286,7 @@ class Player extends A2dCharacter {
                     print(`deleted ${value}`)
                     break;
                 case ('regen'):
-                    this.game.loadScenario(new GameMap(this.game).locations)
+                    this.game.loadScenario(scenario)
                     this.relocate(this.game.find_location(this.location?.key || '') || null);
                     print('map regenerated.')
                     break;
@@ -1166,9 +1330,6 @@ class Player extends A2dCharacter {
                         this.game.removeLocation(location)
                     }
                     this.game.enter_the_void();
-                    // const voidArea = await this.game.spawnArea('the_void', parseInt(value), 0.25, parseInt(value) / 5)
-                    // await this.relocate(voidArea[0]);
-                    // console.log(voidArea)
                     break;
             }
         }
@@ -1180,22 +1341,22 @@ class Player extends A2dCharacter {
             isPlayer: true,
             name: this.name,
             class_name: this.class_name,
-            _max_hp: this._max_hp,
-            _hp: this._hp,
-            _hp_recharge: this._hp_recharge,
-            _max_sp: this._max_sp,
-            _sp: this._sp,
-            _sp_recharge: this._sp_recharge,
-            _max_mp: this._max_mp,
-            _mp: this._mp,
-            _mp_recharge: this._mp_recharge,
-            _strength: this._strength,
-            _speed: this._speed,
-            _agility: this._agility,
-            _coordination: this._coordination,
-            _healing: this._healing,
-            _magic_level: this._magic_level,
-            _archery: this._archery,
+            max_hp: this.base_stats.max_hp,
+            hp: this.hp,
+            hp_recharge: this.base_stats.hp_recharge,
+            max_sp: this.base_stats.max_sp,
+            sp: this.sp,
+            sp_recharge: this.base_stats.sp_recharge,
+            max_mp: this.base_stats.max_mp,
+            mp: this.mp,
+            mp_recharge: this.base_stats.mp_recharge,
+            strength: this.base_stats.strength,
+            speed: this.base_stats.speed,
+            agility: this.base_stats.agility,
+            coordination: this.base_stats.coordination,
+            healing: this.base_stats.healing,
+            magic_level: this.base_stats.magic_level,
+            archery: this.base_stats.archery,
             hunger: this.hunger,
             offhand: this.offhand,
             abilities: this.abilities,
@@ -1209,27 +1370,66 @@ class Player extends A2dCharacter {
                 Object.entries(this.equipment).map(([key, item]) => [key, item?.save() ?? null])
             ),
             buffs: Object.fromEntries(
-                Object.entries(this._buffs).map(([key, buff]) => [key, buff.save()])
+                Object.entries(this.buffs).map(([key, buff]) => [key, buff.save()])
             ),
             flags: this.flags,
             assistantHintsUsed: this.assistantHintsUsed
         }
     }
 
+    async defend(attacker: Character) {
+        if (this.equipment['bow'] && this.has('arrow')) {
+            this.removeItem('arrow', 1);
+            this.useWeapon('bow');
+            this.attack(attacker, this.equipment['bow'], this.weaponDamage('bow'));
+            pause(1.5);
+        }
+        await super.defend(attacker);
+    }
+
     load(character: any) {
-        Object.assign(this, character)
+        Object.assign(this.base_stats, {
+            max_hp: character._max_hp || character.max_hp,
+            hp_recharge: character._hp_recharge || character.hp_recharge,
+            max_sp: character._max_sp || character.max_sp,
+            sp_recharge: character._sp_recharge || character.sp_recharge,
+            max_mp: character._max_mp || character.max_mp,
+            mp_recharge: character._mp_recharge || character.mp_recharge,
+            strength: character._strength || character.strength,
+            speed: character._speed || character.speed,
+            agility: character._agility || character.agility,
+            coordination: character._coordination || character.coordination,
+            healing: character._healing || character.healing,
+            magic_level: character._magic_level || character.magic_level,
+            archery: character._archery || character.archery,
+            offhand: character.offhand
+        })
+        Object.assign(this, {
+            name: character.name,
+            class_name: character.class_name,
+            hunger: character.hunger,
+            abilities: character.abilities,
+            max_pets: character.max_pets,
+            experience: character.experience,
+            cheatMode: character.cheatMode,
+            backDirection: character.backDirection,
+            disabledCommands: character.disabledCommands,
+            flags: character.flags,
+            assistantHintsUsed: character.assistantHintsUsed,
+            hp: character._hp || character.hp,
+            sp: character._sp || character.sp,
+            mp: character._mp || character.mp,
+        })
         // load items properly
         this.clearInventory()
-        const items: Item[] = []
         character.items.forEach((itemData: any) => {
-            if (isValidItemKey(itemData.key)) items.push(getItem(itemData.key, itemData))
+            if (isValidItemKey(itemData.key)) this.game.addItem({ name: itemData.key, quantity: itemData.quantity, container: this.inventory })
         })
-        this.items = items
         if (character.equipment) {
             Object.keys(character.equipment).forEach((slot) => {
                 const itemData = character.equipment[slot as keyof Player['equipment']]
                 if (itemData && isValidItemKey(itemData.key)) {
-                    this.equipment[slot as keyof Player['equipment']] = getItem(itemData.key, itemData as any)
+                    this.equipment[slot as keyof Player['equipment']] = this.game.addItem({ name: itemData.key })!
                 }
             })
         }

@@ -1,6 +1,14 @@
 {
-    "watch": ["src"],
-    "ext": "ts",
-    "ignore": ["src/**/*.spec.ts"],
-    "exec": "ts-node ./server.ts"
+    "watch": [
+        "dist/src/"
+    ],
+    "ext": "js",
+    "exec": "node ./dist/src/server.js",
+    "ignore": [
+        "*.ts",
+        "src/*"
+    ],
+    "execMap": {
+        "js": "node"
+    }
 }

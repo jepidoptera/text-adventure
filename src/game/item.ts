@@ -1,6 +1,7 @@
 import { GameState, withGameState } from "./game.js";
-import { Character, DamageTypes, Buff, BonusKeys } from "./character.js";
+import { Character, DamageTypes, Buff, BaseStats, BuffModifiers } from "./character.js";
 import { plural } from "./utils.js";
+import { time } from "console";
 
 type ItemParams = {
     name: string;
@@ -9,35 +10,12 @@ type ItemParams = {
     value?: number;
     size?: number;
     quantity?: number;
-    weapon_stats?: {
-        blunt_damage?: number,
-        sharp_damage?: number,
-        magic_damage?: number,
-        type: WeaponTypes,
-        strength_required?: number,
-        damage_type?: DamageTypes
-    }
+    attackVerb?: WeaponTypes | '';
     equipment_slot?: string;
-    forSale?: boolean;
-    fungible?: boolean;
-    immovable?: boolean;
+    buff?: { plus?: BuffModifiers, times?: BuffModifiers };
+    requirements?: Partial<{ [key in BaseStats]: number }>;
 }
-type WeaponTypes = 'club' | 'axe' | 'slice' | 'stab' | 'sword' | 'fire' | 'bow' | 'magic' | 'electric' | 'blades' | 'sonic' | 'teeth'
-
-const weapon_conversions: { [key in WeaponTypes]: DamageTypes } = {
-    'club': 'blunt',
-    'slice': 'sharp',
-    'stab': 'sharp',
-    'sword': 'sharp',
-    'axe': 'sharp',
-    'fire': 'fire',
-    'bow': 'sharp',
-    'magic': 'magic',
-    'electric': 'electric',
-    'blades': 'sharp',
-    'sonic': 'sharp',
-    'teeth': 'sharp'
-}
+type WeaponTypes = 'club' | 'axe' | 'slice' | 'stab' | 'sword' | 'fire' | 'bow' | 'magic' | 'electric' | 'blades' | 'sonic' | 'bite'
 
 class Item {
     key: string = '';
@@ -48,16 +26,10 @@ class Item {
     value: number = 0;
     size: number = 1;
     private _quantity: number = 1;
-    weapon_stats: {
-        blunt_damage: number,
-        sharp_damage: number,
-        magic_damage: number,
-        type: WeaponTypes,
-        damage_type: DamageTypes,
-        strength_required: number,
-    } | undefined;
+    attackVerb: WeaponTypes | '' = '';
+    requirements: Partial<{ [key in BaseStats]: number }> = {}
     equipment_slot?: string;
-    _buff?: Buff;
+    buff?: { plus?: BuffModifiers, times?: BuffModifiers };
     private _drink: ((this: Item, character: Character) => Promise<void>) | undefined = undefined;
     private _eat: ((character: Character) => Promise<void>) | undefined = undefined;
     private _use: ((character: Character) => Promise<void>) | undefined = undefined;
@@ -75,8 +47,9 @@ class Item {
         value = 0,
         size = 1,
         quantity = 1,
-        weapon_stats,
+        attackVerb: attack_verb = '',
         equipment_slot,
+        buff
     }: ItemParams) {
         this.name = name;
         if (game) this.game = game;
@@ -84,20 +57,9 @@ class Item {
         this.value = value;
         this.size = size;
         this.quantity = quantity; // Ensure quantity is an integer and at least 1
-        if (weapon_stats) {
-            this.weapon_stats = {
-                blunt_damage: 0,
-                sharp_damage: 0,
-                magic_damage: 0,
-                damage_type: 'blunt',
-                strength_required: 0,
-                ...weapon_stats // override defaults
-            };
-        }
         this.equipment_slot = equipment_slot;
-        if (this.weapon_stats && !this.weapon_stats.damage_type) {
-            this.weapon_stats.damage_type = weapon_conversions[this.weapon_stats.type] ?? 'blunt';
-        }
+        this.attackVerb = attack_verb;
+        this.buff = buff;
     }
 
     addAction(name: string, action: (this: Item, ...args: any[]) => Promise<void>) {
@@ -156,26 +118,28 @@ class Item {
         return this;
     }
 
-    addBuff(buff: Buff | { [key in BonusKeys]?: number }) {
-        if (buff instanceof Buff) {
-            this._buff = buff;
-        } else {
-            this._buff = new Buff({
-                duration: -1,
-                power: 1,
-                name: this.name,
-                bonuses: buff,
-            });
-        }
-        return this;
+    buff_multiplier(key: BaseStats) {
+        return this.buff?.plus?.[key] ?? 0;
     }
 
-    buff(key: BonusKeys) {
-        return this._buff?.bonuses[key] ?? 0;
+    buff_times(key: BaseStats) {
+        return this.buff?.times?.[key] ?? 0;
     }
 
-    get buffs() {
-        return this._buff?.bonuses ?? {};
+    buff_damage_multiplier(key: DamageTypes) {
+        return this.buff?.times?.damage?.[key] ?? 0;
+    }
+
+    buff_damage_additive(key: DamageTypes) {
+        return this.buff?.plus?.damage?.[key] ?? 0;
+    }
+
+    buff_defense_multiplier(key: DamageTypes) {
+        return this.buff?.times?.defense?.[key] ?? 0;
+    }
+
+    buff_defense_additive(key: DamageTypes) {
+        return this.buff?.plus?.defense?.[key] ?? 0;
     }
 
     displayName(action: (this: Item) => string) {
@@ -205,7 +169,7 @@ class Item {
     }
 
     get is_weapon() {
-        return this.weapon_stats !== undefined;
+        return this.attackVerb !== undefined;
     }
     get drinkable() {
         return this.drink !== undefined;
@@ -281,6 +245,7 @@ class Container {
             item.quantity -= removeQuantity;
             console.log(`removing ${removeQuantity} ${itemName}. ${item.quantity} left.`)
         } else {
+            // remove all
             this.items = this.items.filter(i => i.name !== itemName);
         }
     }
@@ -331,4 +296,4 @@ class Container {
     }
 }
 
-export { Item, Container, ItemParams, WeaponTypes, weapon_conversions };
+export { Item, Container, ItemParams, WeaponTypes };

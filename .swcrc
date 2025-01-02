@@ -1,0 +1,22 @@
+{
+    "exclude": [
+        "node_modules/"
+    ],
+    "jsc": {
+        "parser": {
+            "syntax": "typescript",
+            "topLevelAwait": true
+        },
+        "target": "esnext",
+        "baseUrl": "./src"
+    },
+    "module": {
+        "type": "es6",
+        "ignoreDynamic": true,
+        "resolveFully": true,
+        "extensions": {
+            ".ts": ".js",
+            ".mts": ".mjs"
+        }
+    }
+}

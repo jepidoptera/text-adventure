@@ -1,5 +1,5 @@
 import { randomChoice } from "../../game/utils.js";
-import { Buff, Character, DamageTypes } from "../../game/character.js";
+import { Buff } from "../../game/character.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js";
 
 type BuffCreator = (({ power, duration }: { power: number, duration: number }) => Buff) | (() => Buff);
@@ -10,16 +10,16 @@ const buffs: { [key: string]: BuffCreator } = {
             name: 'shield',
             duration: duration,
             power: power,
-            bonuses: {},
-            damage_modifier: {
-                'magic': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
-                'fire': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
-                'electric': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
-                'blunt': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
-                'sharp': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
-                'cold': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
-                'sonic': (damage) => damage - (1 - Math.random() * (1 - Math.random())) * Math.ceil(shieldPower),
-                'poison': (damage) => damage
+            plus: {
+                defense: {
+                    'magic': Math.ceil(shieldPower),
+                    'fire': Math.ceil(shieldPower),
+                    'electric': Math.ceil(shieldPower),
+                    'blunt': Math.ceil(shieldPower),
+                    'sharp': Math.ceil(shieldPower),
+                    'cold': Math.ceil(shieldPower),
+                    'sonic': Math.ceil(shieldPower)
+                }
             }
         }).onTurn(async function () {
             // declines linearly
@@ -37,15 +37,15 @@ const buffs: { [key: string]: BuffCreator } = {
             name: 'bloodlust',
             duration: duration,
             power: power,
-            bonuses: {
+            plus: {
                 strength: Math.ceil(power),
                 coordination: power / 4,
             },
         }).onTurn(async function () {
             // declines linearly
             this.power *= this.duration / (this.duration + 1);
-            this.bonuses.strength = Math.ceil(this.power);
-            this.bonuses.coordination = this.power / 4;
+            this.times.strength = Math.ceil(this.power);
+            this.times.coordination = this.power / 4;
             if (this.character.isPlayer && this.power > 0) {
                 color(brightred);
                 print(`Bloodlust: ${Math.ceil(this.power)}`);
@@ -57,7 +57,7 @@ const buffs: { [key: string]: BuffCreator } = {
             name: 'fear',
             duration: duration,
             power: power,
-            bonuses: {
+            plus: {
                 strength: -Math.ceil(power),
             },
         })
@@ -68,7 +68,7 @@ const buffs: { [key: string]: BuffCreator } = {
             duration: duration,
             power: power
         }).onTurn(async function () {
-            this.character.hurt(Math.ceil(this.power), "poison", "poison");
+            this.character.hurt(Math.ceil(this.power), "poison");
             this.power *= this.duration / (this.duration + 1);
             if (this.character.isPlayer && this.power > 0) {
                 color(brightgreen);

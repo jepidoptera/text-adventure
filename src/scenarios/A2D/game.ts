@@ -4,13 +4,12 @@ import { Character } from "../../game/character.js"
 import { Container, Item, ItemParams } from "../../game/item.js"
 import { items } from "./items.js"
 import { getLandmark } from "./landmarks.js"
-import { GameMap, locationTemplates } from "./map.js"
+import { locationTemplates, scenario } from "./map.js"
 import { Player } from "./player.js"
-import { A2dCharacter, getCharacter, isValidCharacter, characters } from "./characters.js"
+import { characters } from "./characters.js"
 import { BuffNames, getBuff, } from "./buffs.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
-import { get } from "http"
-import { time } from "console"
+
 
 class A2D extends GameState {
     respawnInterval!: ReturnType<typeof setInterval>;
@@ -46,15 +45,18 @@ class A2D extends GameState {
             soldier_dialogue: []
         }
 
-    addItem(name: keyof typeof this.itemTemplates, container: Container | null, params?: any): Item | undefined {
-        return super.addItem(name, container, params);
-    }
-    addLocation(name: keyof typeof this.locationTemplates, params: any): Location | undefined {
-        return super.addLocation(name, params);
-    }
-    addCharacter(name: keyof typeof this.characterTemplates, location: string | number | Location, args?: any) {
-        return super.addCharacter(name, location, args);
-    }
+    // addItem(name: keyof typeof this.itemTemplates, container: Container | null, params?: any): Item | undefined {
+    //     return super.addItem(name, container, params);
+    // }
+    // addLocation(name: keyof typeof this.locationTemplates, params: any): Location | undefined {
+    //     return super.addLocation(name, params);
+    // }
+    // addCharacter<K extends keyof typeof this['characterTemplates']>(
+    //     {name, location, args} :
+    //     {name: K, location: Location, args?: any}
+    // ) {
+    //     return super.addCharacter({name, location, args});
+    // }
 
     intro() {
         color(orange, darkwhite);
@@ -86,7 +88,7 @@ class A2D extends GameState {
         this.clear();
         console.log('chose', opt);
         if (opt === 0) {
-            this.loadScenario(new GameMap(this).locations);
+            await this.loadScenario(scenario);
             this.player = await this.newPlayer();
             this.player.location?.addCharacter(this.player);
         } else if (opt === 1) {
@@ -166,17 +168,17 @@ class A2D extends GameState {
             )
             new_player.location = this.find_location('Cottage of the Young');
             clear();
-            color('yellow')
+            color(yellow)
             print("-- ", 1)
-            color('red')
+            color(red)
             print("You have declared ", 1)
-            color('blue')
+            color(blue)
             print(new_player.class_name, 1)
-            color('red')
+            color(red)
             print(" Status ", 1)
-            color('yellow')
+            color(yellow)
             print("--")
-            color('black')
+            color(black)
             // show stats
             new_player.checkStats();
 
@@ -195,73 +197,24 @@ class A2D extends GameState {
         print(' '.repeat(x) + text);
     }
 
-    get characters(): A2dCharacter[] {
-        return super.characters as A2dCharacter[];
-    }
-
     shutdown() {
         super.shutdown();
         clearInterval(this.respawnInterval);
     }
 
     async load(saveName: string): Promise<boolean> {
-        const gamestate: {
-            locations: { [key: string]: any },
-            flags: any
-        } = await this._load(saveName) as any;
+        const gamestate = await this._load(saveName) as any;
         if (gamestate === null) {
             print(`Character ${saveName} not found.`)
             return false;
         }
-        const loadScenario: { [key: string]: Location } = {};
-        Object.keys(gamestate.locations).forEach(key => {
-            const location = gamestate.locations[key];
-            // console.log(`loading location ${key}, adjacent to ${Object.entries(location.adjacent).reduce((acc, [dir, loc]) => acc + `${dir}: ${loc}, `, '')}`);
-            const newLocation = new Location({
-                name: location.name,
-                description: location.description,
-                characters: location.characters.map((character: any) => {
-                    return character.isPlayer
-                        ? new Player('', '', this).load(character)
-                        : isValidCharacter(character.key) ? Object.assign(getCharacter(character.key, this, { flags: character.flags }), {
-                            respawnCountdown: character.respawnCountdown,
-                            _respawn: character.respawn,
-                            respawnLocation: character.respawnLocationKey || character.respawnLocation,
-                            attackPlayer: character.attackPlayer,
-                            chase: character.chase,
-                            following: character.following,
-                            actionQueue: character.actionQueue || [],
-                            timeCounter: character.timeCounter || 0,
-                            buffs: character.buffs ? Object.fromEntries(
-                                Object.entries(character.buffs).map(
-                                    ([buffName, buffData]: [string, any]) => [buffName, getBuff(buffName as BuffNames)(buffData)]
-                                )
-                            ) : {}
-                        }) : undefined
-                }).filter((character: any) => character),
-                items: location.items.map((itemData: any) => {
-                    console.log('loading item', itemData, `at ${key}`)
-                    return this.addItem(itemData.key, null, itemData.quantity)
-                }).filter((item: any) => item),
-                adjacent: location.adjacent,
-                key: key
-            });
-            location.landmarks.forEach((landmarkData: any) => {
-                const newLandmark = getLandmark(landmarkData.key, landmarkData.text);
-                landmarkData.items.forEach((itemData: any) => {
-                    const item = this.addItem(itemData.key, newLandmark.contents, itemData.quantity)
-                });
-                newLocation.addLandmark(newLandmark);
-            });
-            loadScenario[key] = newLocation;
-        });
-        this.loadScenario(loadScenario);
-        this.flags = gamestate.flags;
-        this.player = this.characters.find(char => char.isPlayer) as Player;
-        this.player.game = this;
-        // this.player.relocate(this.player.location);
+        await this.loadScenario(gamestate)
+        console.log('loaded scenario')
+        this.player = new Player('', '', this).load(this.playerData);
+        this.player.relocate(this.playerData.location);
         return true;
     }
+
     async enter_the_void() {
         const void_map = (await this.spawnArea('the_void', 37, 0.25, 7)).filter(location => location instanceof Location)
         const origin = void_map[0]
@@ -294,26 +247,26 @@ class A2D extends GameState {
         await this.find_character('Ieadon')?.relocate(endPoint)
 
         // add some monsters and random objects
-        this.addCharacter('voidfish', void_map[12])
-        this.addCharacter('voidfish', void_map[13])
-        this.addCharacter('wraith', void_map[14])
-        this.addCharacter('wraith', void_map[15])
-        this.addCharacter('voidrat', void_map[16])
-        this.addCharacter('voidrat', void_map[17])
-        this.addCharacter('voidrat', void_map[18])
+        this.addCharacter({ name: 'voidfish', location: void_map[12] })
+        this.addCharacter({ name: 'voidfish', location: void_map[13] })
+        this.addCharacter({ name: 'wraith', location: void_map[14] })
+        this.addCharacter({ name: 'wraith', location: void_map[15] })
+        this.addCharacter({ name: 'voidrat', location: void_map[16] })
+        this.addCharacter({ name: 'voidrat', location: void_map[17] })
+        this.addCharacter({ name: 'voidrat', location: void_map[18] })
 
-        this.addItem('cranberries_cd', void_map[6], 100)
-        this.addItem('mighty_warfork', void_map[0])
-        this.addItem('banana', void_map[1])
-        this.addItem('voidstone', void_map[19])
-        this.addItem('comb', void_map[20])
-        this.addItem('crumpled_paper', void_map[21])
-        this.addItem('pen', void_map[22])
-        this.addItem('paperclip', void_map[23])
-        this.addItem('pokemon_card', void_map[24])
-        this.addItem('sock', void_map[25])
-        this.addItem('pile_of_gold', void_map[26], 650)
-        this.addItem('negative_gold', void_map[27], this.player.itemCount('gold'))
+        this.addItem({ name: 'cranberries_cd', container: void_map[6], quantity: 100 })
+        this.addItem({ name: 'mighty_warfork', container: void_map[0] })
+        this.addItem({ name: 'banana', container: void_map[1] })
+        this.addItem({ name: 'voidstone', container: void_map[19] })
+        this.addItem({ name: 'comb', container: void_map[20] })
+        this.addItem({ name: 'crumpled_paper', container: void_map[21] })
+        this.addItem({ name: 'pen', container: void_map[22] })
+        this.addItem({ name: 'paperclip', container: void_map[23] })
+        this.addItem({ name: 'pokemon_card', container: void_map[24] })
+        this.addItem({ name: 'sock', container: void_map[25] })
+        this.addItem({ name: 'pile_of_gold', container: void_map[26], quantity: 650 })
+        this.addItem({ name: 'negative_gold', container: void_map[27], quantity: this.player.itemCount('gold') })
 
         // all the rest of this is just making a pretty map for the console
 

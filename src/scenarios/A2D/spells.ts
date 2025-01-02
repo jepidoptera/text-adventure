@@ -69,7 +69,7 @@ const spells: Record<string, SpellAction> = {
         const mp = this.mp
         if (!checkRequirements.call(this, 'powermaxout', Math.max(this.mp, 50))) return;
         color(brightred);
-        if (this.isPlayer) print(`$A booming wave of ULTIMATE POWER rolls towards ${target.name}.`);
+        if (this.isPlayer) print(`A booming wave of ULTIMATE POWER rolls towards ${target.name}.`);
         await damageSpell({
             spellName: 'powermaxout',
             damage: highRandom() * (mp / 25 * (this.abilities['powermaxout'] || 1) ** spellPower) * this.magic_level,
@@ -162,7 +162,7 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
             damage = -1;
             console.log(`${target.name} dodges ${spellName}!`)
         } else {
-            damage = Math.max(target.damage_modifier(damage, damageType), 0);
+            damage = Math.max(target.modify_damage(damage, damageType), 0);
             console.log(`${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
         }
         color(damage ? black : gray)
