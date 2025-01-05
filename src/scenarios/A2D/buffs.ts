@@ -1289,4 +1289,4 @@ function getBuff<T extends BuffNames>(buffName: T): BuffCreator {
     return buff;
 }
 
-export { getBuff, BuffNames };
+export { getBuff, BuffNames, buffs };
