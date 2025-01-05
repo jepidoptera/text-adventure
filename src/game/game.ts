@@ -263,6 +263,7 @@ abstract class GameState {
                         timeCounter?: number,
                         buffs?: { name: string, power: number, duration: number }[],
                         items?: { key?: string, name?: string, quantity: number }[],
+                        enemies?: string[],
                         isPlayer?: boolean
                     }[]
                 }
@@ -292,11 +293,14 @@ abstract class GameState {
                 if (!character.isPlayer) {
                     if (character.key) character.name = character.key;
                     // console.log(character);
-                    this.addCharacter({
+                    const newCharacter = this.addCharacter({
                         location: location,
                         name: character.name || 'who?',
                         ...character
                     });
+                    if (newCharacter && character.enemies) {
+                        newCharacter.enemies = character.enemies;
+                    }
                 } else {
                     console.log(`found player at ${location.name}`);
                     this.playerData = { location: location, ...character };
