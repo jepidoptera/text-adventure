@@ -1,10 +1,9 @@
 import { Location } from "../../game/location.js";
-import { Character, CharacterParams, pronouns, DamageTypes } from "../../game/character.js";
+import { Character, CharacterParams, pronouns, DamageTypes, damageTypesList } from "../../game/character.js";
 import { Player } from "./player.js";
 import { Item, WeaponTypes } from "../../game/item.js";
-import { plural, caps, randomChoice, lineBreak, highRandom } from "../../game/utils.js";
+import { plural, singular, caps, randomChoice, lineBreak, highRandom } from "../../game/utils.js";
 import { play, musicc$ } from "./utils.js";
-import { getLandmark } from "./landmarks.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { GameState } from "../../game/game.js";
 import { A2D } from "./game.js";
@@ -47,7 +46,9 @@ class A2dCharacter extends Character {
         }
         if (!this.exp_value) {
             this.exp_value = Math.floor(
-                this.max_hp / Object.values(this.defenseBuffs.times).reduce((sum, value) => sum + value, 0)
+                this.max_hp / 2 * Math.max(Object.values(this.defenseBuffs.times).reduce(
+                    (sum, value) => sum + Math.log(value) / damageTypesList.length, 1
+                ), 1)
                 + Object.values(this.base_damage).reduce((sum, value) => sum + value, 0)
                 + Object.values(this.defenseBuffs.plus).reduce((sum, value) => sum + value, 0)
                 + this.magic_level * 2
@@ -200,7 +201,6 @@ class A2dCharacter extends Character {
         let does = ''
         let callAttack = ''
 
-
         const num_enemies = (
             this.isPlayer
                 ? this.location?.characters.filter(c => c.attackTarget === this).length
@@ -253,7 +253,8 @@ class A2dCharacter extends Character {
                 if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('hit')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
                 if (DT >= 50) { does = `${caps(attackerPronouns.subject)} ${s('stab')} ${targetPronouns.object} with ${weaponName}, damaging organs.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('impale')} ${targetPronouns.object} with ${weaponName}, making vital fluids gush.` };
-                if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('eviscerate')} ${targetPronouns.object} with ${weaponName}. Blood splatters everywhere.` };
+                if (DT >= 220) { does = `${caps(attackerPronouns.subject)} ${s('eviscerate')} ${targetPronouns.object} with ${weaponName}. Blood splatters everywhere.` };
+                if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('toss')} ${targetPronouns.object} from the end of ${attackerPronouns.possessive} ${weaponName} like a rotten leaf off a salad fork.` };
                 break;
             case ("fire"):
                 if (DT >= 0) does = `${caps(attackerPronouns.possessive)} ${weaponName} flickers against ${targetPronouns.object} without leaving a mark.`;
@@ -272,9 +273,9 @@ class A2dCharacter extends Character {
                 if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${t_s('sustain')} a major injury.` };
                 if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${t_s('suffer')} damage to vital organs.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_be} slain instantly.` };
-                if (DT >= 400) { does = `${caps(targetPronouns.subject)} ${t_be} ripped messily in half.` };
-                if (DT >= 1000) { does = `Tiny pieces of ${caps(targetPronouns.subject)} fly in all directions.` };
-                if (DT >= 2500) { does = `${caps(targetPronouns.subject)} ${t_be} VAPORIZED.` };
+                if (DT >= 400) { does = `${caps(attackerPronouns.possessive)} arrow goes straight through ${targetPronouns.object}, leaving a gaping hole.` };
+                if (DT >= 1000) { does = `${caps(targetPronouns.subject)} ${t_be} ripped messily in half.` };
+                if (DT >= 2500) { does = `Tiny pieces of ${caps(targetPronouns.subject)} fly in all directions.` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('shoot')} an arrow at ${targetPronouns.object}!`;
                 break;
             case ("magic"):
@@ -479,17 +480,30 @@ const actions = {
     },
     buy: async function (this: A2dCharacter, character: Character, itemName: string) {
         color(black)
-        const item = this.item(itemName);
+        itemName = itemName.toLowerCase().trim();
+        let item = this.item(itemName);
+        if (!item) item = this.item(singular(itemName));
+        let quantity = 1
         if (!item) {
             print("That is not for sale here.");
             return;
-        } else if (item.value > character.itemCount('gold')) {
+        } else if (item.quantity ?? 0 > 1) {
+            quantity = parseInt(await input(`How many?`));
+            if (isNaN(quantity)) {
+                print("What?");
+                return;
+            } else if (quantity > 1) {
+                itemName = plural(item.name);
+            }
+        }
+
+        if (item.value * quantity > character.itemCount('gold')) {
             print("You don't have enough money.");
             return;
         } else {
-            character.giveItem(item.copy());
-            character.removeItem('gold', item.value);
-            print(`Bought ${item.name} for ${item.value} GP.`);
+            character.giveItem(item.copy(), quantity);
+            character.removeItem('gold', item.value * quantity);
+            print(`Bought ${quantity > 1 ? quantity.toString() + ' ' : ''}${itemName} for ${item.value * quantity} GP.`);
 
             if (item.equipment_slot === 'armor') {
                 const player = character as Player
@@ -564,7 +578,7 @@ const characters = {
             print("<recieved clear liquid>")
             print("Good lu -----")
             this.location?.removeCharacter(this)
-            this.location?.addLandmark(getLandmark('dead_cleric'))
+            this.game.addLandmark('dead_cleric', this.location!)
             this.transferAllItems(player)
         })
     },
@@ -576,7 +590,7 @@ const characters = {
             items: ['long_dagger', { name: 'gold', quantity: 12 }],
             max_hp: 54,
             damage: { blunt: 6, sharp: 20 },
-            weaponName: 'long_dagger',
+            weaponName: 'long dagger',
             attackVerb: 'stab',
             description: 'forester',
             agility: 4,
@@ -711,7 +725,7 @@ const characters = {
             items: ['spiked_club'],
             max_hp: 760,
             damage: { blunt: 280, sharp: 13 },
-            weaponName: 'spiked_club',
+            weaponName: 'spiked club',
             attackVerb: 'club',
             description: 'labyrinth minotaur',
             coordination: 15,
@@ -729,7 +743,7 @@ const characters = {
             items: [{ name: 'gold', quantity: 5 }, 'spiked_club'],
             max_hp: 100,
             damage: { blunt: 20, sharp: 5 },
-            weaponName: 'spiked_club',
+            weaponName: 'spiked club',
             attackVerb: 'club',
             description: 'stone ogre',
             armor: { blunt: 2 },
@@ -830,7 +844,7 @@ const characters = {
             items: [{ name: 'gold', quantity: 200 }, 'silver_sword'],
             max_hp: 700,
             damage: { blunt: 50, sharp: 120 },
-            weaponName: 'silver_sword',
+            weaponName: 'silver sword',
             attackVerb: 'slice',
             description: 'ierdale general',
             coordination: 16,
@@ -860,7 +874,7 @@ const characters = {
             items: [{ name: 'gold', quantity: 200 }, 'silver_sword'],
             max_hp: 700,
             damage: { blunt: 120, sharp: 50 },
-            weaponName: 'silver_sword',
+            weaponName: 'silver sword',
             attackVerb: 'slice',
             description: 'ierdale general',
             coordination: 16,
@@ -963,7 +977,7 @@ const characters = {
             items: ['battle_axe', { name: 'gold', quantity: 1000 }],
             max_hp: 70,
             damage: { blunt: 0, sharp: 40 },
-            weaponName: 'battle_axe',
+            weaponName: 'battle axe',
             attackVerb: 'axe',
             coordination: 10,
             agility: 6,
@@ -1053,7 +1067,7 @@ const characters = {
             items: [{ name: 'gold', quantity: 50 }, 'battle_axe'],
             max_hp: 500,
             damage: { blunt: 40, sharp: 100 },
-            weaponName: 'battle_axe',
+            weaponName: 'battle axe',
             attackVerb: 'axe',
             coordination: 10,
             agility: 6,
@@ -1144,7 +1158,7 @@ const characters = {
             description: 'Arach the Terrible',
             max_hp: 1500,
             damage: { sharp: 500 },
-            weaponName: 'mighty_excalabor',
+            weaponName: 'mighty excalabor',
             attackVerb: 'slice',
             armor: { blunt: 60, sharp: 40 },
             coordination: 20,
@@ -1193,7 +1207,7 @@ const characters = {
                     gate_locations.forEach(location => {
                         if (location) {
                             location.removeLandmark('locked_gate')
-                            location.addLandmark(getLandmark('open_gate'))
+                            this.game.addLandmark('open_gate', this.location!)
                         }
                     })
                     this.relocate(this.game.find_location('Ierdale Barracks'))
@@ -1319,7 +1333,7 @@ const characters = {
             description: 'Cradel the troll',
             max_hp: 1000,
             damage: { blunt: 250, sharp: 150 },
-            weaponName: 'spiked_club',
+            weaponName: 'spiked club',
             attackVerb: 'club',
             armor: { blunt: 26 },
             coordination: 5,
@@ -1343,7 +1357,7 @@ const characters = {
         ).onDeath(async function () {
             // open gate
             this.location?.removeLandmark('locked_gate')
-            this.location?.addLandmark(getLandmark('open_gate'))
+            this.game.addLandmark('open_gate', this.location!)
             this.game.flags.cradel = true;
             this.location?.adjacent?.set('south', this.game.find_location(192) || this.location);
         }).addAction('play lute', async function (player: Character) {
@@ -1395,7 +1409,7 @@ const characters = {
                                 print(`'Thankyou again ${player.name}, come see me again soon!'`)
                                 player.transferItem('ring of dreams', this)
                                 this.game.flags.cradel = true;
-                                this.location!.landmarks = [getLandmark('open_gate')];
+                                this.location!.landmarks = [this.game.addLandmark('open_gate', this.location!)!];
                                 this.location?.adjacent?.set('south', this.game.find_location(192) || this.location);
                             } else {
                                 print("Thankyou anyway.");
@@ -1418,7 +1432,7 @@ const characters = {
             description: 'musical Mino',
             max_hp: 250,
             damage: { blunt: 0, sharp: 40 },
-            weaponName: 'long_dagger',
+            weaponName: 'long dagger',
             attackVerb: 'stab',
             armor: { blunt: 20 },
             agility: 40,
@@ -1666,7 +1680,7 @@ const characters = {
             items: [{ name: 'gold', quantity: 50 }, 'dark_sword', 'banana'],
             max_hp: 300,
             damage: { sharp: 40, magic: 40 },
-            weaponName: 'dark_sword',
+            weaponName: 'dark sword',
             attackVerb: 'slice',
             magic_level: 150,
             description: 'angel of death',
@@ -1729,7 +1743,7 @@ const characters = {
             description: 'orc emissary',
             max_hp: 250,
             damage: { blunt: 19, sharp: 74, magic: 24 },
-            weaponName: 'mighty_gigasarm',
+            weaponName: 'mighty gigasarm',
             attackVerb: 'axe',
             items: [{ name: 'gold', quantity: 5 }, 'mighty_gigasarm'],
             armor: { blunt: 20, sharp: 20, magic: 20 },
@@ -1839,13 +1853,13 @@ const characters = {
             aliases: ['grocer'],
             pronouns: pronouns.female,
             items: [
-                'banana',
-                'muffin',
-                'wheel_of_cheese',
-                'asparagus',
-                'dog_steak',
-                'nip_of_gin',
-                'barrel_of_grog',
+                { name: 'banana', quantity: Infinity },
+                { name: 'muffin', quantity: Infinity },
+                { name: 'wheel_of_cheese', quantity: Infinity },
+                { name: 'asparagus', quantity: Infinity },
+                { name: 'dog_steak', quantity: Infinity },
+                { name: 'nip_of_gin', quantity: Infinity },
+                { name: 'barrel_of_grog', quantity: Infinity },
             ],
             description: 'orcish grocer',
             max_hp: 30,
@@ -1871,6 +1885,10 @@ const characters = {
                 print("The orcs have turned against you!");
                 attacker.flags.orc_pass = false;
             };
+        }).onDeath(async function () {
+            for (const item of this.items) {
+                item.quantity = 1;
+            }
         })
     },
 
@@ -1991,7 +2009,7 @@ const characters = {
             damage: { blunt: 20, sharp: 0 },
             coordination: 5,
             agility: 2,
-            weaponName: 'wooden_stick',
+            weaponName: 'wooden stick',
             attackVerb: 'club',
             description: 'evil forester',
             attackPlayer: true,
@@ -2060,7 +2078,7 @@ const characters = {
             damage: { blunt: 20, sharp: 10 },
             coordination: 3,
             agility: 5,
-            weaponName: 'hand_axe',
+            weaponName: 'hand axe',
             attackVerb: 'axe',
             description: 'dark rider',
             armor: { blunt: 3 },
@@ -2098,7 +2116,7 @@ const characters = {
             damage: { blunt: 30, sharp: 10 },
             coordination: 2,
             agility: 6,
-            weaponName: 'metal_bar',
+            weaponName: 'metal bar',
             attackVerb: 'club',
             description: 'goblin',
             pronouns: pronouns.male,
@@ -2120,7 +2138,11 @@ const characters = {
             attackVerb: 'slice',
             pronouns: pronouns.female,
         }).onAttack(async function (character: Character) {
-            // SB_Gend she
+            if (character.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                character.flags.orc_pass = false;
+            }
         });
     },
 
@@ -2136,8 +2158,14 @@ const characters = {
             coordination: 6,
             agility: 1,
             damage: { blunt: 19, sharp: 16 },
-            weaponName: 'mighty_warhammer',
+            weaponName: 'mighty warhammer',
             attackVerb: 'club',
+        }).onAttack(async function (character: Character) {
+            if (character.isPlayer) {
+                color(red);
+                print("The orcs have turned against you!");
+                character.flags.orc_pass = false;
+            }
         });
     },
 
@@ -2225,7 +2253,7 @@ const characters = {
             items: [{ name: 'gold', quantity: Math.random() * 30 }, 'hardened_club'],
             max_hp: 490,
             damage: { blunt: 56, sharp: 20 },
-            weaponName: 'hardened_club',
+            weaponName: 'hardened club',
             attackVerb: 'club',
             description: 'mogrim',
             coordination: 5,
@@ -2267,7 +2295,7 @@ const characters = {
             items: ['jagged_polearm', { name: 'gold', quantity: Math.random() * 56 + 1 }],
             max_hp: 230,
             damage: { blunt: 120, sharp: 70 },
-            weaponName: 'jagged_polearm',
+            weaponName: 'jagged polearm',
             attackVerb: 'axe',
             description: 'goblin hero',
             coordination: 12,
@@ -2331,7 +2359,7 @@ const characters = {
             max_hp: 400,
             damage: { blunt: 75, sharp: 100 },
             magic_level: 200,
-            weaponName: 'axe_of_the_cat',
+            weaponName: 'axe of_the_cat',
             attackVerb: 'axe',
             description: 'cat woman',
             coordination: 20,
@@ -2352,7 +2380,7 @@ const characters = {
             items: ['megarian_club', { name: 'gold', quantity: 50 }],
             max_hp: 300,
             damage: { blunt: 200, sharp: 10 },
-            weaponName: 'megarian_club',
+            weaponName: 'megarian club',
             attackVerb: 'club',
             description: 'megara',
             coordination: 10,
@@ -2579,7 +2607,7 @@ const characters = {
             items: ['golden_pitchfork', { name: 'gold', quantity: 38 }],
             max_hp: 260,
             damage: { blunt: 43, sharp: 75 },
-            weaponName: 'golden_pitchfork',
+            weaponName: 'golden pitchfork',
             attackVerb: 'stab',
             description: 'scarecrow king',
             coordination: 5,
@@ -2598,14 +2626,14 @@ const characters = {
             name: 'grocer',
             pronouns: pronouns.male,
             items: [
-                'banana',
-                'side_of_meat',
-                'chicken_leg',
-                'satchel_of_peas',
-                'full_ration',
-                'ear_of_corn',
-                'flask_of_wine',
-                'keg_of_wine'
+                { name: 'banana', quantity: Infinity },
+                { name: 'side_of_meat', quantity: Infinity },
+                { name: 'chicken_leg', quantity: Infinity },
+                { name: 'satchel_of_peas', quantity: Infinity },
+                { name: 'full_ration', quantity: Infinity },
+                { name: 'ear_of_corn', quantity: Infinity },
+                { name: 'flask_of_wine', quantity: Infinity },
+                { name: 'keg_of_wine', quantity: Infinity },
             ],
         }).dialog(async function (player: Character) {
             print("Please ignore my bag boy.  He scares away the majority of our customers.");
@@ -3047,7 +3075,7 @@ const characters = {
             damage: { blunt: 15, sharp: 3 },
             coordination: 2,
             agility: 4,
-            weaponName: 'wooden_stick',
+            weaponName: 'wooden stick',
             attackVerb: 'club',
             items: [{ name: 'gold', quantity: 3 }, 'wooden_stick'],
             description: 'evil looking goblin',
@@ -3170,7 +3198,7 @@ const characters = {
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 150,
             damage: { blunt: 65, sharp: 30 },
-            weaponName: 'silver_sword',
+            weaponName: 'silver sword',
             attackVerb: 'slice',
             items: ['silver_sword', { name: 'gold', quantity: 15 }],
             description: 'Police chief',
@@ -3217,7 +3245,7 @@ const characters = {
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 45,
             damage: { blunt: 0, sharp: 40 },
-            weaponName: 'long_rapier',
+            weaponName: 'long rapier',
             attackVerb: 'stab',
             items: [{ name: 'gold', quantity: 12 }, 'partial_healing_potion', 'long_rapier'],
             description: 'quick sand scout',
@@ -3452,7 +3480,7 @@ const characters = {
             alignment: 'evil',
             respawns: false,
             persist: false,
-        }).onTurn(async function () { await this.die() })
+        })
     },
 
     bow_maker(game: GameState) {
@@ -3462,11 +3490,12 @@ const characters = {
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 65,
             damage: { blunt: 20, sharp: 20 },
-            weaponName: 'ballista_bolt',
+            weaponName: 'ballista bolt',
             attackVerb: 'stab',
             description: 'bow fletcher',
             coordination: 2,
             armor: { blunt: 10 },
+            items: [{ name: 'arrow', quantity: Infinity }, 'short_bow', 'long_bow', 'composite_bow', 'hand_crossbow', 'crossbow', 'heavy_crossbow']
         }).dialog(async function (player: Character) {
             print("Hi, want some arrows... OR BOWS!");
         }).onDeath(async function (cause) {
@@ -3476,7 +3505,7 @@ const characters = {
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
-        });
+        }).addAction('buy', actions.buy);
     },
 
     peasant_man(game: GameState) {
@@ -3648,7 +3677,7 @@ const characters = {
             max_hp: 1000,
             damage: { blunt: 2000, sharp: 2000, magic: 300 },
             hp_recharge: 0.01, // he won't heal right away
-            weaponName: 'glory_blade',
+            weaponName: 'glory blade',
             attackVerb: 'slice',
             items: [{ name: 'gold', quantity: 1000 }, 'glory_blade', 'ring_of_ultimate_power'],
             description: 'the ledgendary Ieadon',
@@ -3819,7 +3848,7 @@ const characters = {
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 450,
             damage: { magic: 180 },
-            weaponName: 'lightning_staff',
+            weaponName: 'lightning staff',
             attackVerb: 'electric',
             items: ['lightning_staff', { name: 'gold', quantity: 300 }, 'maple_leaf'],
             description: 'the mystical Eldin',
@@ -4122,13 +4151,13 @@ const characters = {
             name: 'Henge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 320,
-            damage: { blunt: 50, sharp: 40 },
+            damage: { blunt: 20, sharp: 70 },
             weaponName: 'longsword',
             attackVerb: 'slice',
             items: [{ name: 'gold', quantity: 25 }, 'longsword', 'ring_of_stone'],
             description: 'Henge',
             armor: { blunt: 10, sharp: 50 },
-            buff: { times: { damage: { sharp: 1.5 } } },
+            buff: { times: { defense: { sharp: 5, blunt: 1 / 2 } } },
             coordination: 6,
             agility: 4,
             attackPlayer: true,
@@ -4141,8 +4170,8 @@ const characters = {
                 print("You stand before Henge, the king of the ogres.  20 feet tall, he looks down");
                 print("on you like a snack left on his doorstep.  You feel your stomach drop.");
                 await pause(5);
-                print("His voice rumbles. \"Good,\" he says. \"I need bones to gind my teeth on.\"");
-                print("He looks down on you with opal eyes.  His teeth are small boulders of quartz.");
+                print("His voice rumbles. \"Good,\" he says. \"I need bones to grind my teeth on.\"");
+                print("He looks at you with opal eyes.  His teeth are small boulders of quartz.");
                 await pause(5);
                 print("Behind you, the canyon wall closes.");
                 this.location?.adjacent?.clear();
@@ -4168,7 +4197,7 @@ const characters = {
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 750,
             damage: { sharp: 150, magic: 50 },
-            weaponName: 'blade_of_time',
+            weaponName: 'blade of_time',
             attackVerb: 'slice',
             items: ['blade_of_time', { name: 'gold', quantity: 125 }, 'ring_of_time'],
             description: 'Ziatos',
@@ -4219,7 +4248,7 @@ const characters = {
             description: 'orc official',
             max_hp: 200,
             damage: { blunt: 60, sharp: 100 },
-            weaponName: 'long_dagger',
+            weaponName: 'long dagger',
             attackVerb: 'stab',
             coordination: 25,
             agility: 12,
