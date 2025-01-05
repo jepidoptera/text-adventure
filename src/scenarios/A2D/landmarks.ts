@@ -3,14 +3,16 @@ import { Item, Container } from "../../game/item.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { potions } from "./items.js"
 import { Character } from "../../game/character.js";
+import { GameState } from "../../game/game.js";
 
 const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
-    sign(text?: string | string[]): Landmark {
+    sign(game: GameState, text?: string | string[]): Landmark {
         if (Array.isArray(text)) {
             text = text.join('\n')
         }
         // console.log(`Creating sign with text: ${text}`)
         return new Landmark({
+            game: game,
             name: 'sign',
             description: 'A Sign',
             text: text
@@ -19,8 +21,9 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             print(text)
         })
     },
-    towering_tree(): Landmark {
+    towering_tree(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'tree',
             description: 'A Monstrous, Sky-Touching Tree',
         }).action('climb tree', async function (player) {
@@ -108,8 +111,9 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             }
         })
     },
-    treehouse_platform(): Landmark {
+    treehouse_platform(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'treehouse platform',
             description: 'A Treehouse Platform',
         }).action('climb down', async function (player: Character) {
@@ -119,11 +123,12 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             print("You continue to climb downwards...")
             await pause(3)
             print("After an exhausting climb you feel grateful to be on the ground again!")
-            player.relocate(player.game.locations.get(64) || null)
+            player.relocate(player.game.find_location(64) || null)
         })
     },
-    mixing_pot(): Landmark {
+    mixing_pot(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'mixing pot',
             description: 'A Mixing Pot',
         }).action('look mixing pot', async function (player) {
@@ -160,11 +165,12 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             // sort and join ingredients
             const contents = this.contents.items.map(i => i.name).sort().join(', ')
             console.log('mixing', contents)
-            if (potions.has(contents)) {
+            const potionName = potions.get(contents);
+            if (potionName) {
                 // made something
                 this.contents.clear()
-                const potion = potions.get(contents)?.();
-                console.log(`created: ${potion.name}`)
+                const potion = this.game.addItem({ name: potionName });
+                console.log(`created: ${potionName}`)
                 player.inventory.add(potion);
                 print(`You remove the potion from the pot and wala! it is now: `, 1)
                 color(black)
@@ -176,26 +182,30 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             }
         })
     },
-    scarecrow(): Landmark {
+    scarecrow(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'scarecrow',
             description: 'A Scarecrow'
         })
     },
-    locked_gate(): Landmark {
+    locked_gate(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'gates',
             description: 'Locked Gates'
         })
     },
-    open_gate(): Landmark {
+    open_gate(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'gates',
             description: 'Open Gates'
         })
     },
-    slash_in_the_earth(): Landmark {
+    slash_in_the_earth(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'slash',
             description: 'A Jagged, Oozing Slash in the Earth'
         }).action('e', async function (player) {
@@ -206,26 +216,30 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             print("You can't go that way. The slash is impassable.")
         })
     },
-    dead_cleric(): Landmark {
+    dead_cleric(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'dead cleric',
             description: 'corpse of the wise man'
         })
     },
-    large_rock(): Landmark {
+    large_rock(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'rock',
             description: 'A Large Rock'
         })
     },
-    spire(): Landmark {
+    spire(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'spire',
             description: "A Towering Sandstone Spire"
         })
     },
-    portal_stone(): Landmark {
+    portal_stone(game: GameState): Landmark {
         return new Landmark({
+            game: game,
             name: 'portal stone',
             description: "Eldin's Portal Stone"
         }).action('transport', async function (player) {
@@ -235,7 +249,7 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             player.relocate(player.game.find_location("Eldin's Mountain Cottage"))
         })
     },
-    slot_canyon(): Landmark {
+    slot_canyon(game: GameState): Landmark {
         async function go_down(this: Landmark, player: Character) {
             if (player.isPlayer) {
                 color(black)
@@ -245,6 +259,7 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             }
         }
         return new Landmark({
+            game: game,
             name: 'slot canyon',
             description: "A Steep, Narrow Slot Canyon Descending into Twilight"
         }).action(
@@ -255,8 +270,9 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             'down', go_down
         )
     },
-    unknown(n?: number): Landmark {
+    unknown(game: GameState, n?: number): Landmark {
         return new Landmark({
+            game: game,
             name: `Unknown Landscape Item ${n}`,
             description: `Unknown Landscape Item ${n}`
         })
@@ -273,4 +289,4 @@ function getLandmark(key: LandmarkNames, ...args: any[]) {
     return newLandmark
 }
 
-export { getLandmark };
+export { landmarks };
