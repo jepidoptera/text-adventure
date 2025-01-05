@@ -3062,6 +3062,7 @@ const characters = {
             coordination: 3,
             agility: 1,
             weaponName: 'trunkish arms',
+            buff: { times: { defense: { blunt: 2, fire: 1 / 2 }, }, },
             description: 'dryad',
         });
     },
