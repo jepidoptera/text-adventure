@@ -7,7 +7,7 @@ import { GameState } from "../../game/game.js";
 import { caps, plural, printCharacters, randomChoice } from "../../game/utils.js";
 import { spells, abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js"
-import { getLandmark } from "./landmarks.js"
+import { landmarks } from "./landmarks.js"
 import { scenario } from "./map.js"
 import { assistant } from "./assistant.js"
 import { isValidItemKey } from "./items.js"
@@ -202,6 +202,7 @@ class Player extends A2dCharacter {
         this.addAction('talk', this.talkTo);
         this.addAction('attack', async (name: string) => this.target(this.location?.character?.(name)));
         this.addAction('\\', async (name: string) => await this.left_attack(name));
+        this.addAction('shoot', async (name: string) => await this.bow_attack(name));
         this.addAction('cast', this.spell);
         this.addAction('cheatmode xfish9', async () => { this.cheatMode = true; color(magenta); print('Cheat mode activated.') });
         this.addAction('cheat', this.cheat);
@@ -399,8 +400,36 @@ class Player extends A2dCharacter {
         if (targetName) {
             this.fight(this.location?.character?.(targetName) || this.attackTarget);
         }
+        this.useWeapon('left hand');
         await this.attack(this.attackTarget, this.equipment['left hand'], this.weaponDamage('left hand'));
-        this.removeBuff('offhand');
+    }
+
+    async bow_attack(enemy: Character | string) {
+        if (typeof enemy === 'string') {
+            const target = this.location?.character(enemy);
+            if (!target) {
+                print("They're not here.");
+                return;
+            }
+            enemy = target;
+        }
+        if (this.equipment['bow'] && this.has('arrow') && !this.fighting) {
+            this.removeItem('arrow', 1);
+            this.useWeapon('bow');
+            this.fight(enemy);
+            await this.attack(enemy, this.equipment['bow'], this.weaponDamage('bow'));
+        } else if (this.equipment['bow'] && !this.has('arrow')) {
+            print("You're out of arrows.")
+        } else if (this.equipment['bow'] && this.fighting) {
+            print("There's no time!")
+        } else {
+            print("You don't have a bow.")
+        }
+    }
+
+    async defend(attacker: Character) {
+        if (!this.fighting) await this.bow_attack(attacker);
+        await super.defend(attacker);
     }
 
     async encounter(character: Character) {
@@ -1099,7 +1128,7 @@ class Player extends A2dCharacter {
         }
         // sum up gold and exp all together
         color(green)
-        print(`you gain ${gold_gained} gold.`)
+        if (gold_gained) print(`you gain ${gold_gained} gold.`)
         this.getItem('gold', this.location || undefined, gold_gained);
         color(green)
         print(`you gain ${exp_gained} exp.`)
@@ -1120,7 +1149,7 @@ class Player extends A2dCharacter {
             assistant(this);
 
         await this.getInput();
-        this.enemies = this.enemies.filter(enemy => enemy);
+        this.enemies = [];
         if (this.fighting) {
             this.useWeapon('right hand');
             await this.attack(
@@ -1154,52 +1183,55 @@ class Player extends A2dCharacter {
         for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
             buff += (this.equipment?.[slot]?.buff?.times?.[key] ?? 1) - 1;
         }
-        if (this.activeEquipment['left hand']) { buff *= this.offhand; }
+        if (this.activeEquipment['left hand'] && key !== 'offhand') { buff *= this.offhand; }
+        if (this.activeEquipment['bow'] && key == 'coordination') { buff = (buff + this.archery) / 3; }
         return buff;
     }
 
     buff_damage_additive(type: DamageTypes): number {
         // add items bonuses
-        let buff = super.buff_damage_additive(type);
+        let buff = 0;
         if (!this.equipment) return buff;
         for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
             buff += this.equipment?.[slot]?.buff?.plus?.damage?.[type] ?? 0;
         }
-        if (this.activeEquipment['left hand']) { buff *= this.offhand; }
-        return buff;
+        return buff + super.buff_damage_additive(type);
     }
 
     buff_damage_multiplier(type: DamageTypes): number {
         // add items bonuses
-        let buff = super.buff_damage_multiplier(type) || 1;
+        let buff = 0;
         if (!this.equipment) return buff;
         for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
-            buff += (this.equipment?.[slot]?.buff?.times?.damage?.[type] ?? 1) - 1;
+            buff += this.equipment?.[slot]?.buff?.times?.damage?.[type] ?? 0;
         }
-        return buff;
+        // archery bonus
+        if (this.activeEquipment['bow']) { buff *= Math.log10(this.archery); }
+        return buff * super.buff_damage_multiplier(type);
     }
 
     buff_defense_additive(type: DamageTypes): number {
         // add items bonuses
-        let buff = super.buff_defense_additive(type);
+        let buff = 0;
         if (!this.equipment) return buff;
         for (let slot of Object.keys(this.equipment) as (keyof this['equipment'])[]) {
             buff += this.equipment?.[slot]?.buff?.plus?.defense?.[type] ?? 0;
         }
-        return buff;
+        return buff + super.buff_defense_additive(type);
     }
 
     buff_defense_multiplier(type: DamageTypes): number {
         // add items bonuses
-        let buff = super.buff_defense_multiplier(type) || 1;
+        let buff = 1;
         if (!this.equipment) return buff;
         for (let slot of Object.keys(this.equipment) as (keyof this['equipment'])[]) {
             buff += (this.equipment?.[slot]?.buff?.times?.defense?.[type] ?? 1) - 1;
         }
-        return buff;
+        return buff * super.buff_defense_multiplier(type);
     }
 
     weaponDamage(weapon: 'right hand' | 'left hand' | 'bow') {
+        this.useWeapon(weapon);
         const dam: { [key in DamageTypes]: number } = {
             'blunt': this.strength * this.buff_damage_multiplier('blunt') + this.buff_damage_additive('blunt'),
             'sharp': this.strength * this.buff_damage_multiplier('sharp') + this.buff_damage_additive('sharp'),
@@ -1295,7 +1327,7 @@ class Player extends A2dCharacter {
                     print('commands enabled.')
                     break;
                 case ('landmark'):
-                    this.location?.addLandmark(getLandmark(value));
+                    this.game.addLandmark(value, this.location!);
                     print(`landmark ${value} added.`)
                     break;
                 case ('flag'):
@@ -1377,16 +1409,6 @@ class Player extends A2dCharacter {
         }
     }
 
-    async defend(attacker: Character) {
-        if (this.equipment['bow'] && this.has('arrow')) {
-            this.removeItem('arrow', 1);
-            this.useWeapon('bow');
-            this.attack(attacker, this.equipment['bow'], this.weaponDamage('bow'));
-            pause(1.5);
-        }
-        await super.defend(attacker);
-    }
-
     load(character: any) {
         Object.assign(this.base_stats, {
             max_hp: character._max_hp || character.max_hp,
@@ -1435,7 +1457,7 @@ class Player extends A2dCharacter {
         }
         if (character.buffs) {
             Object.values(character.buffs).forEach((buff: any) => {
-                this.addBuff(getBuff(buff.name)(buff))
+                this.addBuff(getBuff(buff.name)?.(buff))
             })
         }
         return this;
