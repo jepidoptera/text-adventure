@@ -4,6 +4,7 @@ import { GameState } from "./game.js";
 
 class Landmark {
     name: string;
+    game: GameState;
     key?: string;
     description: string;
     location?: Location;
@@ -11,11 +12,12 @@ class Landmark {
     text?: string;
     _actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
     constructor({
-        name, description, text, items = []
+        name, game, description, text, items = []
     }: {
-        name: string, description: string, text?: string, items?: Item[]
+        name: string, game: GameState, description: string, text?: string, items?: Item[]
     }) {
         this.name = name;
+        this.game = game;
         this.description = description;
         this.contents = new Container(items);
         this.text = text
@@ -26,8 +28,7 @@ class Landmark {
     }
     save() {
         return {
-            name: this.name,
-            key: this.key,
+            name: this.key,
             items: this.contents.items.map(item => item.save()),
             text: this.text
         }
