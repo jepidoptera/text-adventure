@@ -22,6 +22,36 @@ function plural(str: string): string {
     return ans;
 }
 
+function singular(str: string): string {
+    if (str.includes('of')) return singular(str.split('of')[0].trim()) + ' of ' + str.split('of')[1].trim();
+    if (str.slice(-1) != "s") {
+        return str;
+    } else if (str.slice(-2) == "es") {
+        let l1 = str.slice(-4, -3);
+        let l2 = str.slice(-4, -2);
+        if (l1 == 'x' || l1 == 's' || l2 == 'ch' || l2 == 'sh') {
+            str = str.slice(0, -2);
+        }
+    } else if (str.slice(-3) == "ies") {
+        str = str.slice(0, -3) + "y";
+    } else if (str.slice(-3) == "ves") {
+        // Common words that end in 'f' -> 'ves'
+        const fToVes = ['leaf', 'wolf', 'half', 'self', 'shelf', 'elf', 'loaf', 'thief', 'life', 'knife', 'wife', 'calf', 'hoof', 'dwarf'];
+        const stem = str.slice(0, -3);
+
+        // Check if adding 'f' makes a known word
+        if (fToVes.some(word => word.startsWith(stem))) {
+            str = stem + "f";
+        } else {
+            // Otherwise assume it's a natural 've' word
+            str = str.slice(0, -1);
+        }
+    } else {
+        str = str.slice(0, -1);
+    }
+    return str;
+}
+
 function randomChoice<T>(arr: T[]): T {
     if (arr.length <= 1) return arr[0];
     return arr[Math.floor(Math.random() * arr.length)];
@@ -71,4 +101,4 @@ function printCharacters({
     }
 }
 
-export { caps, plural, randomChoice, highRandom, lineBreak, printCharacters };
+export { caps, plural, singular, randomChoice, highRandom, lineBreak, printCharacters };
