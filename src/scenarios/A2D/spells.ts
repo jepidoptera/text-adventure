@@ -10,12 +10,12 @@ const spellPower = 1.0860331325016919
 
 const spells: Record<string, SpellAction> = {
     newbie: async function (target: Character) {
-        if (!checkRequirements.call(this, 'newbie', (2 + this.abilities['newbie']) / 3)) return;
+        if (!checkRequirements.call(this, 'newbie', (2 + this.abilities['newbie']) / 4)) return;
         color(brightred);
         if (this.isPlayer) print(`You send a bolt of sputtering newbie magic at ${target.name}.`);
         await damageSpell({
             spellName: 'newbie',
-            damage: highRandom() * (((this.abilities['newbie'] || 1) ** spellPower + 1) / 3) * this.magic_level + Math.random() * 3,
+            damage: highRandom() * (((this.abilities['newbie'] || 1) ** spellPower + 1) / 3) * this.magic_level + Math.random() * 7,
             accuracy: Math.random() * (this.coordination + (this.abilities['newbie'] || 1) / 3),
             damageType: 'magic',
             weaponType: 'magic',
@@ -25,7 +25,7 @@ const spells: Record<string, SpellAction> = {
     // they'll differ more qualitatively than quantitatively.
     bolt: async function (target: Character) {
         // bolt is low cost, low damage, high accuracy.
-        if (!checkRequirements.call(this, 'bolt', 3 + this.abilities['bolt'])) return;
+        if (!checkRequirements.call(this, 'bolt', 4 + this.abilities['bolt'] / 2)) return;
         color(brightred);
         if (this.isPlayer) print(`A jagged flash of lighning strikes towards ${target.name}.`);
         await damageSpell({
@@ -38,12 +38,12 @@ const spells: Record<string, SpellAction> = {
     },
     fire: async function (this: A2dCharacter, target: Character) {
         // fire is medium cost, medium damage, medium accuracy.
-        if (!checkRequirements.call(this, 'fire', 6 + this.abilities['fire'] * 2)) return;
+        if (!checkRequirements.call(this, 'fire', 8 + this.abilities['fire'])) return;
         color(brightred);
         if (this.isPlayer) print(`A jet of flame shoots towards ${target.name}.`);
         await damageSpell({
             spellName: 'fire',
-            damage: highRandom() * (1 + (this.abilities['fire'] || 1) ** spellPower) * this.magic_level,
+            damage: highRandom() * (1 + (this.abilities['fire'] || 1) ** spellPower * 14 / 11) * this.magic_level,
             accuracy: Math.random() * (this.coordination + 2 + (this.abilities['fire'] || 1) / 3),
             damageType: 'fire',
             weaponType: 'fire',
@@ -52,12 +52,12 @@ const spells: Record<string, SpellAction> = {
     },
     blades: async function (this: A2dCharacter, target: Character) {
         // blades is high cost, high damage, low accuracy.
-        if (!checkRequirements.call(this, 'blades', 10 + this.abilities['blades'] * 3)) return;
+        if (!checkRequirements.call(this, 'blades', 13 + this.abilities['blades'] * 11 / 7)) return;
         color(brightred);
         if (this.isPlayer) print(`Blades sprout from your fingers and hurtle towards ${target.name}.`);
         await damageSpell({
             spellName: 'blades',
-            damage: highRandom() * (1 + (this.abilities['blades'] || 1) ** spellPower * 1.25) * this.magic_level,
+            damage: highRandom() * (1 + (this.abilities['blades'] || 1) ** spellPower * 2) * this.magic_level,
             accuracy: Math.random() * (Math.max(this.coordination - 1, 1) + (this.abilities['blades'] || 1) / 5),
             weaponType: 'blades',
             damageType: 'sharp',
