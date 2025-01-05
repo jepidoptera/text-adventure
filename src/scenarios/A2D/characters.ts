@@ -1207,7 +1207,7 @@ const characters = {
                     gate_locations.forEach(location => {
                         if (location) {
                             location.removeLandmark('locked_gate')
-                            this.game.addLandmark('open_gate', this.location!)
+                            this.game.addLandmark('open_gate', location)
                         }
                     })
                     this.relocate(this.game.find_location('Ierdale Barracks'))
