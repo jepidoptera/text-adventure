@@ -1,13 +1,13 @@
 import { GameState } from "../../game/game.js"
-import { Location, findPath } from "../../game/location.js"
-import { Character } from "../../game/character.js"
+import { Landmark, Location, findPath } from "../../game/location.js"
+import { Buff, Character } from "../../game/character.js"
 import { Container, Item, ItemParams } from "../../game/item.js"
 import { items } from "./items.js"
-import { getLandmark } from "./landmarks.js"
+import { landmarks } from "./landmarks.js"
 import { locationTemplates, scenario } from "./map.js"
 import { Player } from "./player.js"
 import { characters } from "./characters.js"
-import { BuffNames, getBuff, } from "./buffs.js"
+import { BuffNames, getBuff, buffs } from "./buffs.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 
 
@@ -17,6 +17,8 @@ class A2D extends GameState {
     itemTemplates = items;
     locationTemplates = locationTemplates;
     characterTemplates = characters;
+    buffTemplates = buffs;
+    landmarkTemplates = landmarks;
     flags: {
         cleric: boolean,
         ieadon: boolean,
