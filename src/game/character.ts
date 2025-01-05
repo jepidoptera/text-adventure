@@ -12,6 +12,57 @@ const pronouns = {
 }
 
 type Action = (this: Character, ...args: any[]) => Promise<void>;
+class Activity {
+    constructor(public name: string, public timeCost: number, public action: Action) { }
+}
+const activities: Record<string, Activity> = {
+    'rest': new Activity('rest', 25, async function () {
+        this.hp += this.hp_recharge;
+        this.mp += this.mp_recharge;
+        this.sp += this.sp_recharge;
+    }),
+    'wait': new Activity('wait', 10, async function () { }),
+    'move': new Activity('move', 10, async function (direction: string) {
+        await this.go(direction);
+    }),
+    'attack': new Activity('attack', 10, async function (target: Character) {
+        this.attack(target, this.weaponName, this.base_damage);
+    }),
+    'cast': new Activity('cast', 10, async function (spell: string, target: Character) {
+        if (this.abilities[spell]) {
+            // this is a good idea
+            // await this.game.spells[spell](this, target);
+        }
+    }),
+    'use': new Activity('use', 1, async function (item: string, target: Character) {
+        const itemObject = this.inventory.item(item);
+        if (itemObject) {
+            await itemObject.use(this);
+        }
+    }),
+    'give': new Activity('give', 1, async function (item: string, target: Character) {
+        await this.transferItem(item, target);
+    }),
+    'take': new Activity('take', 1, async function (item: string, target: Character) {
+        await target.transferItem(item, this);
+    }),
+    'drop': new Activity('drop', 1, async function (item: string) {
+        await this.dropItem(item);
+    }),
+    'pickup': new Activity('pickup', 1, async function (item: string) {
+        await this.getItem(item);
+    }),
+    'flee': new Activity('flee', 10, async function () {
+        const direction = this.backDirection;
+        await this.go(direction);
+    }),
+    'follow': new Activity('follow', 0, async function (target: Character) {
+        this.following = target.name;
+    }),
+    'stop': new Activity('stop', 1, async function () {
+        this.following = '';
+    }),
+}
 type BaseStats =
     'max_hp' | 'max_mp' | 'max_sp' | 'strength' | 'speed' | 'coordination' |
     'agility' | 'magic_level' | 'healing' | 'archery' | 'hp_recharge' |
@@ -143,6 +194,7 @@ interface CharacterParams {
     respawn_time?: number;
     respawns?: boolean;
     respawnLocationKey?: string | number | undefined;
+    lastLocation?: Location;
     persist?: boolean;
     following?: string;
     buff?: { plus?: BuffModifiers, times?: BuffModifiers };
@@ -178,6 +230,7 @@ class Character {
     readonly buffs: { [key: string]: Buff } = {};
     location: Location | null = null;
     backDirection: string = '';
+    lastLocation: Location | null = null;
     abilities: { [key: string]: number };
     flags: { [key: string]: any } = {};
     private _attackTarget: Character | null = null;
@@ -626,6 +679,7 @@ class Character {
             this.respawnLocation = newLocation?.key;
             // console.log(`${this.name} will respawn respawn at ${this.respawnLocationKey}.`)
         }
+        this.lastLocation = this.location;
         // console.log(`${this.name} relocates to ${newLocation?.name} from ${this.location?.name}`)
         await this.location?.exit(this, direction);
         if (this.location) this.exit(this.location);
@@ -991,6 +1045,9 @@ class Character {
         }
         if (Object.keys(this.flags).length > 0) {
             saveObject['flags'] = this.flags;
+        }
+        if (Object.keys(this.enemies).length > 0) {
+            saveObject['enemies'] = this.enemies;
         }
         return saveObject;
     }
