@@ -17,7 +17,8 @@ type BaseStats =
     'agility' | 'magic_level' | 'healing' | 'archery' | 'hp_recharge' |
     'mp_recharge' | 'sp_recharge' | 'offhand';
 
-type DamageTypes = 'blunt' | 'sharp' | 'magic' | 'fire' | 'electric' | 'cold' | 'sonic' | 'poison';
+const damageTypesList = ['blunt', 'sharp', 'magic', 'fire', 'electric', 'cold', 'sonic', 'poison'] as const;
+type DamageTypes = typeof damageTypesList[number];
 
 type DamageModifiers = Partial<Record<DamageTypes, number>>;
 type DefenseModifiers = Partial<Record<DamageTypes, number>>;
@@ -241,7 +242,7 @@ class Character {
         flags = {},
         persist = true,
         following = '',
-        buff = {},
+        buff,
     }: CharacterParams) {
         this.name = name;
         this.game = game;
@@ -308,6 +309,7 @@ class Character {
     }
 
     async addBuff(buff: Buff) {
+        if (!buff) return;
         await buff.apply(this);
         // console.log(`applying buff ${buff.name} to ${this.name} (${Object.keys(buff.times).reduce((prev, curr) => `${prev} ${curr}: ${buff.times[curr as BaseStats]}`, '')})`)
         this.buffs[buff.name] = buff;
@@ -390,6 +392,9 @@ class Character {
     modify_damage(baseAmount: number, damageType: DamageTypes): number {
         const subtract = highRandom(this.buff_defense_additive(damageType));
         const multiplier = this.buff_defense_multiplier(damageType);
+        if (subtract != 0 || multiplier != 1) {
+            console.log(`${damageType} damage reduced by ${subtract} and multiplied by ${multiplier} = ${baseAmount - subtract} * ${multiplier}`)
+        }
         return Math.max((baseAmount - subtract) / multiplier, 0);
     }
 
@@ -639,6 +644,7 @@ class Character {
         this.hp = Math.min(this.hp, 0);
         await this._onDeath?.(cause);
         if (!this.dead) return;
+        console.log(`${this.name} dies from ${cause?.name ?? 'no reason'}.`)
         // if (this.location) this.inventory.transferAll(this.location);
         if (this.location) {
             for (let item of this.inventory) {
@@ -821,7 +827,7 @@ class Character {
         if (!target) target = this.attackTarget;
         if (!target) return;
         await target?.defend(this)
-        if (!target || this.attackTarget != target || this.attackTarget.dead || this.dead) return;
+        if (!target || target.dead || this.dead) return;
         if (!damage_potential) damage_potential = this.base_damage;
         console.log(`${this.name} attacks ${target.name} with ${JSON.stringify(damage_potential)}`)
 
@@ -842,26 +848,12 @@ class Character {
 
         let dam: { [key: string]: number } = {}
         for (let key of Object.keys(damage_potential)) {
+            if (damage_potential[key as DamageTypes] === 0) continue;
             dam[key] = highRandom(damage_potential[key as DamageTypes] || 0)
             dam[key] = target.modify_damage(dam[key], key as DamageTypes)
             dam[key] = dam[key] < 0 ? 0 : dam[key]
             console.log(`${this.name} does ${dam[key]} ${key} damage to ${target.name}`)
         }
-
-        // // Normal damage
-        // let dam = highRandom() * this.blunt_damage(weapon)
-        // dam -= highRandom() * (target.blunt_armor)
-        // dam = dam < 0 ? 0 : dam
-
-        // // Piercing damage
-        // let pdam = highRandom() * this.sharp_damage(weapon)
-        // pdam -= highRandom() * target.sharp_armor
-        // pdam = pdam < 0 ? 0 : pdam
-
-        // // Magic damage
-        // let mdam = highRandom() * this.magic_damage(weapon)
-        // mdam -= highRandom() * target.magic_armor
-        // mdam = mdam < 0 ? 0 : mdam
 
         //Damage total
         let tdam = Object.values(dam).reduce((prev, curr) => prev + curr, 0)
@@ -916,7 +908,6 @@ class Character {
         }
         if (this._onAttack) {
             await this._onAttack(attacker);
-            console.log(this.name, 'decides to attack', this.attackTarget?.name)
         }
     }
 
@@ -1005,4 +996,4 @@ class Character {
     }
 }
 
-export { Character, CharacterParams, pronouns, Buff, BuffModifiers, BaseStats, DamageTypes };
+export { Character, CharacterParams, pronouns, Buff, BuffModifiers, BaseStats, DamageTypes, damageTypesList };
