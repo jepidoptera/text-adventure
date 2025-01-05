@@ -18,6 +18,7 @@ abstract class GameState {
     itemTemplates: { [key: string]: (game: GameState) => Item } = {};
     locationTemplates: { [key: string]: (game: GameState, args: any) => Location } = {};
     buffTemplates: { [key: string]: ({ character, power, duration }: { character: Character, power: number, duration: number }) => Buff } = {};
+    landmarkTemplates: { [key: string]: (game: GameState, args: any) => Landmark } = {};
     abstract readonly characterTemplates: Record<string, (game: GameState) => Character>;
     player!: Character;
     playerData: any = {};
@@ -289,10 +290,11 @@ abstract class GameState {
             }
             for (let character of temp.characters || []) {
                 if (!character.isPlayer) {
-                    if (character.key) character.name = ''
+                    if (character.key) character.name = character.key;
+                    // console.log(character);
                     this.addCharacter({
                         location: location,
-                        name: character.key || character.name || '',
+                        name: character.name || 'who?',
                         ...character
                     });
                 } else {
@@ -302,15 +304,12 @@ abstract class GameState {
                 }
             }
             for (let landmark of temp.landmarks || []) {
-                const newLandmark = new Landmark({
-                    name: landmark.name,
-                    description: landmark.description || '',
-                    text: Array.isArray(landmark.text) ? landmark.text?.join('\n') : landmark.text,
-                });
-                for (let item of landmark.items || []) {
-                    this.addItem({ name: item.key || item.name || '', quantity: item.quantity || 1, container: newLandmark.contents });
+                const newLandmark = this.addLandmark(landmark.name, location, Array.isArray(landmark.text) ? landmark.text?.join('\n') : landmark.text);
+                if (newLandmark) {
+                    for (let item of landmark.items || []) {
+                        this.addItem({ name: item.key || item.name || '', quantity: item.quantity || 1, container: newLandmark.contents });
+                    }
                 }
-                location.addLandmark(newLandmark);
             }
             for (let item of temp.items || []) {
                 this.addItem({ name: item.key || item.name || '', quantity: item.quantity || 1, container: location });
@@ -399,7 +398,7 @@ abstract class GameState {
         }
         if (buffs) {
             for (let buff of buffs) {
-                newCharacter.addBuff(this.buffTemplates[buff.name]({ character: newCharacter, power: buff.power, duration: buff.duration }));
+                newCharacter.addBuff(this.buffTemplates[buff.name]?.({ character: newCharacter, power: buff.power, duration: buff.duration }));
             }
         }
         if (newCharacter?.respawns && newLocation && !respawnLocation) {
@@ -475,6 +474,17 @@ abstract class GameState {
         newLocation.key += ` ${i}`;
         this.locations.set(newLocation.key, newLocation);
         return newLocation;
+    }
+
+    addLandmark<K extends keyof this['landmarkTemplates']>(name: string, location: Location, args?: any) {
+        if (!name || !Object.keys(this.landmarkTemplates).includes(name.toString())) {
+            console.log('invalid landmark name', name);
+            return;
+        }
+        const newLandmark = this.landmarkTemplates[name as keyof typeof this.landmarkTemplates](this, args);
+        newLandmark.key = name.toString();
+        location.addLandmark(newLandmark);
+        return newLandmark;
     }
 
     async removeLocation(location: string | number | Location | null) {
