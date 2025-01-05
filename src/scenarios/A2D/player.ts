@@ -406,22 +406,24 @@ class Player extends A2dCharacter {
 
     async bow_attack(enemy: Character | string) {
         if (typeof enemy === 'string') {
-            const target = this.location?.character(enemy);
+            let target = this.location?.character(enemy);
             if (!target) {
-                print("They're not here.");
-                return;
+                // broaden the search to characters who have just left the room
+                target = this.game.find_all_characters(enemy).filter(character => character.lastLocation == this.location)[0];
+                if (!target) {
+                    print("They're not here.");
+                    return;
+                }
             }
             enemy = target;
         }
-        if (this.equipment['bow'] && this.has('arrow') && !this.fighting) {
+        if (this.equipment['bow'] && this.has('arrow')) {
             this.removeItem('arrow', 1);
             this.useWeapon('bow');
             this.fight(enemy);
             await this.attack(enemy, this.equipment['bow'], this.weaponDamage('bow'));
         } else if (this.equipment['bow'] && !this.has('arrow')) {
             print("You're out of arrows.")
-        } else if (this.equipment['bow'] && this.fighting) {
-            print("There's no time!")
         } else {
             print("You don't have a bow.")
         }
