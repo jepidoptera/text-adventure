@@ -179,7 +179,10 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
                     await damageSpell({ spellName, damage, accuracy, damageType, weaponType, damage_overflow, casualties }).call(this, newTarget)
                 } else { damage = 0 }
             } else { damage = 0 }
-        } else { damage = 0 }
+        } else {
+            target.hurt(damage, this);
+            damage = 0;
+        }
         if (damage == 0 && casualties.length > 0) {
             // all damage potential is expended
             for (const char of casualties) {
