@@ -1,4 +1,4 @@
-import { findPath, Location } from "../../game/location.js"
+import { Location } from "../../game/location.js"
 import { Item } from "../../game/item.js"
 import { Character, BaseStats, Buff, DamageTypes } from "../../game/character.js"
 import { A2dCharacter } from "./characters.js"
@@ -222,7 +222,7 @@ class Player extends A2dCharacter {
         if (!location) { return this }
         if (location && this.location) {
             console.log('looking for a path to location', location.key)
-            this.flags.path = findPath(this.location, location);
+            this.flags.path = this.findPath(location);
             print(this.flags.path.join(', '))
         }
         return this;
@@ -435,7 +435,7 @@ class Player extends A2dCharacter {
     }
 
     async encounter(character: Character) {
-        await super.encounter(character);
+        // await super.encounter(character);
         console.log(`player encountered "${character.name}", "${character.description}"`)
     }
 
@@ -656,6 +656,7 @@ class Player extends A2dCharacter {
         else if (item.eat) {
             await item.eat(this);
             this.removeItem(item, 1);
+            if (this.dead) return;
             color(orange)
             print(`${item.name} was consumed.`)
             this.checkHP();
@@ -676,6 +677,7 @@ class Player extends A2dCharacter {
         else if (item.drink) {
             await item.drink(this);
             this.removeItem(item, 1);
+            if (this.dead) return;
             color(orange)
             print(`${item.name} was consumed.`)
             this.checkHP();
@@ -1175,6 +1177,7 @@ class Player extends A2dCharacter {
         for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
             buff += this.equipment?.[slot]?.buff?.plus?.[key] ?? 0;
         }
+        if (this.activeEquipment['bow'] && key == 'coordination') { buff += this.base_stats.archery / 4 - this.base_stats.coordination * 3 / 4; }
         return buff;
     }
 
@@ -1186,7 +1189,6 @@ class Player extends A2dCharacter {
             buff += (this.equipment?.[slot]?.buff?.times?.[key] ?? 1) - 1;
         }
         if (this.activeEquipment['left hand'] && key !== 'offhand') { buff *= this.offhand; }
-        if (this.activeEquipment['bow'] && key == 'coordination') { buff = (buff + this.archery) / 3; }
         return buff;
     }
 
@@ -1197,6 +1199,8 @@ class Player extends A2dCharacter {
         for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
             buff += this.equipment?.[slot]?.buff?.plus?.damage?.[type] ?? 0;
         }
+        // archery bonus
+        if (this.activeEquipment['bow']) { buff *= Math.log10(this.archery); }
         return buff + super.buff_damage_additive(type);
     }
 
@@ -1207,8 +1211,6 @@ class Player extends A2dCharacter {
         for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
             buff += this.equipment?.[slot]?.buff?.times?.damage?.[type] ?? 0;
         }
-        // archery bonus
-        if (this.activeEquipment['bow']) { buff *= Math.log10(this.archery); }
         return buff * super.buff_damage_multiplier(type);
     }
 
