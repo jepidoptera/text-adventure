@@ -198,6 +198,7 @@ interface CharacterParams {
     persist?: boolean;
     following?: string;
     buff?: { plus?: BuffModifiers, times?: BuffModifiers };
+    size?: number;
 }
 
 class Character {
@@ -232,6 +233,7 @@ class Character {
     backDirection: string = '';
     lastLocation: Location | null = null;
     abilities: { [key: string]: number };
+    size: number;
     flags: { [key: string]: any } = {};
     private _attackTarget: Character | null = null;
     private _onEncounter: ((character: Character) => Promise<void>) | undefined;
@@ -296,6 +298,7 @@ class Character {
         persist = true,
         following = '',
         buff,
+        size = 1,
     }: CharacterParams) {
         this.name = name;
         this.game = game;
@@ -336,6 +339,7 @@ class Character {
         this.friends = friends;
         this.abilities = powers;
         this.respawns = respawns;
+        console.log(`${this.name} ${this.respawns ? 'will' : "won't"} respawn.`)
         this.respawnLocation = respawnLocationKey || this.location?.key;
         this.persist = persist;
         this.weaponName = weaponName || 'fist';
@@ -355,6 +359,7 @@ class Character {
         this.following = following;
         this.flags = flags;
         if (buff) { this.addBuff(new Buff({ name: 'innate', ...buff })); }
+        this.size = size;
     }
 
     initialize(game: GameState) {
@@ -633,19 +638,22 @@ class Character {
     }
 
     async can_go(direction: string): Promise<boolean> {
+        const newLocation = this.location?.adjacent.get(direction);
         if (!this.location?.adjacent?.has(direction)) {
             console.log(`Can't go ${direction} from ${this.location?.name}.`)
             return false;
-        } else if (!this.location.adjacent.get(direction)) {
+        } else if (!newLocation) {
             console.log(`Unexpected error: ${direction} exists but location is undefined.`);
             return false;
-        }
-        for (let character of this.location.characters) {
-            if (!await character.allowDepart(this, direction)) {
-                console.log(`${this.name} blocked from going ${direction} by ${character.name}`);
-                return false;
+        } else if (
+            newLocation.characters.reduce((sum, character) => sum + character.size, 0) + this.size > newLocation.size || 5
+        )
+            for (let character of this.location.characters) {
+                if (!await character.allowDepart(this, direction)) {
+                    console.log(`${this.name} blocked from going ${direction} by ${character.name}`);
+                    return false;
+                }
             }
-        }
         return true;
     }
 
@@ -662,14 +670,18 @@ class Character {
         }
     }
 
-    async goto(location: string | Location) {
+    async goto(location: string | Location | null) {
+        if (location == null) {
+            this.actionQueue = [];
+            return;
+        }
         if (typeof location === 'string') {
             const loc = this.game.find_location(location);
             if (loc) { location = loc }
             else { return this }
         }
         console.log(`${this.name} goes to ${location.name} from ${this.location?.name}`)
-        if (this.location) this.actionQueue = findPath(this.location, location);
+        if (this.location) this.actionQueue = this.findPath(location);
         console.log(`path is ${this.actionQueue}`)
         return this;
     }
@@ -692,6 +704,11 @@ class Character {
                 await character.encounter(this);
             }
         }
+    }
+
+    findPath(end: Location): string[] {
+        if (!this.location) return [];
+        return findPath(this.location, end, this);
     }
 
     async die(cause?: any) {
@@ -881,7 +898,7 @@ class Character {
         if (!target) target = this.attackTarget;
         if (!target) return;
         await target?.defend(this)
-        if (!target || target.dead || this.dead) return;
+        if (!target || target.dead || this.attackTarget !== target || this.dead) return;
         if (!damage_potential) damage_potential = this.base_damage;
         console.log(`${this.name} attacks ${target.name} with ${JSON.stringify(damage_potential)}`)
 
