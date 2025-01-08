@@ -203,8 +203,8 @@ class A2dCharacter extends Character {
 
         const num_enemies = (
             this.isPlayer
-                ? this.location?.characters.filter(c => c.attackTarget === this).length
-                : this.location?.characters.filter(c => c.attackTarget === this.attackTarget).length
+                ? new Set(this.location?.characters.filter(c => c.attackTarget === this).map(char => char.name)).size
+                : new Set(this.location?.characters.filter(c => c.attackTarget === this.attackTarget).map(char => char.name)).size
         ) || 0
 
         const attackerPronouns = {
@@ -275,7 +275,7 @@ class A2dCharacter extends Character {
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_be} slain instantly.` };
                 if (DT >= 400) { does = `${caps(attackerPronouns.possessive)} arrow goes straight through ${targetPronouns.object}, leaving a gaping hole.` };
                 if (DT >= 1000) { does = `${caps(targetPronouns.subject)} ${t_be} ripped messily in half.` };
-                if (DT >= 2500) { does = `Tiny pieces of ${caps(targetPronouns.subject)} fly in all directions.` };
+                if (DT >= 2500) { does = `Tiny pieces of ${target.name} fly in all directions.` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('shoot')} an arrow at ${targetPronouns.object}!`;
                 break;
             case ("magic"):
@@ -644,18 +644,60 @@ const characters = {
             armor: { blunt: 13, sharp: 20 },
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             alignment: 'ierdale',
+            respawns: false,
         }).dialog(async function (player: Character) {
             const assignMission = async () => {
                 this.game.flags.ierdale_mission = 'yes';
                 print("You are a true hero. GLORY TO IERDALE!")
                 await pause(2)
                 print("Half now, half when you return. You may need this to equip yourself for")
-                print("the journey.")
+                print("the fight.")
                 player.giveItem({ name: 'gold', quantity: 5000 })
                 await pause(2)
                 print("This may also help you - ")
                 color(magenta)
                 print("<recieved pocket ballista>")
+            }
+            const completeMission = async () => {
+                print("You have it!  You have saved us ALL!")
+                await pause(2)
+                player.giveItem({ name: 'gold', quantity: 5000 })
+                print("Here is the rest of your reward. I'm sure that Arach -")
+                await pause(2)
+                color(magenta)
+                print("<thump>")
+                await pause(2)
+                print("<thump>")
+                await pause(1)
+                color(black)
+                print("What was that?")
+                await pause(1)
+                color(magenta)
+                print("<thump>")
+                await pause(2)
+                print("<thump>")
+                await pause(1)
+                color(black)
+                print("Security Guard -- Enemy at the gates!")
+                await pause(3)
+                color(magenta)
+                print("<CRASH!>")
+                await pause(2)
+                color(black)
+                print("Guard Captain -- They've breached the gates! It's time to FIGHT!")
+                const breach_point = this.game.find_location('Eastern Gatehouse')
+                this.goto(breach_point!)
+                this.game.find_character('colonel arach')?.goto(breach_point!)
+                const invading_army = this.game.find_all_characters(['dark angel', 'orcish soldier', 'orcish emissary', 'grogren', 'blobin']).filter(c => !c.dead)
+                invading_army.forEach(c => c.relocate(breach_point))
+                invading_army.push(this.game.addCharacter({ name: 'orc_amazon', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ name: 'orc_behemoth', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ name: 'orc_behemoth', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ name: 'gryphon', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ name: 'gryphon', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ name: 'gryphon', location: breach_point! })!)
+                invading_army.forEach(c => c.goto('Center of Town'))
+                this.game.flags.orc_battle = true
             }
             if (!this.game.flags.biadon) {
                 print("Beware... if you attack me I will call more guards to help me.");
@@ -672,7 +714,7 @@ const characters = {
                 print("most potent weapon, the Mighty Gigasarm. That would weaken their forces and")
                 print("give ours a much needed boost to morale.")
                 print()
-                print("I think you may be up to the task.")
+                print("I've heard good things about you. I think you may be up to the task.")
                 await pause(11)
                 print()
                 print("What do you say? Will you help us?")
@@ -701,7 +743,11 @@ const characters = {
                     print("Come back later if you change your mind.")
                 }
             } else if (this.game.flags.ierdale_mission == 'yes') {
-                print("You have accepted the mission.  Go to Grobin and steal the Mighty Gigasarm.")
+                if (player.has('mighty gigasarm')) {
+                    await completeMission();
+                } else {
+                    print("You have accepted the mission.  Go to Grobin and steal the Mighty Gigasarm!")
+                }
             }
         }).onDeath(async function (player) {
             if (player.isPlayer && !player.flags.enemy_of_ierdale) {
@@ -1699,9 +1745,9 @@ const characters = {
                 }
                 await spells['fire'].call(this, this.attackTarget)
             }
-        }).onEncounter(async function (player: Character) {
-            if (!player.flags.orc_pass && !player.alignment.includes('orc')) {
-                this.fight(player)
+        }).onEncounter(async function (character: Character) {
+            if (!character.flags.orc_pass && !character.alignment.includes('orc')) {
+                this.fight(character)
             };
         }).onAttack(async function (attacker) {
             // pass revoked
@@ -2137,6 +2183,7 @@ const characters = {
             weaponName: 'claymoore',
             attackVerb: 'slice',
             pronouns: pronouns.female,
+            alignment: 'orc',
         }).onAttack(async function (character: Character) {
             if (character.isPlayer) {
                 color(red);
@@ -2160,6 +2207,7 @@ const characters = {
             damage: { blunt: 19, sharp: 16 },
             weaponName: 'mighty warhammer',
             attackVerb: 'club',
+            alignment: 'orc',
         }).onAttack(async function (character: Character) {
             if (character.isPlayer) {
                 color(red);
@@ -3600,6 +3648,7 @@ const characters = {
                 print("You want to kill a poor helpless little KID?")
                 if (await getKey(['y', 'n']) == "n") {
                     print("The devilish side of you regrets that decision.")
+                    player.fight(null)
                     const evil_you = new A2dCharacter({
                         name: `evil ${player.name}`,
                         pronouns: player.pronouns,
@@ -4152,13 +4201,13 @@ const characters = {
             name: 'Henge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 320,
-            damage: { blunt: 20, sharp: 70 },
+            damage: { blunt: 20, sharp: 50 },
             weaponName: 'longsword',
             attackVerb: 'slice',
             items: [{ name: 'gold', quantity: 25 }, 'longsword', 'ring_of_stone'],
             description: 'Henge',
             armor: { blunt: 10, sharp: 50 },
-            buff: { times: { defense: { sharp: 5, blunt: 1 / 2 } } },
+            buff: { times: { defense: { sharp: 2, blunt: 2 } } },
             coordination: 6,
             agility: 4,
             attackPlayer: true,
@@ -4624,6 +4673,7 @@ const characters = {
             damage: { blunt: 19, sharp: 16 },
             weaponName: 'talons',
             attackVerb: 'slice',
+            alignment: 'orc'
         });
     },
 
@@ -4651,7 +4701,7 @@ const characters = {
             name: 'wraith',
             pronouns: pronouns.inhuman,
             max_hp: 640,
-            buff: { times: { defense: { 'fire': 0.1, 'electric': 0.2, 'blunt': 50, 'sharp': 100, 'magic': 10, 'cold': 10, 'poison': 10, 'sonic': 2 }, }, },
+            buff: { times: { defense: { 'fire': 0.1, 'electric': 0.2, 'blunt': 10, 'sharp': 100, 'magic': 10, 'cold': 10, 'poison': 10, 'sonic': 2 }, }, },
             coordination: 27,
             agility: 4,
             damage: { magic: 160 },
@@ -4683,6 +4733,14 @@ const characters = {
             game: game,
             name: 'grogren',
             pronouns: pronouns.male,
+            max_hp: 500,
+            damage: { blunt: 0, sharp: 100 },
+            weaponName: 'spear',
+            attackVerb: 'stab',
+            items: ['spear'],
+            coordination: 10,
+            agility: 10,
+            armor: { blunt: 20, sharp: 20 },
             alignment: 'orc',
         }).dialog(async function (player: Character) {
             if (!this.game.flags.biadon) {
@@ -4690,6 +4748,10 @@ const characters = {
             } else {
                 print("HELP!  We are in desperate need of a General to lead an attack on Ierdale.");
                 print("You look reasonably strong... Talk to my brother Blobin if you are interested.");
+            }
+        }).onEncounter(async function (character: Character) {
+            if (!character.flags.orc_pass && !character.alignment.includes('orc') && !this.fighting) {
+                this.fight(character)
             }
         });
     },
