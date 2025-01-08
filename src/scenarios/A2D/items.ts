@@ -1389,7 +1389,7 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             game: game,
-            buff: { plus: { defense: { blunt: 30, sharp: 30 } } }
+            buff: { times: { defense: { blunt: 2, sharp: 2 } } }
         })
     },
     ring_of_time(game: GameState) {
