@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws';
-import { Landmark, Location, findPath } from './location.js';
+import { Landmark, Location } from './location.js';
 import { Item, ItemParams, Container } from './item.js'
 import { Character, Buff } from './character.js'
 import { randomChoice } from './utils.js'
@@ -239,6 +239,7 @@ abstract class GameState {
                     adjacent: { [key: string]: string | number },
                     x?: number,
                     y?: number,
+                    size?: number,
                     landmarks?: {
                         name: string,
                         description?: string,
@@ -279,6 +280,9 @@ abstract class GameState {
                 name: location.name,
                 key: key.toString(),
                 description: location.description || '',
+                x: location.x,
+                y: location.y,
+                size: location.size
             }));
         }
         for (let [key, location] of this.locations.entries()) {
@@ -355,7 +359,7 @@ abstract class GameState {
         {
             name,
             location,
-            respawn = true,
+            respawn,
             respawnLocation = null,
             respawnCountdown = 0,
             attackPlayer = false,
@@ -389,7 +393,7 @@ abstract class GameState {
         }
         const newCharacter = this.characterTemplates[name as keyof typeof this.characterTemplates](this);
         Object.assign(newCharacter, { respawnLocation, respawnCountdown, attackPlayer, chase, following, actionQueue, timeCounter, persist });
-        newCharacter.respawns = respawn;
+        if (respawn !== undefined) newCharacter.respawns = respawn;
         newCharacter.key = name.toString();
         const newLocation = location instanceof Location ? location : this.find_location(location.toString());
         newLocation?.addCharacter(newCharacter);
