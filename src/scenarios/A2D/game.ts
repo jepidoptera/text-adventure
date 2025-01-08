@@ -29,6 +29,7 @@ class A2D extends GameState {
         henge: boolean,
         cradel: boolean,
         orc_mission: boolean,
+        orc_battle: boolean,
         ierdale_mission: string,
         sift: boolean,
         soldier_dialogue: string[]
@@ -42,6 +43,7 @@ class A2D extends GameState {
             henge: false,
             cradel: false,
             orc_mission: false,
+            orc_battle: false,
             ierdale_mission: '',
             sift: false,
             soldier_dialogue: []
@@ -136,7 +138,7 @@ class A2D extends GameState {
             console.log(`player turncounter: ${this.player.timeCounter}`)
             let activeCharacters = characters.filter(char => char.timeCounter >= 1 && !char.dead);
             while (activeCharacters.length > 0) {
-                for (let character of activeCharacters.sort((a, b) => b.timeCounter - a.timeCounter)) {
+                for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
                     if (!character.dead) {
                         await character.turn();
                         if (character.buffs) {
