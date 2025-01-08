@@ -38,6 +38,7 @@ class Landmark {
 class Location extends Container {
     x: number = 0;
     y: number = 0;
+    size: number = 5;
     name: string;
     game!: GameState;
     key!: string;
@@ -57,7 +58,8 @@ class Location extends Container {
         items = [],
         characters = [],
         x = 0,
-        y = 0
+        y = 0,
+        size = 5
     }: {
         name: string;
         game?: GameState;
@@ -68,6 +70,7 @@ class Location extends Container {
         characters?: Character[];
         x?: number;
         y?: number;
+        size?: number;
     }) {
         super(items);
         this.name = name;
@@ -81,6 +84,7 @@ class Location extends Container {
         };
         this.x = x;
         this.y = y;
+        this.size = size;
     }
     addAction(name: string, action: (player: Character, ...args: any[]) => Promise<any>) {
         this.actions.set(name, action.bind(this));
@@ -146,6 +150,7 @@ class Location extends Container {
         return {
             name: this.name,
             description: this.description,
+            size: this.size,
             characters: [...this._characters].filter(char => char.persist).map(char => (
                 char.save()
             )),
@@ -183,9 +188,13 @@ class NodeInfo {
     }
 }
 
-function findPath(start: Location, goal: Location): string[] {
+function findPath(start: Location, goal: Location, character?: Character): string[] {
     const openSet = new Map<string, NodeInfo>();
     const closedSet = new Map<string, NodeInfo>();
+
+    function heuristic(a: Location, b: Location): number {
+        return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
 
     // Initialize with start location
     openSet.set(start.key, new NodeInfo(
@@ -213,7 +222,14 @@ function findPath(start: Location, goal: Location): string[] {
         const current = currentInfo.location;
 
         if (current.key === goal.key) {
-            return reconstructDirections(currentInfo, closedSet);
+            const directions: string[] = [];
+
+            while (currentInfo?.directionFromParent) {
+                directions.unshift(currentInfo.directionFromParent);
+                currentInfo = currentInfo.parent ? closedSet.get(currentInfo.parent.key) || null : null;
+            }
+
+            return directions;
         }
 
         // Move current from open to closed
@@ -221,7 +237,7 @@ function findPath(start: Location, goal: Location): string[] {
         closedSet.set(current.key, currentInfo);
 
         // Check all neighbors
-        for (const [direction, neighbor] of current.adjacent) {
+        for (const [direction, neighbor] of current.adjacent.entries().filter(([dir, loc]) => character?.can_go(dir) ?? true)) {
             if (closedSet.has(neighbor.key)) continue;
 
             const tentativeG = currentInfo.g + 1;
@@ -249,22 +265,6 @@ function findPath(start: Location, goal: Location): string[] {
     }
 
     return []; // No path found
-}
-
-function heuristic(a: Location, b: Location): number {
-    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-}
-
-function reconstructDirections(current: NodeInfo, closedSet: Map<string, NodeInfo>): string[] {
-    const directions: string[] = [];
-    let currentInfo: NodeInfo | null = current;
-
-    while (currentInfo?.directionFromParent) {
-        directions.unshift(currentInfo.directionFromParent);
-        currentInfo = currentInfo.parent ? closedSet.get(currentInfo.parent.key) || null : null;
-    }
-
-    return directions;
 }
 
 export { Location, Landmark, Container, findPath };
