@@ -227,7 +227,6 @@ class Character {
     attackVerb: WeaponTypes = 'club';
     armor: { [key: string]: Item } = {};
     base_damage: { [key in DamageTypes]: number } = { blunt: 0, sharp: 0, magic: 0, fire: 0, electric: 0, cold: 0, sonic: 0, poison: 0 };
-    base_defense: { [key in DamageTypes]: number } = { blunt: 0, sharp: 0, magic: 0, fire: 0, electric: 0, cold: 0, sonic: 0, poison: 0 };
     readonly buffs: { [key: string]: Buff } = {};
     location: Location | null = null;
     backDirection: string = '';
@@ -344,11 +343,6 @@ class Character {
         this.persist = persist;
         this.weaponName = weaponName || 'fist';
         this.attackVerb = weaponType || 'club';
-        if (armor) {
-            for (let defenseType of Object.keys(armor)) {
-                this.base_defense[defenseType as DamageTypes] += armor[defenseType as DamageTypes] || 0;
-            }
-        }
         if (damage) {
             for (let damageType of Object.keys(damage)) {
                 this.base_damage[damageType as DamageTypes] += damage[damageType as DamageTypes] || 0;
@@ -358,7 +352,7 @@ class Character {
         this.chase = chase;
         this.following = following;
         this.flags = flags;
-        if (buff) { this.addBuff(new Buff({ name: 'innate', ...buff })); }
+        if (buff) { this.addBuff(new Buff({ name: 'innate', plus: { defense: armor }, ...buff })); }
         this.size = size;
     }
 
@@ -451,21 +445,21 @@ class Character {
         const subtract = highRandom(this.buff_defense_additive(damageType));
         const multiplier = this.buff_defense_multiplier(damageType);
         if (subtract != 0 || multiplier != 1) {
-            console.log(`${damageType} damage reduced by ${subtract} and multiplied by ${multiplier} = ${baseAmount - subtract} * ${multiplier}`)
+            console.log(`${Math.round(baseAmount * 10) / 10} ${damageType} damage ${subtract ? `reduced by ${subtract} and` : ''} ${multiplier > 1 ? ` divided by ${multiplier}` : ` multiplied by ${1 / multiplier}`} = ${Math.round((baseAmount - subtract) / multiplier * 10) / 10}`)
         }
         return Math.max((baseAmount - subtract) / multiplier, 0);
     }
 
     get fighting(): boolean {
-        return this.attackTarget !== null && this.attackTarget.location === this.location;
+        return this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
     }
 
     fight(character: Character | null = null) {
         if (this.dead) return;
         console.log(`${this.name} fights ${character?.name || 'nobody'} at ${this.location?.key}.`)
         if (character === null) {
+            this.enemies = this.enemies.filter(name => name != this.attackTarget?.name);
             this._attackTarget = null;
-            this.enemies = [];
             console.log(`${this.name} stops fighting.`)
         } else if (character != this.attackTarget) {
             if (character.location == this.location) {
@@ -555,6 +549,9 @@ class Character {
 
     async slay(character: Character | Character[]) {
         // gloat or whatever
+        if (this.location?.playerPresent) {
+            print(`${this.name} slays ${character instanceof Array ? character.map(char => char.name).join(', ') : character.name}!`)
+        }
         await this._onSlay?.(character);
         const enemiesLeft = this.location?.characters.filter(character => this.enemies.includes(this.name)) || [];
         if (enemiesLeft.length > 0) {
@@ -564,7 +561,7 @@ class Character {
         }
     }
 
-    has = (item_name: string, quantity?: number) => this.inventory.has(item_name, quantity);
+    has(item_name: string, quantity?: number) { return this.inventory.has(item_name, quantity) };
 
     async getItem(itemName: string, location?: Container, quantity?: number) {
         const item = (location || this.location)?.item(itemName);
@@ -597,10 +594,10 @@ class Character {
         }
     }
 
-    async giveItem(item: Item | string | { name: string, quantity: number }, quantity?: number) {
+    async giveItem(item: Item | keyof this['game']['itemTemplates'], quantity?: number) {
         if (!(item instanceof Item)) {
             const tempitem = this.game.addItem(
-                typeof item == 'string' ? { name: item } : item
+                item instanceof Item ? item : { name: item as string, quantity: quantity ?? 1 }
             );
             if (!tempitem) return;
             item = tempitem;
@@ -637,23 +634,28 @@ class Character {
         return this.inventory.item(itemName);
     }
 
-    async can_go(direction: string): Promise<boolean> {
-        const newLocation = this.location?.adjacent.get(direction);
-        if (!this.location?.adjacent?.has(direction)) {
-            console.log(`Can't go ${direction} from ${this.location?.name}.`)
+    async can_go(direction: string, from: Location | null = null): Promise<boolean> {
+        if (!from) from = this.location;
+        if (!from) return false;
+        const newLocation = from.adjacent.get(direction);
+        if (!from.adjacent?.has(direction)) {
+            console.log(`Can't go ${direction} from ${from.name}.`)
             return false;
         } else if (!newLocation) {
             console.log(`Unexpected error: ${direction} exists but location is undefined.`);
             return false;
         } else if (
-            newLocation.characters.reduce((sum, character) => sum + character.size, 0) + this.size > newLocation.size || 5
-        )
-            for (let character of this.location.characters) {
-                if (!await character.allowDepart(this, direction)) {
-                    console.log(`${this.name} blocked from going ${direction} by ${character.name}`);
-                    return false;
-                }
+            newLocation.characters.reduce((sum, character) => sum + character.size, 0) + this.size > (newLocation.size || 5)
+        ) {
+            console.log(`Can't go ${direction} from ${from.name} because it's too crowded.`)
+            return false;
+        }
+        for (let character of from.characters) {
+            if (!await character.allowDepart(this, direction)) {
+                console.log(`${this.name} blocked from going ${direction} by ${character.name}`);
+                return false;
             }
+        }
         return true;
     }
 
@@ -672,13 +674,14 @@ class Character {
 
     async goto(location: string | Location | null) {
         if (location == null) {
+            console.log(`${this.name} goes nowhere.`)
             this.actionQueue = [];
             return;
         }
         if (typeof location === 'string') {
             const loc = this.game.find_location(location);
             if (loc) { location = loc }
-            else { return this }
+            else { console.log(`${location} not found.`); return this }
         }
         console.log(`${this.name} goes to ${location.name} from ${this.location?.name}`)
         if (this.location) this.actionQueue = this.findPath(location);
@@ -936,9 +939,6 @@ class Character {
 
         if (target.dead) {
             await this.slay(target);
-        } else {
-            //special moves
-            await this._fightMove?.()
         }
     }
 
@@ -951,7 +951,7 @@ class Character {
         return damage;
     }
 
-    describeAttack(target: Character, weaponName: string, weaponType: string, damage: number): string {
+    describeAttack(target: Character, weaponName: string, weaponType: string, damage: number, call_attack = false): string {
         console.log(`${this.name} hits ${target.name} for ${damage} damage!`)
         let does = '';
         if (damage < 0) {
@@ -965,12 +965,14 @@ class Character {
     }
 
     async defend(attacker: Character) {
+        // console.log(`${this.name} is under attack by ${attacker.name}!`)
         if (!this.enemies.includes(attacker.name)) {
             this.enemies.push(attacker.name);
         }
         if (!this.fighting) {
+            console.log(`${this.name} fights back against ${attacker.name}!`)
             this.fight(attacker);
-        }
+        } // else { console.log(`${this.name} is already fighting`, this.enemies) }
         for (let character of this.location?.characters ?? []) {
             if (character != this && character.alignment && character.alignment === this.alignment) {
                 console.log(`${character.name} defends ${this.name}!`)
@@ -982,17 +984,13 @@ class Character {
         }
     }
 
-
     async turn() {
-        // onTurn only happens if the character is not fighting.
-        // if they are, fightMove will be called instead.
-        if (!this.fighting) await this._onTurn?.();
         if (this.hp < this.max_hp && !this.fighting) {
             this.recoverStats({ hp: this.hp_recharge * this.max_hp, mp: this.mp_recharge * this.max_mp, sp: this.sp_recharge * this.max_sp });
             console.log(`${this.name} heals to ${this.hp} hp`)
         }
         this.enemies = this.enemies.filter(enemy => enemy);
-        if (!this.fighting) {
+        if (!this.attackTarget) {
             for (let enemy of this.game.find_all_characters(this.enemies)) {
                 if (enemy.location === this.location) {
                     console.log(`${this.name} picks a fight with ${enemy.name}.`)
@@ -1001,6 +999,7 @@ class Character {
                 }
             }
             if (this.attackPlayer) {
+                // console.log(`${this.name} is looking for a player to fight.`)
                 for (let character of this.location?.characters ?? []) {
                     if (character.isPlayer) {
                         this.fight(character);
@@ -1012,16 +1011,22 @@ class Character {
         if (this.attackTarget?.location === this.location) {
             // console.log(`${this.name} attacks ${this.attackTarget.name}!`)
             await this.attack(this.attackTarget, this.weaponName, this.base_damage);
-            return;
         } else if (this.actionQueue.length > 0) {
             const action = this.actionQueue.shift()!;
             console.log(`${this.name} next action: ${action}`)
-            if (this.location?.adjacent.keys().some(key => key === action)) {
+            if (this.location?.adjacent.has(action)) {
                 await this.go(action);
             }
             else {
                 console.log(`${this.name} can't go ${action}`)
+                // try again next turn
+                this.actionQueue.unshift(action);
             }
+        }
+        if (this.fighting) {
+            await this._fightMove?.();
+        } else {
+            await this._onTurn?.();
         }
     }
 
