@@ -22,16 +22,21 @@ X offhand
 X fix incorrectly naming multi-named monsters after save/load
 X implement aStar pathfinding
 X key buffer in client
+X use list of strings for enemies and friends (unique ID?)
+X bows
+X use <color> in print statements
+X + and x buffs
+X damage/defense buffs
+/ map of the (human) world
+
 / spells (trance, transport and vanish)
-
-two-handed weapons
+  two-handed weapons
 / context switching to support multiple games at once
-robust gameState map on server
-list of existing (player) character names, enforce uniqueness
-use list of strings for enemies and friends (unique ID?)
-onTimer event
-pets
-bows
-strictly separate code files from content files
-/ Orc town
-
+  robust gameState map on server
+  list of existing (player) character names, enforce uniqueness
+  onTimer event
+  pets
+/ strictly separate code files from content files
+/ battle royal vs orcs
+  battle royal vs humans
+  revamp timing system (each action takes a specific amount of time, pop next action from the queue when character.timeCounter > action.timeNeeded)
