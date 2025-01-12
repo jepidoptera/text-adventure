@@ -77,7 +77,7 @@ function renderScreen() {
 // Function to set current colors
 function color(fg, bg) {
     currentColor.bg = bg || currentColor.bg;
-    currentColor.fg = fg;
+    currentColor.fg = fg || currentColor.fg;
 }
 
 // Function to move the cursor to a specific location
