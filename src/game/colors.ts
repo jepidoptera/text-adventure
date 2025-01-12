@@ -15,5 +15,22 @@ const brightmagenta = "#F0F";
 const yellow = "#FF0";
 const white = "#FFF";
 const qbColors = [black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white];
-
-export { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors };
+const colorDict = {
+    black: black,
+    blue: blue,
+    green: green,
+    cyan: cyan,
+    red: red,
+    magenta: magenta,
+    orange: orange,
+    darkwhite: darkwhite,
+    gray: gray,
+    brightblue: brightblue,
+    brightgreen: brightgreen,
+    brightcyan: brightcyan,
+    brightred: brightred,
+    brightmagenta: brightmagenta,
+    yellow: yellow,
+    white: white
+}
+export { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors, colorDict };
