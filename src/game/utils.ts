@@ -1,5 +1,5 @@
 import { Character } from './character.js';
-import { black, red } from './colors.js';
+import { black, red, colorDict } from './colors.js';
 function caps(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
@@ -101,4 +101,37 @@ function printCharacters({
     }
 }
 
-export { caps, plural, singular, randomChoice, highRandom, lineBreak, printCharacters };
+const validColors = Object.keys(colorDict);
+const colorPattern = validColors.join('|');
+const tagPattern = new RegExp(`<((?:${colorPattern})?)?(?:,\\s*((?:${colorPattern})?))?>`, 'g');
+
+function parseColoredText(text: string): [string, string][] {
+    const result: [string, string][] = [];
+    let lastIndex = 0;
+    let currentColors: string | null = null;
+
+    for (const match of text.matchAll(tagPattern)) {
+        const matchStart = match.index!;
+        const matchEnd = matchStart + match[0].length;
+
+        // Add text between last match and this color tag
+        if (matchStart > lastIndex) {
+            const textContent = text.slice(lastIndex, matchStart);
+            result.push([currentColors || '', textContent]);
+        }
+
+        // Update current colors
+        const [_, fg, bg] = match;
+        currentColors = `${fg || ''},${bg || ''}`;
+        lastIndex = matchEnd;
+    }
+
+    // Add any remaining text
+    if (lastIndex < text.length) {
+        result.push([currentColors || '', text.slice(lastIndex)]);
+    }
+
+    return result;
+}
+
+export { caps, plural, singular, randomChoice, highRandom, lineBreak, printCharacters, parseColoredText };
