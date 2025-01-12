@@ -44,8 +44,8 @@ const buffs: { [key: string]: BuffCreator } = {
         }).onTurn(async function () {
             // declines linearly
             this.power *= this.duration / (this.duration + 1);
-            this.times.strength = Math.ceil(this.power);
-            this.times.coordination = this.power / 4;
+            this.plus.strength = Math.ceil(this.power);
+            this.plus.coordination = this.power / 4;
             if (this.character.isPlayer && this.power > 0) {
                 color(brightred);
                 print(`Bloodlust: ${Math.ceil(this.power)}`);
@@ -60,6 +60,21 @@ const buffs: { [key: string]: BuffCreator } = {
             plus: {
                 strength: -Math.ceil(power),
             },
+        })
+    },
+    blindness: ({ power, duration }: { power: number, duration: number }) => {
+        return new Buff({
+            name: 'blindness',
+            duration: duration,
+            power: power,
+            times: {
+                coordination: 1 / power,
+            },
+        }).onExpire(async function () {
+            if (this.character.isPlayer) {
+                color(brightcyan);
+                print("You can see again.");
+            }
         })
     },
     poison: ({ power, duration }: { power: number, duration: number }) => {
