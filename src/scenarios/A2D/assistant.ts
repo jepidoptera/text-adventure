@@ -52,13 +52,13 @@ const hintParams: hintParameters[] = [
         condition: (player: Player) => true,
     }, {
         name: 'flee',
-        text: ['type "flee" to run away.'],
+        text: ['you can type "flee" to run away.'],
         condition: (player: Player) => player.fighting && player.hp < 10,
         repeats: 5
     }, {
         name: 'fight',
-        text: ['type "attack clubman" to attack.'],
-        condition: (player: Player) => player.location?.characters.some(character => character.name === 'clubman') || false,
+        text: ['type "attack clubman" to smash this loser.'],
+        condition: (player: Player) => (player.location?.characters.some(character => character.name === 'clubman') ?? false) && !player.fighting,
     }, {
         name: 'wield',
         text: [
@@ -66,6 +66,20 @@ const hintParams: hintParameters[] = [
             'type "wield club" to equip a weapon.'
         ],
         condition: (player: Player) => player.fighting && player.equipment['right hand']?.name == 'fist',
+    }, {
+        name: 'check equipment',
+        text: [
+            'type "equipment" to see your gear.',
+        ],
+        condition: (player: Player) => !player.fighting && player.equipment['right hand']?.name !== 'fist',
+    }, {
+        name: 'get item',
+        text: [],
+        condition: function (player: Player) {
+            if (player.location?.items.length == 0) return false;
+            this.text = [`type "get ${player.location?.items[0].name}" to pick it up.`];
+            return true;
+        },
     }, {
         name: 'cast spell',
         text: [`type "cast bolt" to cast a spell.`],
@@ -80,10 +94,16 @@ const hintParams: hintParameters[] = [
         condition: (player: Player) => player.max_hp - player.hp > player.healing && !player.lastCommand.slice(0, 5).includes('heal'),
         repeats: 3
     }, {
+        name: 'stats',
+        text: [
+            'type "stats" to check your stats.'
+        ],
+        condition: (player: Player) => player.lastCommand[0]?.includes('train'),
+    }, {
         name: 'die',
         text: [
             "Next time be careful when you choose your fights, though",
-            "sometimes its good to be darring and explore new areas where",
+            "sometimes its good to be daring and explore new areas where",
             "creatures may not be so friendly",
         ],
         condition: (player: Player) => player.dead,
@@ -125,7 +145,7 @@ const hintParams: hintParameters[] = [
     }, {
         name: 'arach2',
         text: [
-            "talk to the colonel again.",
+            "talk to the colonel again - you have something he wants.",
         ],
         condition: (player: Player) => player.location?.name == "Center of Town" && player.has('bug repellent'),
     }
