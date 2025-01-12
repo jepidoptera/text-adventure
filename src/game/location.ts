@@ -43,7 +43,6 @@ class Location extends Container {
     game!: GameState;
     key!: string;
     adjacent: Map<string, Location>;
-    adjacent_ids: { [key: string]: string | number } = {};
     description: string | undefined;
     private _characters: Set<Character> = new Set();
     landmarks: Landmark[] = [];
@@ -77,7 +76,6 @@ class Location extends Container {
         this.game = game as GameState;
         this.key = key.toString();
         this.description = description;
-        this.adjacent_ids = adjacent;
         this.adjacent = new Map();
         for (let character of characters) {
             this.addCharacter(character);
@@ -122,6 +120,10 @@ class Location extends Container {
         landmark._actions.forEach((_, name) => {
             this.actions.delete(name)
         });
+        return this;
+    }
+    clearLandmarks() {
+        this.landmarks = [];
         return this;
     }
     enter(character: Character) {
@@ -237,9 +239,9 @@ function findPath(start: Location, goal: Location, character?: Character): strin
         closedSet.set(current.key, currentInfo);
 
         // Check all neighbors
-        for (const [direction, neighbor] of current.adjacent.entries().filter(([dir, loc]) => character?.can_go(dir) ?? true)) {
+        for (const [direction, neighbor] of current.adjacent) {
             if (closedSet.has(neighbor.key)) continue;
-
+            if (!character?.can_go(direction, current)) continue;
             const tentativeG = currentInfo.g + 1;
             let neighborInfo = openSet.get(neighbor.key);
 
