@@ -5,11 +5,11 @@ import { getBuff } from './buffs.js';
 import { WeaponTypes } from '../../game/item.js';
 import { highRandom, randomChoice } from '../../game/utils.js';
 type SpellAction = (this: A2dCharacter, target: Character) => Promise<void>;
-const abilityLevels = ["Novice", "Ameteur", "Competent", "Proficient", "Adept", "Expert", "Master", "Ultimate"]
+const abilityLevels = ["None", "Novice", "Ameteur", "Competent", "Proficient", "Adept", "Expert", "Master", "Ultimate"]
 const spellPower = 1.0860331325016919
 
 const spells: Record<string, SpellAction> = {
-    newbie: async function (target: Character) {
+    newbie: async function (this: A2dCharacter, target: Character) {
         if (!checkRequirements.call(this, 'newbie', (2 + this.abilities['newbie']) / 4)) return;
         color(brightred);
         if (this.isPlayer) print(`You send a bolt of sputtering newbie magic at ${target.name}.`);
@@ -23,7 +23,7 @@ const spells: Record<string, SpellAction> = {
     },
     // I want bolt, fire and blades to be relatively on a par with each other.
     // they'll differ more qualitatively than quantitatively.
-    bolt: async function (target: Character) {
+    bolt: async function (this: A2dCharacter, target: Character) {
         // bolt is low cost, low damage, high accuracy.
         if (!checkRequirements.call(this, 'bolt', 4 + this.abilities['bolt'] / 2)) return;
         color(brightred);
@@ -138,7 +138,7 @@ function checkRequirements(this: A2dCharacter, spellName: string, magicCost: num
     } else if (this.mp < magicCost) {
         if (this.isPlayer) print("You don't have enough magic.");
         return false;
-    } else if (!this.fighting) {
+    } else if (!this.attackTarget) {
         if (this.isPlayer) print("There is no target for that spell.");
         return false;
     }
@@ -165,8 +165,10 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
             damage = Math.max(target.modify_damage(damage, damageType), 0);
             console.log(`${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
         }
-        color(damage ? black : gray)
-        print(this.describeAttack(target, spellName, weaponType, damage, false))
+        if (this.location?.playerPresent) {
+            color(damage ? black : gray)
+            print(this.describeAttack(target, spellName, weaponType, damage, false))
+        }
         if (damage >= target.hp) {
             casualties.push(target)
             damage = (damage - target.hp) * damage_overflow

@@ -26,7 +26,7 @@ const items = {
             size: 0.02,
             game: game,
         }).on_acquire(async function (player) {
-            player.giveItem({ name: 'gold', quantity: this.quantity ?? 1 })
+            player.giveItem('gold', this.quantity ?? 1)
             player.removeItem(this)
             color(yellow)
             print(`Got ${this.quantity ?? 0} GP`)
@@ -74,7 +74,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 8.5
-            player.sp += 12
+            player.recoverStats({ sp: 12 })
         })
     },
     satchel_of_peas(game: GameState) {
@@ -85,7 +85,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 10
-            player.sp += 10
+            player.recoverStats({ sp: 10 })
         })
     },
     banana(game: GameState) {
@@ -96,7 +96,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 8
-            player.sp += 8
+            player.recoverStats({ sp: 8 })
         })
     },
     side_of_meat(game: GameState) {
@@ -107,7 +107,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 80
-            player.sp += 60
+            player.recoverStats({ sp: 60 })
         })
     },
     chicken_leg(game: GameState) {
@@ -118,7 +118,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 10
-            player.sp += 20
+            player.recoverStats({ sp: 20 })
         })
     },
     dog_steak(game: GameState) {
@@ -129,7 +129,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 40
-            player.sp += 40
+            player.recoverStats({ sp: 40 })
         })
     },
     asparagus(game: GameState) {
@@ -140,8 +140,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 30
-            player.sp += 30
-            player.hp += 5
+            player.recoverStats({ sp: 30, hp: 5 })
         })
     },
     muffin(game: GameState) {
@@ -152,7 +151,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 15
-            player.sp += 15
+            player.recoverStats({ sp: 15 })
         })
     },
     wheel_of_cheese(game: GameState) {
@@ -163,7 +162,7 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 40
-            player.sp += 40
+            player.recoverStats({ sp: 40 })
             player.mp += 5
         })
     },
@@ -174,7 +173,7 @@ const items = {
             value: 22,
             game: game
         }).on_eat(async function (player) {
-            player.sp += 40;
+            player.recoverStats({ sp: 40 });
             player.hunger -= 40;
         })
     },
@@ -204,7 +203,7 @@ const items = {
             value: 10,
             game: game
         }).on_eat(async function (player) {
-            player.sp += 10
+            player.recoverStats({ sp: 10 })
             player.hunger -= 20
         })
     },
@@ -327,7 +326,7 @@ const items = {
             size: 0.4,
             game: game
         }).on_drink(async function (player) {
-            player.hp += 10;
+            player.recoverStats({ hp: 10 });
         })
     },
     clear_liquid(game: GameState) {
@@ -1178,6 +1177,43 @@ const items = {
             print(" - some clear liquid")
             print()
             print("Find a pot and, 'mix potion'")
+        })
+    },
+    map(game: GameState) {
+        return new Item({
+            name: 'map',
+            size: 0.1,
+            value: 0,
+            game: game
+        }).on_read(async function (player) {
+            print([
+                ' !----------------------------------------------------------------------------!',
+                ' !                               <green, black>▓▓&▓▓▓▓▓▓▓▓▓<black, darkwhite>                                 !',
+                ' !                           <green, black>▓▓▓▓▓▓▓▓▓▓▓▓▓&▓▓▓▓▓<black, darkwhite>                              !',
+                ' !                         <green, black>▓▓▓▓▓Forest of▓▓▓▓▓&▓▓▓▓<black, darkwhite>                           !',
+                ' !                            <green, black>▓▓▓Thieves▓▓▓▓▓▓▓▓<black, darkwhite>                              !',
+                ' !                          <green, black>▓▓▓&▓▓▓▓▓▓▓▓▓▓▓▓<black, darkwhite>                                  !',
+                ' !                                    <gray, black>▥<black, darkwhite>                                       !',
+                ' !                                    |---farm->                              !',
+                ' !                          security--|--barracks     <darkwhite, orange>░░░░░░░░░░░░░░░<black, darkwhite>         !',
+                ' !               <brightgreen, gray>▒▒▒▒▒▒▒▒▒<black, darkwhite>     books--|--pets         <darkwhite, orange>░░░░░░░░░░░░░░░░░░<black, darkwhite>      !',
+                ' !              <brightgreen, gray>▒swamp▒▒▒▒<black, darkwhite>   pawnshop-|--grocer        <darkwhite, orange>░░░░░Desert░░░░░░░░<black, darkwhite>    !',
+                ' !             <brightgreen, gray>▒▒▒▒▒▒▒▒▒▒▒▒▒<black, darkwhite>  /\\   /\\ |--blacksmith      <darkwhite, orange>░░░░░░░░░░░░░░░<black, darkwhite>      !',
+                ' !  <green>"  "<black>                |     ██ ↑ ██ |                            |          !',
+                ' !  <green>grass<black> ------------<gray, black>▥<black, darkwhite>-------clubmen-<red>X<black><-<white>you are here-<gray, black>▥<black, darkwhite>---//---------<gray>castle<black>-> !',
+                ' !  <green>" land "<black> |              | /\\ ↓ /\\ |        |      |          |            !',
+                ' !    <green>" "<black>    |              O ██   ██ |        B      F          |            !',
+                ' !           |              a         |        e      e        Path           !',
+                ' !     <darkwhite, gray>^/  ^ <black>|  <, darkwhite>            k   .     | Eldin--e      r          |            !',
+                ' !    <darkwhite, gray>^/     ^/  <black, darkwhite>           |         |        t      n st.     of            !',
+                ' !   <darkwhite, gray> Mountains    <black, darkwhite>         |--alley--|-alley---------|          |            !',
+                ' !   <darkwhite, gray>/     /^     ^\\<black, darkwhite>        st.                st.    |         Nod           !',
+                ' !     <darkwhite, gray>^      /  <black, darkwhite>                                  Doo Dad       |            !',
+                ' !                                                   Man         |            !',
+                ' !                                                               ?            !',
+                ' !----------------------------------------------------------------------------!',
+            ].join('\n'))
+            await getKey()
         })
     },
     lute_de_lumonate(game: GameState) {

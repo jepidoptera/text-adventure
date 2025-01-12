@@ -93,7 +93,20 @@ const scenario = {
         },
         10: {
             name: "East Road",
-            adjacent: { 'north': 135, 'east': 93, 'south': 305, 'west': 9 }
+            adjacent: { 'north': 135, 'east': 10.1, 'south': 305, 'west': 9 }
+        },
+        10.1: {
+            name: "East Road",
+            adjacent: { 'north': 10.2, 'east': 93, 'west': 10 }
+        },
+        10.2: {
+            name: "House",
+            adjacent: { 'south': 10.1, 'down': 10.3 },
+        },
+        10.3: {
+            name: "Basement",
+            adjacent: { 'up': 10.2 },
+            characters: [{ name: 'ultra_clubman' }]
         },
         11: {
             name: "West Road",
@@ -696,10 +709,47 @@ const scenario = {
         },
         93: {
             name: "Eastern Gatehouse",
-            adjacent: { 'east': 95, 'west': 10 },
+            adjacent: { 'east': 95, 'west': 10.1, 'south': 93.1 },
             characters: [{ name: 'security_guard' }, { name: 'security_guard' }],
             landmarks: [{ name: 'locked_gate' }
             ]
+        },
+        93.1: {
+            name: "Fern Street",
+            adjacent: { 'north': 93, 'south': 93.2 }
+        },
+        93.2: {
+            name: "Fern Street",
+            adjacent: { 'east': 93.25, 'north': 93.1, 'south': 93.3 }
+        },
+        93.25: {
+            name: "House",
+            adjacent: { 'west': 93.2 }
+        },
+        93.3: {
+            name: "Fern Street",
+            adjacent: { 'east': 93.35, 'north': 93.2, 'south': 93.4 }
+        },
+        93.35: {
+            name: "House",
+            adjacent: { 'west': 93.3 }
+        },
+        93.4: {
+            name: "Fern Street",
+            adjacent: { 'west': 93.5, 'north': 93.3, 'south': 362, }
+        },
+        93.5: {
+            name: "Alleyway",
+            adjacent: { 'east': 93.4, 'west': 93.6 }
+        },
+        93.6: {
+            name: "Alleyway",
+            adjacent: { 'east': 93.5, 'west': 308, 'north': 93.7 }
+        },
+        93.7: {
+            name: "Junk Pile",
+            adjacent: { 'south': 93.6 },
+            items: [{ name: 'pile_of_gold', quantity: 156 }]
         },
         94: {
             name: "West Road",
@@ -744,8 +794,7 @@ const scenario = {
         97: {
             name: "East Road",
             adjacent: { 'east': 96, 'west': 95 },
-            landmarks: [{ name: 'slash_in_the_earth' }
-            ]
+            landmarks: [{ name: 'slash_in_the_earth' }]
         },
         98: {
             name: "West Road, Forks South",
@@ -964,6 +1013,7 @@ const scenario = {
         133: {
             name: "Courtroom",
             adjacent: { 'north': 132 },
+            size: 10,
             characters: [{ name: 'chief_judge' }, { name: 'jury_member' }, { name: 'jury_member' }, { name: 'jury_member' }, { name: 'jury_member' }]
         },
         134: {
@@ -1807,7 +1857,7 @@ const scenario = {
         },
         308: {
             name: "Beet Street",
-            adjacent: { 'north': 307, 'south': 281, 'west': 311 }
+            adjacent: { 'north': 307, 'south': 281, 'west': 311, 'east': 93.6 }
         },
         309: {
             name: "Music Store",
@@ -1988,21 +2038,6 @@ const scenario = {
         325: {
             name: "Dry Grass",
             adjacent: { 'east': 324, 'south': 327, 'west': 328 },
-            landmarks: [{
-                name: 'sign',
-                text: [
-                    "<%%%%%%%%%%%%%%%%%%%%%%%%%%%%>",
-                    " |  Hi, I sell doo-dads     |",
-                    " |    Here they are:        |",
-                    " |                          |",
-                    " | rod              - 200 gp|",
-                    " | wishbone         - 45 gp |",
-                    " |                          |",
-                    " | type 'buy <item name>'   |",
-                    " |then type: use <item name>|",
-                    " |/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/"
-                ]
-            }]
         },
         326: {
             name: "Dry Grass",
@@ -2165,7 +2200,7 @@ const scenario = {
         },
         350: {
             name: "Blobin Street",
-            adjacent: { 'north': 344, 'east': 362, 'south': 351, 'west': 367 },
+            adjacent: { 'north': 344, 'south': 351, 'west': 367 },
             characters: [{ name: 'peon' }]
         },
         351: {
@@ -2226,8 +2261,23 @@ const scenario = {
         },
         362: {
             name: "Doo-Dad Shop",
-            adjacent: { 'west': 350 },
-            characters: [{ name: 'doo_dad_man' }]
+            adjacent: { 'north': 93.4 },
+            characters: [{ name: 'doo_dad_man' }],
+            landmarks: [{
+                name: 'sign',
+                text: [
+                    "<%%%%%%%%%%%%%%%%%%%%%%%%%%%%>",
+                    " |  Hi, I sell doo-dads     |",
+                    " |    Here they are:        |",
+                    " |                          |",
+                    " | rod              - 200 gp|",
+                    " | wishbone         - 45 gp |",
+                    " |                          |",
+                    " | type 'buy <item name>'   |",
+                    " |then type: use <item name>|",
+                    " |/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/"
+                ]
+            }]
         },
         363: {
             name: "Orcish Stronghold",
@@ -2441,18 +2491,7 @@ const scenario = {
         },
     },
     flags: {
-        cleric: false,
-        ieadon: false,
-        colonel_arach: false,
-        biadon: false,
-        ziatos: false,
-        turlin: false,
-        henge: false,
-        cradel: false,
-        orc_mission: false,
-        ierdale_mission: '',
-        sift: false,
-        soldier_dialogue: []
+        orc_battle: false,
     }
 }
 
@@ -2468,6 +2507,42 @@ const locationTemplates = {
             ...params
         }
     },
+    stony_bridge(
+        game: GameState,
+        params?: any
+    ) {
+        return {
+            name: "Stony Bridge",
+            adjacent: { 'north': 315 },
+            game: game,
+            ...params
+        }
+        // 'They jump off bridge
+        // SetColor 1, 1
+        // CLS
+        // Call Pause(2)
+        // SetColor 1, 7
+        // CLS
+        // Quote "Without heeding the warnings of the sign, you PLUNGE into the dark water."
+        // Call Pause(3.5)
+        // Quote
+        // Quote "It catches you offguard with its shrill, bitter cold, cutting you to your core."
+        // Quote "With a cry of terror, you struggle to grab hold of the bridge once more..."
+        // Call Pause(6)
+        // Quote
+        // Quote "Its too late... the bridge slips away out of sight and the banks of the"
+        // Quote "river grow farther and farther away."
+        // Call Pause(5)
+        // Quote
+        // Quote "Slowly you sink, first to your mouth, then your nose, then your ears."
+        // Quote "And yet... You aren't drowning..."
+        // Call Pause(4.5)
+        // Quote
+        // Quote "Some cruel sorccery keeps you alive, forever, floating in this Underwater Abbys"
+        // Call Pause(4)
+        // SetColor 0
+        // Move 315
+    }
 }
 
 export { scenario, locationTemplates }

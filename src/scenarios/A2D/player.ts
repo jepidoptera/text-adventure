@@ -13,6 +13,7 @@ import { assistant } from "./assistant.js"
 import { isValidItemKey } from "./items.js"
 
 type EquipmentSlot = 'right hand' | 'left hand' | 'bow' | 'armor' | 'ring';
+const equipmentSlots = ['right hand', 'left hand', 'bow', 'armor', 'ring'] as const;
 type StatKey = BaseStats | `${DamageTypes}_damage` | `${DamageTypes}_defense`;
 
 class Player extends A2dCharacter {
@@ -39,6 +40,7 @@ class Player extends A2dCharacter {
     flags: {
         assistant: boolean,
         enemy_of_ierdale: boolean,
+        enemy_of_orcs: boolean,
         murders: number,
         forest_pass: boolean,
         orc_pass: boolean,
@@ -48,6 +50,7 @@ class Player extends A2dCharacter {
     } = {
         assistant: false,
         enemy_of_ierdale: false,
+        enemy_of_orcs: true,
         murders: 0,
         forest_pass: false,
         orc_pass: false,
@@ -60,6 +63,7 @@ class Player extends A2dCharacter {
 
     constructor(characterName: string, className: string, game: GameState) {
         super({ name: characterName, game: game });
+        this.size = -5;
         this.game.addItem({ name: "banana", container: this.inventory })
         this.game.addItem({ name: "side_of_meat", container: this.inventory })
         this.game.addItem({ name: "club", container: this.inventory })
@@ -430,7 +434,7 @@ class Player extends A2dCharacter {
     }
 
     async defend(attacker: Character) {
-        if (!this.fighting) await this.bow_attack(attacker);
+        if (!this.fighting && this.equipment['bow']) await this.bow_attack(attacker);
         await super.defend(attacker);
     }
 
@@ -520,7 +524,7 @@ class Player extends A2dCharacter {
             print("You don't have that.")
         }
         else if (item.read) {
-            item.read();
+            await item.read();
         }
         else {
             print("You can't read that.")
@@ -557,14 +561,15 @@ class Player extends A2dCharacter {
     }
 
     async checkInventory() {
-        let lines = 4;
+        let lines = 3;
         async function nextLine() {
             lines += 1;
-            if (lines > 25) {
+            if (lines > 23) {
                 color(black)
                 print('more, press a key...')
                 await getKey();
                 lines = 0;
+                locate(0, 24);
             }
         }
         color(green, black)
@@ -599,13 +604,11 @@ class Player extends A2dCharacter {
         print()
         color(black)
         print("Wielded:         ", 1)
-        await nextLine();
         color(gray)
         print(this.equipment['right hand']?.name ?? 'fist')
         await nextLine();
         color(black)
         print("Left Wielded:    ", 1)
-        await nextLine();
         color(gray)
         print(this.equipment['left hand']?.name ?? 'fist')
         await nextLine();
@@ -616,20 +619,19 @@ class Player extends A2dCharacter {
         await nextLine();
         color(black)
         print("Armor:           ", 1)
-        await nextLine();
         color(gray)
         print((this.equipment['armor'] ? this.equipment['armor'].name : 'none'))
+        await nextLine();
         if (this.equipment['ring']) {
-            await nextLine();
             color(blue)
             print("Ring:            " + this.equipment['ring'].name)
+            await nextLine();
         }
         if (this.item('arrows')?.quantity) {
-            await nextLine();
             color(orange)
             print("Arrows:          " + this.item('arrows')?.quantity)
+            await nextLine();
         }
-        await nextLine();
         color(yellow)
         print(`${this.item('gold')?.quantity ?? 0} GP`)
         color(green, black)
@@ -761,7 +763,6 @@ class Player extends A2dCharacter {
             await item.equip(this);
         }
     }
-
     async checkEquipment() {
         const slot_titles = {
             'right hand': 'Wielded',
@@ -883,7 +884,7 @@ class Player extends A2dCharacter {
     async spell(spellName: string) {
         color(black)
         if (this.abilities[spellName]) {
-            await spells[spellName].call(this, this.attackTarget ?? this);
+            await spells[spellName].call(this, this.attackTarget || this);
         } else {
             console.log(`${spellName} failed.`)
             console.log(this.abilities)
@@ -919,6 +920,11 @@ class Player extends A2dCharacter {
                 print(`Assistant -- Type \"wear ${item.name}\" to equip it.`)
             }
         }
+    }
+
+    has = (item_name: string, quantity: number = 1) => {
+        // count both inventory and equipment
+        return this.itemCount(item_name) + equipmentSlots.filter(slot => this.equipment[slot]?.name == item_name).length >= quantity;
     }
 
     async checkHP() {
@@ -1121,7 +1127,6 @@ class Player extends A2dCharacter {
         print('!')
         color(black)
         for (let char of character) {
-            await super.slay(char);
             exp_gained += char.exp_value;
             if (char.has('gold')) {
                 gold_gained += char.itemCount('gold');
@@ -1139,8 +1144,9 @@ class Player extends A2dCharacter {
         this.experience += exp_gained;
 
         // who else wants some??
-        const enemies_remaining = this.location?.characters.filter(char => char !== this && char.attackTarget === this);
+        const enemies_remaining = this.location?.characters.filter(char => char !== this && char.attackTarget === this || char.enemies.includes(this.name));
         if (enemies_remaining?.length) {
+            await getKey();
             // group them by name and list them
             printCharacters({ characters: enemies_remaining, capitalize: true });
             print(` ${enemies_remaining.length > 1 ? 'continue' : 'continues'} the attack!`)
@@ -1153,8 +1159,13 @@ class Player extends A2dCharacter {
             assistant(this);
 
         await this.getInput();
-        this.enemies = [];
         if (this.fighting) {
+            if (!this.attackTarget || this.attackTarget.dead) {
+                this.fight(this.location?.characters.find(char => {
+                    return char.attackTarget === this || char.enemies.includes(this.name) || this.enemies.includes(char.name)
+                }) || null);
+            }
+            if (!this.attackTarget) { return }
             this.useWeapon('right hand');
             await this.attack(
                 this.attackTarget,
@@ -1345,7 +1356,14 @@ class Player extends A2dCharacter {
                             break;
                         case ('ierdale'):
                             this.flags.enemy_of_ierdale = !this.flags.enemy_of_ierdale;
+                            for (let char of this.game.characters.filter(char => char.enemies.includes(this.name))) {
+                                char.enemies = char.enemies.filter(name => name !== this.name)
+                            }
                             break;
+                        case ('biadon'):
+                            this.game.flags.biadon = !this.game.flags.biadon;
+                        case ('ierdale_mission'):
+                            this.game.flags.ierdale_mission = '';
                         case ('pass'):
                             this.flags.forest_pass = !this.flags.forest_pass;
                             break;
