@@ -2,7 +2,8 @@ import { WebSocket } from 'ws';
 import { Landmark, Location } from './location.js';
 import { Item, ItemParams, Container } from './item.js'
 import { Character, Buff } from './character.js'
-import { randomChoice } from './utils.js'
+import { randomChoice, parseColoredText } from './utils.js'
+import { colorDict } from './colors.js';
 
 abstract class GameState {
     static current: GameState | null = null;
@@ -40,7 +41,17 @@ abstract class GameState {
         (global as any).clear = this.clear.bind(this);
     }
     quote(text?: string, extend?: any) {
-        this.batchCommands.push({ command: 'print', text, extend });
+        const textLines = parseColoredText(text || '');
+        if (textLines.length == 0) {
+            this.batchCommands.push({ command: 'print', text: text, extend });
+        } else {
+            for (let i = 0; i < textLines.length; i++) {
+                const [color, text] = textLines[i];
+                const [fg, bg] = color.split(',');
+                if (fg || bg) this.batchCommands.push({ command: 'color', fg: colorDict[fg as keyof typeof colorDict], bg: colorDict[bg as keyof typeof colorDict] });
+                this.batchCommands.push({ command: 'print', text: text, extend: i == textLines.length - 1 ? extend : 1 });
+            }
+        }
     }
     clear() {
         this.batchCommands.push({ command: 'clear' });
@@ -323,7 +334,9 @@ abstract class GameState {
                 this.addItem({ name: item.key || item.name || '', quantity: item.quantity || 1, container: location });
             }
         }
-        this.flags = scenario.flags;
+        for (const flag of Object.keys(scenario.flags)) {
+            this.flags[flag] = scenario.flags[flag];
+        };
     }
 
     animate_characters() {
@@ -359,21 +372,22 @@ abstract class GameState {
         {
             name,
             location,
-            respawn,
+            respawns,
             respawnLocation = null,
             respawnCountdown = 0,
-            attackPlayer = false,
-            chase = false,
+            attackPlayer,
+            chase,
             following = '',
             actionQueue = [],
             timeCounter = 0,
-            persist = true,
+            persist,
             items,
-            buffs
+            buffs,
+            flags
         }: {
             name: K,
             location: string | number | Location,
-            respawn?: boolean,
+            respawns?: boolean,
             respawnLocation?: string | number | null,
             respawnCountdown?: number,
             attackPlayer?: boolean,
@@ -383,7 +397,8 @@ abstract class GameState {
             timeCounter?: number,
             persist?: boolean,
             buffs?: { name: string, power: number, duration: number }[],
-            items?: { name?: string, key?: string, quantity: number }[]
+            items?: { name?: string, key?: string, quantity: number }[],
+            flags?: { [key: string]: any }
         }
     ) {
 
@@ -392,8 +407,17 @@ abstract class GameState {
             return;
         }
         const newCharacter = this.characterTemplates[name as keyof typeof this.characterTemplates](this);
-        Object.assign(newCharacter, { respawnLocation, respawnCountdown, attackPlayer, chase, following, actionQueue, timeCounter, persist });
-        if (respawn !== undefined) newCharacter.respawns = respawn;
+        const passedAttributes: { [key: string]: any } = {};
+        if (respawnLocation) { passedAttributes['respawnLocation'] = respawnLocation }
+        if (respawnCountdown) { passedAttributes['respawnCountdown'] = respawnCountdown }
+        if (attackPlayer) { passedAttributes['attackPlayer'] = attackPlayer }
+        if (chase) { passedAttributes['chase'] = chase }
+        if (following) { passedAttributes['following'] = following }
+        if (actionQueue) { passedAttributes['actionQueue'] = actionQueue }
+        if (timeCounter) { passedAttributes['timeCounter'] = timeCounter }
+        if (persist) { passedAttributes['persist'] = persist }
+        Object.assign(newCharacter, passedAttributes);
+        if (respawns !== undefined) newCharacter.respawns = respawns;
         newCharacter.key = name.toString();
         const newLocation = location instanceof Location ? location : this.find_location(location.toString());
         newLocation?.addCharacter(newCharacter);
@@ -408,6 +432,9 @@ abstract class GameState {
             for (let buff of buffs) {
                 newCharacter.addBuff(this.buffTemplates[buff.name]?.({ character: newCharacter, power: buff.power, duration: buff.duration }));
             }
+        }
+        if (flags) {
+            newCharacter.flags = flags
         }
         if (newCharacter?.respawns && newLocation && !respawnLocation) {
             newCharacter.respawnLocation = newLocation.key
