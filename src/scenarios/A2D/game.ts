@@ -8,7 +8,7 @@ import { locationTemplates, scenario } from "./map.js"
 import { Player } from "./player.js"
 import { characters } from "./characters.js"
 import { BuffNames, getBuff, buffs } from "./buffs.js"
-import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
+import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors, colorDict } from "../../game/colors.js"
 
 
 class A2D extends GameState {
@@ -49,35 +49,21 @@ class A2D extends GameState {
             soldier_dialogue: []
         }
 
-    // addItem(name: keyof typeof this.itemTemplates, container: Container | null, params?: any): Item | undefined {
-    //     return super.addItem(name, container, params);
-    // }
-    // addLocation(name: keyof typeof this.locationTemplates, params: any): Location | undefined {
-    //     return super.addLocation(name, params);
-    // }
-    // addCharacter<K extends keyof typeof this['characterTemplates']>(
-    //     {name, location, args} :
-    //     {name: K, location: Location, args?: any}
-    // ) {
-    //     return super.addCharacter({name, location, args});
-    // }
-
     intro() {
+        // test out the color parser first thing
         color(orange, darkwhite);
         clear();
-        print()
-        this.center("Redstaff Software Presents...")
-        print()
-
-        for (let f = 0; f < 16; f++) {
-            color(qbColors[f], darkwhite)
-            this.center("A  D  V  E  N  T  U  R  E   I I")
+        let introStr = "\n\n                         Redstaff Software Presents... \n\n"
+        for (let color of Object.keys(colorDict)) {
+            if (color === 'darkwhite') {
+                introStr += `                        <darkwhite, gray>A  D  V  E  N  T  U  R  E   I I<,darkwhite>\n`
+            } else {
+                introStr += `                        <${color}>A  D  V  E  N  T  U  R  E   I I\n`
+            }
         }
-        color('black')
-        print()
-        this.center("DELUX")
-        color('gray')
-        this.center(">Special Edition<")
+        introStr += `\n                                     <black>DELUX\n`
+        introStr += `                               <gray>>Special Edition<`
+        print(introStr)
     }
 
     async start() {
