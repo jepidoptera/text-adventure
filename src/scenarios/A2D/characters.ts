@@ -69,63 +69,6 @@ class A2dCharacter extends Character {
         }
     }
 
-    fight(character: Character | null) {
-        if (character) {
-            if (this.attackTarget === character) return;
-            if (character.isPlayer && character.attackTarget !== this && this.location?.playerPresent) {
-                color(red)
-                print(this.name, 1)
-                color(black)
-                print(` takes the initiative to attack you!`);
-                console.log(`${this.name} has ${this.hp} hp`);
-                if (!character.attackTarget) character.fight(this)
-            }
-        }
-        super.fight(character);
-    }
-
-    async encounter(character: Character) {
-        await super.encounter(character);
-        if (this.alignment === 'evil' && character.alignment != 'evil' && !this.dead) {
-            // evil characters fight everyone
-            this.fight(character);
-        } else if (this.attackTarget == character || this.enemies.includes(character.name)) {
-            this.fight(character);
-        }
-    }
-
-    async go(direction: string): Promise<void> {
-        if (await this.can_go(direction)) {
-            const newLocation = this.location?.adjacent?.get(direction)!;
-            if (newLocation.playerPresent && !this.isPlayer) {
-                const findEntryDirection = (currentLocation: Location, previousLocation: Location): string => {
-                    if (!currentLocation.adjacent) return 'nowhere';
-                    for (const [direction, location] of currentLocation.adjacent) {
-                        if (location === previousLocation) {
-                            return direction;
-                        }
-                    }
-                    return 'nowhere';
-                };
-                color(green)
-                const from_direction = findEntryDirection(newLocation, this.location!);
-                print(`${this.name} enters from ${from_direction}.`);
-            } else if (this.location?.playerPresent && !this.isPlayer) {
-                color(green)
-                print(`${this.name} leaves ${direction}.`);
-            }
-            if (!this.location || !await this.can_go(direction)) { return }
-            console.log(`${this.name} goes ${direction}`)
-            const lastLocation = this.location;
-            await this.relocate(newLocation);
-            if (this.location?.adjacent?.keys) {
-                this.backDirection = Array.from(this.location?.adjacent?.keys()).find(key => this.location?.adjacent?.get(key) === lastLocation) || '';
-            }
-        } else {
-            return;
-        }
-    }
-
     get evasion() {
         let toHit = this.agility * Math.random();
         if (this.drunk) toHit = toHit * (1 - this.drunk / (this.max_sp / 2 + 50))
@@ -172,8 +115,8 @@ class A2dCharacter extends Character {
         return super.fightMove(this.bindMethod(action))
     }
 
-    addAction(name: string, action: (this: A2dCharacter, ...args: any[]) => Promise<any>) {
-        this.actions.set(name, this.bindMethod(action));
+    interaction(name: string, action: (this: A2dCharacter, ...args: any[]) => Promise<any>) {
+        this.interactions.set(name, this.bindMethod(action));
         return this;
     }
 
@@ -201,9 +144,7 @@ class A2dCharacter extends Character {
     ): string {
         console.log(`${this.name} attacking ${target.name} with ${weaponName} (${weaponType}): ${damage} damage`)
         const DT = (damage / target.max_hp) * 100
-        const s = ['you', 'they'].includes(this.pronouns.subject) ? (str: string) => str : plural
-        const t_s = ['you', 'they'].includes(target.pronouns.subject) ? (str: string) => str : plural
-        const t_be = ['you', 'they'].includes(target.pronouns.subject) ? 'are' : 'is'
+
         if (weaponType === 'sword') weaponType = randomChoice(['stab', 'slice'])
         if (weaponType === 'axe') weaponType = randomChoice(['slice', 'club'])
 
@@ -218,15 +159,18 @@ class A2dCharacter extends Character {
         }).length) || 0
 
         const attackerPronouns = {
-            subject: this.isPlayer ? 'you' : (num_allies == 1 ? this.pronouns.subject : this.name),
-            object: this.isPlayer ? 'you' : (num_allies == 1 ? this.pronouns.object : this.name),
-            possessive: this.isPlayer ? 'your' : (num_allies == 1 ? this.pronouns.possessive : `${this.name}'s`)
+            subject: num_allies == 0 || this.isPlayer ? this.pronouns.subject : this.name,
+            object: num_allies == 0 || this.isPlayer ? this.pronouns.object : this.name,
+            possessive: num_allies == 0 || this.isPlayer ? this.pronouns.possessive : `${this.name}'s`
         }
         const targetPronouns = {
-            subject: target.isPlayer ? 'you' : (num_enemies == 1 ? target.pronouns.subject : target.name),
-            object: target.isPlayer ? 'you' : (num_enemies == 1 ? target.pronouns.object : target.name),
-            possessive: target.isPlayer ? 'your' : (num_enemies == 1 ? target.pronouns.possessive : `${target.name}'s`)
+            subject: num_enemies == 1 || target.isPlayer ? target.pronouns.subject : target.name,
+            object: num_enemies == 1 || target.isPlayer ? target.pronouns.object : target.name,
+            possessive: num_enemies == 1 || target.isPlayer ? target.pronouns.possessive : `${target.name}'s`
         }
+        const s = ['you', 'they'].includes(this.pronouns.subject) ? (str: string) => str : plural
+        const t_s = ['you', 'they'].includes(target.pronouns.subject) ? (str: string) => str : plural
+        const t_be = ['you', 'they'].includes(target.pronouns.subject) ? 'are' : 'is'
 
         if (DT < 0) {
             does = `${attackerPronouns.subject} ${s('miss')} ${targetPronouns.object} with ${weaponName}!`
@@ -269,10 +213,11 @@ class A2dCharacter extends Character {
             case ("fire"):
                 if (DT >= 0) does = `${caps(attackerPronouns.possessive)} ${weaponName} flickers against ${targetPronouns.object} without leaving a mark.`;
                 if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('singe')} ${targetPronouns.object} with ${weaponName}, hurting ${target.pronouns.object} slightly.` };
-                if (DT >= 12) { does = `${caps(attackerPronouns.subject)} ${s('scorch')} ${targetPronouns.object} with ${weaponName}, inflicting first-degree burns.` };
-                if (DT >= 25) { does = `${caps(attackerPronouns.subject)} ${s('scald')} ${targetPronouns.object} with ${weaponName}, inflicting second-degree burns.` };
-                if (DT >= 50) { does = `${caps(attackerPronouns.subject)} ${s('ignite')} ${targetPronouns.object} with ${weaponName}, instantly blistering skin.` };
-                if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('roast')} ${targetPronouns.object} with ${weaponName}, making charred flesh sizzle.` };
+                if (DT >= 10) { does = `${caps(attackerPronouns.subject)} ${s('scorch')} ${targetPronouns.object} with ${weaponName}, inflicting first-degree burns.` };
+                if (DT >= 20) { does = `${caps(attackerPronouns.subject)} ${s('roast')} ${targetPronouns.object} with ${weaponName}, inflicting second-degree burns.` };
+                if (DT >= 35) { does = `${caps(attackerPronouns.subject)} ${s('seriously burn')} ${targetPronouns.object} with ${weaponName}, making charred flesh sizzle.` };
+                if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('torch')} ${targetPronouns.object} with ${weaponName}, setting ${target.pronouns.object} alight.` };
+                if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('engulf')} ${targetPronouns.object} with the flames of ${weaponName}, cooking ${target.pronouns.object} where ${target.pronouns.subject} ${t_s('stand')}.` };
                 if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} blasted off ${target.pronouns.possessive} feet and cooked to a cinder in mid-air.` };
                 if (DT >= 500) { does = `${caps(targetPronouns.possessive)} family is saved the cost of cremation, as ${target.pronouns.possessive} ashes scatter to the wind.` };
                 break;
@@ -290,7 +235,7 @@ class A2dCharacter extends Character {
                 break;
             case ("magic"):
                 if (DT >= 0) does = `${caps(targetPronouns.subject)} ${t_s('wince')} slightly, perhaps at ${attackerPronouns.possessive} incompetence.`;
-                if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('flinch')}, but doesn't slow down.` };
+                if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('flinch')}... a little.` };
                 if (DT >= 10) { does = `${caps(targetPronouns.subject)} ${t_be} knocked back a step.` };
                 if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')} under the force.` };
                 if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${t_s('reel')} backwards, almost knocked off ${target.pronouns.possessive} feet.` };
@@ -316,7 +261,7 @@ class A2dCharacter extends Character {
                 if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('suffer')} some nicks and cuts.` };
                 if (DT >= 10) { does = `${caps(targetPronouns.subject)} ${t_s('suffer')} some cuts and gashes.` };
                 if (DT >= 20) { does = `${caps(targetPronouns.subject)} ${t_be} slashed rather badly.` };
-                if (DT >= 35) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')} backwards, bleeding copiously from multiple wounds.` };
+                if (DT >= 35) { does = `${caps(targetPronouns.subject)} ${t_s('stagger')} backwards, bleeding copiously.` };
                 if (DT >= 60) { does = `${caps(targetPronouns.subject)} ${t_s('scream')} as magical knives stab through ${target.pronouns.object}.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_s('fall')}, streaming blood from numerous fatal wounds.` };
                 if (DT >= 220) { does = `${caps(targetPronouns.subject)} ${t_be} sliced to ribbons.` };
@@ -381,7 +326,7 @@ const actions = {
                 )) {
                     console.log(`${this.name} turned back at ${goLocation.name}`)
                     return;
-                } else this.go(goDirection);
+                } else this.push_action(`go ${goDirection}`);
             }
         }
         return wander_function;
@@ -389,8 +334,8 @@ const actions = {
     pish2: async function (this: A2dCharacter, character: Character) {
         // usage: character.onAttack(actions.pish2)
         if (character.isPlayer) print("I don't want to fight.");
-        character.fight(null);
-        this.fight(null);
+        await character.fight(null);
+        await this.fight(null);
     },
     heal: async function (this: A2dCharacter) {
         if (this.spellChance) {
@@ -535,14 +480,14 @@ const actions = {
     },
     defend_tribe: async function (this: Character, attacker: Character) {
         if (attacker.flags[`enemy_of_${this.alignment}`]) {
-            this.fight(attacker);
+            await this.fight(attacker);
         }
     },
     call_help(...characterNames: CharacterNames[]) {
         return async function (this: Character) {
             for (const char of this.game.characters.filter(c => characterNames.includes(c.key as CharacterNames))) {
                 if (!char.fighting) char.goto(this.location!);
-                char.fight(this.attackTarget);
+                await char.fight(this.attackTarget);
             }
         }
     }
@@ -920,10 +865,10 @@ const characters = {
         ).onEncounter(
             actions.defend_tribe
         ).fightMove(async function () {
-            this.game.find_all_characters('ierdale_soldier').forEach(soldier => {
+            for (let soldier of this.game.find_all_characters('ierdale_soldier')) {
                 soldier.goto(this.location!.key)
-                soldier.fight(this.attackTarget)
-            })
+                await soldier.fight(this.attackTarget)
+            }
         }).dialog(async function (player: Character) {
             print("Ieadon is nowhere to be found, and our best intelligence is that he has")
             print("joined the Orcs.  We must prepare for the worst.  We have locked the gates")
@@ -956,10 +901,10 @@ const characters = {
         ).onEncounter(
             actions.defend_tribe
         ).fightMove(async function () {
-            this.game.find_all_characters('ierdale_soldier').forEach(soldier => {
+            for (let soldier of this.game.find_all_characters('ierdale_soldier')) {
                 soldier.goto(this.location!.key)
-                soldier.fight(this.attackTarget)
-            })
+                await soldier.fight(this.attackTarget)
+            }
         });
     },
 
@@ -1001,7 +946,7 @@ const characters = {
                     chief.relocate(this.location);
                 }
             }
-        }).addAction('pass', async function (player) {
+        }).interaction('pass', async function (player) {
             if (player.flags.forest_pass) {
                 if (player.isPlayer) print("You already have a pass.")
                 return;
@@ -1056,7 +1001,7 @@ const characters = {
         }).dialog(async function (player: Character) {
             print("Welcome to my thop.  Here we buy and thell many an ithem.");
             print("Read my thign to learn more bucko.  Teehhehehehe.");
-        }).addAction('pawn', async function (player: Character, itemName: string) {
+        }).interaction('pawn', async function (player: Character, itemName: string) {
             color(black)
             const item = player.item(itemName)
             if (!item) {
@@ -1126,7 +1071,7 @@ const characters = {
             blacksmith.attackPlayer = true
         }).fightMove(
             actions.heal
-        ).addAction('buy', actions.buy);
+        ).interaction('buy', actions.buy);
     },
 
     blacksmith(game: GameState) {
@@ -1459,7 +1404,7 @@ const characters = {
             this.game.addLandmark('open_gate', this.location!)
             this.game.flags.cradel = true;
             this.location?.adjacent?.set('south', this.game.find_location(192) || this.location);
-        }).addAction('play lute', async function (player: Character) {
+        }).interaction('play lute', async function (player: Character) {
             if (!player.has('lute de lumonate')) {
                 color(gray);
                 print("You don't have that.");
@@ -1506,7 +1451,7 @@ const characters = {
                                 print("Cradel gets off of his huge rump.")
                                 print("With a shudder he opens the gates and thanks you with all his heart.")
                                 print(`'Thankyou again ${player.name}, come see me again soon!'`)
-                                player.transferItem('ring of dreams', this)
+                                player.removeItem('ring of dreams')
                                 this.game.flags.cradel = true;
                                 this.location!.landmarks = [this.game.addLandmark('open_gate', this.location!)!];
                                 this.location?.adjacent?.set('south', this.game.find_location(192) || this.location);
@@ -1635,7 +1580,7 @@ const characters = {
                     play(musicc$(10))
                     break;
             }
-        }).addAction('guess', async function (player: Character, guess: string) {
+        }).interaction('guess', async function (player: Character, guess: string) {
             if (guess.toLocaleLowerCase() == this.flags['right answer']) {
                 color(blue)
                 print("CORRECT!")
@@ -1678,14 +1623,11 @@ const characters = {
             print("Join us against them, brother!");
         }).onTurn(
             actions.wander({ bounds: ['grobin gates'] })
-        ).onAttack(async function (attacker) {
-            if (attacker.isPlayer && attacker.flags.orc_pass) {
-                color(red);
-                print("The orcs have turned against you!");
-                attacker.flags.orc_pass = false;
-                color(black)
-            };
-        })
+        ).onAttack(
+            actions.declare_war
+        ).fightMove(
+            actions.call_help('orcish_soldier', 'orc_amazon', 'orc_behemoth')
+        )
     },
 
     orcish_citizen(game: GameState) {
@@ -1708,14 +1650,11 @@ const characters = {
             print("Join us against them, brother!");
         }).onTurn(
             actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
-        ).onAttack(async function (attacker) {
-            if (attacker.isPlayer && attacker.flags.orc_pass) {
-                color(red);
-                print("The orcs have turned against you!");
-                attacker.flags.orc_pass = false;
-                color(black)
-            };
-        })
+        ).onAttack(
+            actions.declare_war
+        ).fightMove(
+            actions.call_help('orcish_soldier', 'orc_amazon', 'orc_behemoth')
+        )
     },
 
     orcish_child(game: GameState) {
@@ -1736,14 +1675,11 @@ const characters = {
             print('Kill humans! Weeeee!')
         }).onTurn(
             actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
-        ).onAttack(async function (attacker) {
-            if (attacker.isPlayer && attacker.flags.orc_pass) {
-                color(red);
-                print("The orcs have turned against you!");
-                attacker.flags.orc_pass = false;
-                color(black)
-            };
-        })
+        ).onAttack(
+            actions.declare_war
+        ).fightMove(
+            actions.call_help('orcish_soldier', 'orc_amazon', 'orc_behemoth')
+        )
     },
 
     orcish_soldier(game: GameState) {
@@ -1767,14 +1703,9 @@ const characters = {
             print("Ten-hut! The humans will find no quarter with me!");
         }).onEncounter(
             actions.defend_tribe
-        ).onAttack(async function (attacker) {
-            if (attacker.isPlayer && attacker.flags.orc_pass) {
-                color(red);
-                print("The orcs have turned against you!");
-                attacker.flags.orc_pass = false;
-                color(black)
-            };
-        }).fightMove(
+        ).onAttack(
+            actions.declare_war
+        ).fightMove(
             actions.call_help('orcish_soldier', 'orc_amazon', 'orc_behemoth')
         )
 
@@ -1808,9 +1739,11 @@ const characters = {
                 }
                 await spells['fire'].call(this, this.attackTarget)
             }
-        }).onEncounter(
-            actions.defend_tribe
-        ).onAttack(async function (attacker) {
+        }).onEncounter(async function (character) {
+            if (character.alignment !== 'orc' && (character.flags.enemy_of_orcs || !character.flags.orc_pass)) {
+                this.fight(character)
+            }
+        }).onAttack(async function (attacker) {
             // pass revoked
             attacker.flags.orc_pass = false;
         }).onTurn(async function () {
@@ -1910,11 +1843,11 @@ const characters = {
                 } else {
                     print("That means death.");
                     await pause(2);
-                    this.fight(player);
+                    await this.fight(player);
                 }
             } else {
                 print("I'm sorry to hear that. You die now.");
-                this.fight(player)
+                await this.fight(player)
             }
         }).onTurn(async function () {
             if (this.flags.lead_player) {
@@ -2002,7 +1935,7 @@ const characters = {
             for (const item of this.items) {
                 print(`${item.name} - ${item.value} GP`);
             }
-        }).addAction(
+        }).interaction(
             'buy', actions.buy
         ).onAttack(async function (attacker) {
             if (attacker.isPlayer && attacker.flags.orc_pass) {
@@ -2393,7 +2326,7 @@ const characters = {
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         }).fightMove(async function () {
-            if (Math.random() * 1 < 8) { print('TODO: armorkill') }
+            // if (Math.random() * 1 < 8) { print('TODO: armorkill') }
         });
     },
 
@@ -2495,11 +2428,7 @@ const characters = {
             alignment: 'evil/areaw',
         }).onTurn(
             actions.wander({})
-        ).fightMove(async function () {
-            if (Math.random() < 1 / 2) {
-                print('TODO: call help')
-            }
-        });
+        ).fightMove(actions.call_help('wood_troll'));
     },
 
     cat_woman(game: GameState) {
@@ -2793,7 +2722,7 @@ const characters = {
             print("we have to offer you.");
         }).onAttack(
             actions.pish2
-        ).addAction('buy', actions.buy);
+        ).interaction('buy', actions.buy);
     },
 
     old_woman(game: GameState) {
@@ -2905,7 +2834,7 @@ const characters = {
                             pause(1);
                             color(black)
                             ieadon.relocate(this.location);
-                            ieadon.fight(player);
+                            await ieadon.fight(player);
                         }
                     }
                     this.game.addCharacter({ name: 'gryphon', location: this.location! })?.onDeath(soldierDown);
@@ -2998,8 +2927,8 @@ const characters = {
                 return
             }
             eldfarl.location = this.location;
-            eldfarl.fight(attacker);
-        }).addAction('train healing', actions.train({
+            await eldfarl.fight(attacker);
+        }).interaction('train healing', actions.train({
             skillName: 'healing',
             requirements: (player: Character) => ({
                 gold: 20 + player.base_stats.healing * 5 / 8,
@@ -3012,7 +2941,7 @@ const characters = {
                 player.base_stats.healing += 1;
                 print(`Your healing capabilitys Improved.  Congradulations, you now heal by: ${player.base_stats.healing}`);
             }
-        })).addAction('train archery', actions.train({
+        })).interaction('train archery', actions.train({
             skillName: 'archery',
             requirements: (player: Character) => ({
                 gold: 10 + player.base_stats.archery / 4,
@@ -3026,7 +2955,7 @@ const characters = {
                 player.base_stats.archery += 1;
                 print(`Your archery skills improved.  Congradulations, you now have Archery: ${player.base_stats.archery}`);
             }
-        })).addAction('train mindfulness', actions.train({
+        })).interaction('train mindfulness', actions.train({
             skillName: 'mindfulness',
             requirements: (player: Character) => ({
                 gold: 30 + 10 * player.base_stats.max_mp / 50,
@@ -3040,7 +2969,7 @@ const characters = {
                 player.base_stats.max_mp += 5;
                 print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player.base_stats.max_mp}`);
             }
-        })).addAction('train', async function (player) {
+        })).interaction('train', async function (player) {
             color(black)
             print('That class is not taught here.')
         });
@@ -3159,7 +3088,7 @@ const characters = {
             alignment: 'evil',
         }).fightMove(async function () {
             if (Math.random() > 2 / 3) {
-                print('TODO: poison fang')
+                // print('TODO: poison fang')
             }
         });
     },
@@ -3183,7 +3112,7 @@ const characters = {
             print("worthless little human...");
             await pause(2);
             print("aarrr... get off my bridge!");
-            this.fight(player);
+            await this.fight(player);
         });
     },
 
@@ -3665,7 +3594,7 @@ const characters = {
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
-        }).addAction('buy', actions.buy);
+        }).interaction('buy', actions.buy);
     },
 
     peasant_man(game: GameState) {
@@ -3759,10 +3688,9 @@ const characters = {
                 print("You want to kill a poor helpless little KID?")
                 if (await getKey(['y', 'n']) == "n") {
                     print("The devilish side of you regrets that decision.")
-                    player.fight(null)
                     const evil_you = new A2dCharacter({
                         name: `evil ${player.name}`,
-                        pronouns: player.pronouns,
+                        pronouns: { subject: 'you', object: 'yourself', possessive: 'your' },
                         max_hp: player.hp,
                         weaponName: player.equipment['right hand']?.name || 'fist',
                         damage: {
@@ -3770,21 +3698,54 @@ const characters = {
                             sharp: player.strength * (player.equipment['right hand']?.buff?.times?.damage?.sharp || 0),
                             magic: (player.strength + player.magic_level) * (player.equipment['right hand']?.buff?.times?.damage?.magic || 0),
                         },
-                        armor: player.defenseBuffs.plus,
+                        flags: {
+                            'left hand': {
+                                damage: {
+                                    blunt: player.strength * (player.equipment['right hand']?.buff?.times?.damage?.blunt || 0) * player.offhand,
+                                    sharp: player.strength * (player.equipment['right hand']?.buff?.times?.damage?.sharp || 0) * player.offhand,
+                                    magic: (player.strength + player.magic_level) * (player.equipment['right hand']?.buff?.times?.damage?.magic || 0) * player.offhand,
+                                },
+                                name: player.equipment['left hand']?.name || 'fist'
+                            }
+                        },
+                        armor: player.equipment['armor']?.buff?.plus?.defense || { blunt: 0, sharp: 0, magic: 0 },
                         coordination: player.coordination,
                         agility: player.agility,
                         strength: player.strength,
-                        magic_level: player.healing,
+                        magic_level: player.magic_level,
                         game: player.game,
                         respawns: false,
                         persist: false
+                    }).fightMove(async function () {
+                        player.pronouns.object = 'yourself'
+                        console.log('player currently goes by: ', player.name, player.pronouns)
+                        if (this.hp < this.max_hp / 2) {
+                            color(magenta)
+                            print(`${caps(this.name)} heals yourself!`)
+                            this.hp += player.healing;
+                        } else if (player.class_name == 'spellcaster') {
+                            const spell = randomChoice([
+                                player.abilities['newbie'] ? 'newbie' : '',
+                                player.abilities['bolt'] ? 'bolt' : '',
+                                player.abilities['fire'] ? 'fire' : '',
+                                player.abilities['blades'] ? 'blades' : ''
+                            ].filter(spell => spell))
+                            color(brightred)
+                            print(`${caps(this.name)} casts ${spell}!`)
+                            spells[spell].bind(this)(player)
+                        } else {
+                            print(`${caps(this.name)} attacks with your other hand!`)
+                            this.attack(player, this.flags['left hand']?.name, this.flags['left hand']?.damage)
+                        }
+                    }).onTurn(async function () {
+                        player.pronouns.object = 'you';
+                        console.log('evil you is having a turn.')
                     })
-                    evil_you.fightMove(actions.heal)
-                    await evil_you.relocate(this.location)
-                    evil_you.fight(player)
-                    player.fight(evil_you)
-                    player.enemies = player.enemies.filter(e => e != this.name)
-                    this.fight(null)
+                    await this.fight(null)
+                    await evil_you.relocate(player.location)
+                    await evil_you.fight(player)
+                    await player.fight(null)
+                    await player.fight(evil_you)
                 } else {
                     print("Now you will be punished!")
                     print()
@@ -3853,9 +3814,9 @@ const characters = {
             print("**Ieadon grins**");
         }).fightMove(async function () {
             if (Math.random() < 1 / 4) {
-                print('TODO: ring ultimate power')
+                // print('TODO: ring ultimate power')
             }
-        }).addAction('train strength', actions.train({
+        }).interaction('train strength', actions.train({
             skillName: 'strength',
             requirements: (player: Character) => ({
                 xp: 80 + 25 * player.base_stats.strength,
@@ -3866,7 +3827,7 @@ const characters = {
                 player.base_stats.strength += 1;
                 if (player.isPlayer) print(`Your raw fighting POWER increased.  Congradulations, your Attack is now: ${player.base_stats.strength}`);
             }
-        })).addAction('train stamina', actions.train({
+        })).interaction('train stamina', actions.train({
             skillName: 'stamina',
             requirements: (player: Character) => ({
                 xp: 2 * player.base_stats.max_sp,
@@ -3877,7 +3838,7 @@ const characters = {
                 player.base_stats.max_sp += 5;
                 if (player.isPlayer) print(`Your Stamina improved.  Congradulations, it is now: ${player.base_stats.max_sp}`);
             }
-        })).addAction('train toughness', actions.train({
+        })).interaction('train toughness', actions.train({
             skillName: 'toughness',
             requirements: (player: Character) => ({
                 xp: 2 * player.base_stats.max_hp,
@@ -3898,7 +3859,7 @@ const characters = {
             } else {
                 // very unexpectedly, Ieadon died but the player didn't do it
             }
-        }).addAction('list', async function () {
+        }).interaction('list', async function () {
             color(black);
             print("At the domain of Ieadon we teach the following:");
             print(" train toughness   | increaces HP");
@@ -3906,7 +3867,7 @@ const characters = {
             print(" train stamina     | increases SP");
             print(" To train any of these, please type 'train' then");
             print(" type what to train.");
-        }).addAction('train', async function (player) {
+        }).interaction('train', async function (player) {
             color(black)
             print('That class is not taught here.')
         })
@@ -3948,7 +3909,7 @@ const characters = {
             } else {
                 print("Hello, have you come to learn? Type \"list\" to see what I can teach you.");
             }
-        }).addAction('train coordination', actions.train({
+        }).interaction('train coordination', actions.train({
             skillName: 'coordination',
             requirements: (player) => ({
                 xp: 100 + 150 * player.base_stats.coordination,
@@ -3959,7 +3920,7 @@ const characters = {
                 player.base_stats.coordination += 1;
                 if (player.isPlayer) print(`Your coordination increased.  Congradulations, it is now: ${player.base_stats.coordination}`);
             }
-        })).addAction('train agility', actions.train({
+        })).interaction('train agility', actions.train({
             skillName: 'agility',
             requirements: (player) => ({
                 xp: 75 + 150 * player.base_stats.agility,
@@ -3970,7 +3931,7 @@ const characters = {
                 player.base_stats.agility += 1;
                 if (player.isPlayer) print(`Your agility increased.  Congradulations, it is now: ${player.base_stats.agility}`);
             }
-        })).addAction('train offhand', actions.train({
+        })).interaction('train offhand', actions.train({
             skillName: 'offhand',
             requirements: (player) => {
                 const ambidextrous = player.base_stats.offhand >= 1;
@@ -3988,10 +3949,10 @@ const characters = {
                 player.base_stats.offhand += Math.min(Math.floor(((1 - player.base_stats.offhand) / 4) * 100 + 1.5) / 100, 1);
                 if (player.isPlayer) print(`Your left-handed capabilities increased.  Congradulations, offhand is now: ${Math.floor(player.base_stats.offhand * 100)}%`);
             }
-        })).addAction('train', async function (player) {
+        })).interaction('train', async function (player) {
             color(black)
             print('That class is not taught here.')
-        }).addAction('list', async function () {
+        }).interaction('list', async function () {
             color(black)
             print("At the domain of Mythin we teach the following:");
             print(" train coordination | increaces to-hit");
@@ -4008,6 +3969,7 @@ const characters = {
             name: 'Eldin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 450,
+            max_mp: 400,
             damage: { magic: 180 },
             weaponName: 'lightning staff',
             attackVerb: 'electric',
@@ -4015,7 +3977,9 @@ const characters = {
             description: 'the mystical Eldin',
             coordination: 12,
             agility: 4,
+            magic_level: 100,
             armor: { blunt: 29, sharp: 35, magic: 100 },
+            powers: { 'powermaxout': 7 },
             respawns: false,
         }).dialog(async function (player: Character) {
             print("Hello, nice to have company!!!")
@@ -4040,10 +4004,8 @@ const characters = {
                 print();
             }
         }).fightMove(async function () {
-            if (Math.random() < 3 / 4) {
-                print('TODO: powermaxout')
-            }
-        }).addAction('list', async function () {
+            if (this.attackTarget) spells['powermaxout'].bind(this)(this.attackTarget)
+        }).interaction('list', async function () {
             color(black)
             print("At the domain of Eldin we teach the following:")
             print(" train mindfulness | increaces BP")
@@ -4051,7 +4013,7 @@ const characters = {
             print(" train archery     | increases archery skills")
             print(" To train any of these, please type 'train' then")
             print(" type what to train.")
-        }).addAction('train magic', actions.train({
+        }).interaction('train magic', actions.train({
             skillName: 'magic',
             requirements: (player) => ({
                 xp: 160 + 50 * player.base_stats.magic_level,
@@ -4062,7 +4024,7 @@ const characters = {
                 player.base_stats.magic_level += 1;
                 if (player.isPlayer) print(`Your magical abilities increased. Congradulations, your magic level is now: ${player.base_stats.magic_level}`);
             }
-        })).addAction('train newbie', actions.train({
+        })).interaction('train newbie', actions.train({
             skillName: 'newbie',
             requirements: (player) => {
                 const reqs = {
@@ -4080,7 +4042,7 @@ const characters = {
                 player.abilities['newbie'] = player.abilities['newbie'] ? player.abilities['newbie'] + 1 : 1;
                 if (player.isPlayer) print(`Learned Newbie.  Congradulations, your skill is now: ${abilityLevels[player.abilities['newbie']]}`);
             }
-        })).addAction('train bolt', actions.train({
+        })).interaction('train bolt', actions.train({
             skillName: 'bolt',
             requirements: (player) => {
                 const reqs = {
@@ -4099,7 +4061,7 @@ const characters = {
                 player.abilities['bolt'] = player.abilities['bolt'] ? player.abilities['bolt'] + 1 : 1;
                 if (player.isPlayer) print(`Learned Bolt.  Congradulations, your skill is now: ${abilityLevels[player.abilities['bolt']]}`);
             }
-        })).addAction('train fire', actions.train({
+        })).interaction('train fire', actions.train({
             skillName: 'fire',
             requirements: (player) => {
                 const reqs = {
@@ -4118,7 +4080,7 @@ const characters = {
                 player.abilities['fire'] = player.abilities['fire'] ? player.abilities['fire'] + 1 : 1;
                 if (player.isPlayer) print(`Learned Fire.  Congradulations, your skill is now: ${abilityLevels[player.abilities['fire']]}`);
             }
-        })).addAction('train blades', actions.train({
+        })).interaction('train blades', actions.train({
             skillName: 'blades',
             requirements: (player) => {
                 const reqs = {
@@ -4137,7 +4099,7 @@ const characters = {
                 player.abilities['blades'] = player.abilities['blades'] ? player.abilities['blades'] + 1 : 1;
                 if (player.isPlayer) print(`Learned Blades.  Congradulations, your skill is now: ${abilityLevels[player.abilities['blades']]}`);
             }
-        })).addAction('train powermaxout', actions.train({
+        })).interaction('train powermaxout', actions.train({
             skillName: 'powermaxout',
             requirements: (player) => {
                 const reqs = {
@@ -4156,7 +4118,7 @@ const characters = {
                 player.abilities['powermaxout'] = player.abilities['powermaxout'] ? player.abilities['powermaxout'] + 1 : 1;
                 if (player.isPlayer) print(`Learned Powermaxout.  Congradulations, your skill is now: ${abilityLevels[player.abilities['powermaxout']]}`);
             }
-        })).addAction('train shield', actions.train({
+        })).interaction('train shield', actions.train({
             skillName: 'shield',
             requirements: (player) => {
                 const reqs = {
@@ -4174,7 +4136,7 @@ const characters = {
                 player.abilities['shield'] = player.abilities['shield'] ? player.abilities['shield'] + 1 : 1;
                 if (player.isPlayer) print(`Learned Shield.  Congradulations, your skill is now: ${abilityLevels[player.abilities['shield']]}`);
             }
-        })).addAction('train bloodlust', actions.train({
+        })).interaction('train bloodlust', actions.train({
             skillName: 'bloodlust',
             requirements: (player) => {
                 const reqs = {
@@ -4192,7 +4154,7 @@ const characters = {
                 player.abilities['bloodlust'] = player.abilities['bloodlust'] ? player.abilities['bloodlust'] + 1 : 1;
                 if (player.isPlayer) print(`Learned Bloodlust.  Congradulations, your skill is now: ${abilityLevels[player.abilities['bloodlust']]}`);
             }
-        })).addAction('list', async function () {
+        })).interaction('list', async function () {
             print("At the Cottage of Eldin we teach the following:");
             print(" train newbie        | basic attack spell, low requirements");
             print(" train bolt          | heat-seeking lightning bolt");
@@ -4210,11 +4172,11 @@ const characters = {
             color(black)
             print(" train magic         | increases magical power, enhances all spells");
             print(" To see info on a spell type 'info [spellname]'");
-        }).addAction('transport', async function (player) {
+        }).interaction('transport', async function (player) {
             print("Goodbye!")
             await pause(1)
             player.relocate(this.game.find_location("Eldin's house"))
-        }).addAction('train', async function (player) {
+        }).interaction('train', async function (player) {
             color(black)
             print('That class is not taught here.')
         })
@@ -4246,19 +4208,19 @@ const characters = {
             print("It is absolutley free and restores you to maximum HP: type 'healme'");
         }).fightMove(
             actions.heal
-        ).addAction('list', async function (player) {
+        ).interaction('list', async function (player) {
             print("There are no classes offered here.")
             if (player.flags.assistant) {
                 color(magenta)
                 print("Assistant -- Go south, that's where the classes are.");
             }
-        }).addAction('train', async function (player) {
+        }).interaction('train', async function (player) {
             print("There are no classes offered here.")
             if (player.flags.assistant) {
                 color(magenta)
                 print("Assistant -- Go south, that's where the classes are.");
             }
-        }).addAction('healme', async function (player) {
+        }).interaction('healme', async function (player) {
             print("Eldfarl lifts his hands and a remakably calm feeling floats over your body.")
             print(`Eldfarl healed you ${Math.floor(player.max_hp - player.hp)} HP.`)
             player.hp = player.max_hp
@@ -4289,7 +4251,7 @@ const characters = {
             pause(2)
             print("He leaves behind just one small item...");
             await pause(3);
-        }).addAction('climb down', async function (player: Character) {
+        }).interaction('climb down', async function (player: Character) {
             print("As you grasp for the upper rungs of the ladder, you see something from the")
             print("corner of your eye.")
             await pause(2)
@@ -4370,8 +4332,6 @@ const characters = {
             respawns: false,
             alignment: 'evil',
             exp: 5000,
-        }).fightMove(async function () {
-            print('TODO: time stop')
         }).onDeath(async function () {
             this.game.flags.ziatos = true;
             await pause(5)
@@ -4431,10 +4391,12 @@ const characters = {
             }
         }).fightMove(
             actions.heal
-        ).addAction('pass', async function (player: Character) {
+        ).interaction('pass', async function (player: Character) {
             if (!player.has('gold', 1000)) {
                 color(gray); print("You cannot afford a pass here.");
                 return;
+            } else if (player.flags.enemy_of_orcs) {
+                print('You burned that bridge, buddy. Get lost.')
             }
             color(blue);
             print("You purchase a pass to Grobin");
