@@ -1,25 +1,37 @@
 import { Character } from './character.js';
 import { black, red, colorDict } from './colors.js';
+
 function caps(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+const pluralExceptions: { [key: string]: string } = {
+    'person': 'people',
+    'child': 'children',
+    'tooth': 'teeth',
+    'foot': 'feet',
+    'goose': 'geese',
+    'engulf': 'engulfs',
+}
+
 function plural(str: string): string {
+    if (pluralExceptions[str]) return pluralExceptions[str];
     if (str.includes('of')) return plural(str.split('of')[0].trim()) + ' of ' + str.split('of')[1].trim();
-    let ans = str;
     let l1 = str.slice(-1);
     let l2 = str.slice(-2);
-    if (l1 == "x" || l1 == "s" || l2 == "ch" || l2 == "sh") {
-        ans += "e";
+    if (l1 == "x" || l1 == "s" || l2 == "ch" || l2 == "sh" || l1 == "z") {
+        return str + "es";
+    } else if (l1 == "f" && l2 != "ff") {
+        return str.slice(0, -1) + "ves";
+    } else if (l1 == "y" && l2 != "ey" && l2 != "ay" && l2 != "oy" && l2 != "iy") {
+        return str.slice(0, -1) + "ies";
+    } else if (l1 == "o" && l2 != "oo") {
+        return str + "es";
+    } else if (str.slice(3) == "man") {
+        return str.slice(0, -3) + 'men';
+    } else {
+        return str + "s";
     }
-    else if (l1 == "f" && l2 != "ff") {
-        ans = ans.slice(0, -1) + "ve";
-    }
-    else if (l1 == "y" && l2 != "ey" && l2 != "ay" && l2 != "oy" && l2 != "iy") {
-        ans = ans.slice(0, -1) + "ie";
-    }
-    ans += "s";
-    return ans;
 }
 
 function singular(str: string): string {
@@ -134,4 +146,10 @@ function parseColoredText(text: string): [string, string][] {
     return result;
 }
 
-export { caps, plural, singular, randomChoice, highRandom, lineBreak, printCharacters, parseColoredText };
+function splitFirst(str: string): [string, string] {
+    const match = str.match(/^(\S+)(?:\s+(.*))?/);
+    if (!match) return ['', ''];
+    return [match[1], match[2] || ''];
+}
+
+export { caps, plural, singular, randomChoice, highRandom, lineBreak, printCharacters, parseColoredText, splitFirst };
