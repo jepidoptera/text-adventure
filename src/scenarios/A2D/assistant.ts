@@ -32,7 +32,7 @@ const hintParams: hintParameters[] = [
         condition: (player: Player) => player.location?.key == '1' && !player.game.flags.cleric
     }, {
         name: 'talk cleric',
-        text: ["talk to this cleric.  He is very wise."],
+        text: ['talk to this cleric.  He is very wise. (Type "talk cleric".)'],
         condition: (player: Player) => player.location?.key == '14' && !player.game.flags.cleric
     }, {
         name: 'move',
