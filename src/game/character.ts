@@ -2,7 +2,7 @@ import { Container, Item } from "./item.js";
 import { Location, findPath } from "./location.js";
 import { GameState, withGameState } from "./game.js";
 import { WeaponTypes } from "./item.js";
-import { highRandom, randomChoice } from "./utils.js";
+import { highRandom, randomChoice, splitFirst } from "./utils.js";
 
 const pronouns = {
     'male': { subject: "he", object: "him", possessive: "his" },
@@ -12,56 +12,11 @@ const pronouns = {
 }
 
 type Action = (this: Character, ...args: any[]) => Promise<void>;
-class Activity {
-    constructor(public name: string, public timeCost: number, public action: Action) { }
-}
-const activities: Record<string, Activity> = {
-    'rest': new Activity('rest', 25, async function () {
-        this.hp += this.hp_recharge;
-        this.mp += this.mp_recharge;
-        this.sp += this.sp_recharge;
-    }),
-    'wait': new Activity('wait', 10, async function () { }),
-    'move': new Activity('move', 10, async function (direction: string) {
-        await this.go(direction);
-    }),
-    'attack': new Activity('attack', 10, async function (target: Character) {
-        this.attack(target, this.weaponName, this.base_damage);
-    }),
-    'cast': new Activity('cast', 10, async function (spell: string, target: Character) {
-        if (this.abilities[spell]) {
-            // this is a good idea
-            // await this.game.spells[spell](this, target);
-        }
-    }),
-    'use': new Activity('use', 1, async function (item: string, target: Character) {
-        const itemObject = this.inventory.item(item);
-        if (itemObject) {
-            await itemObject.use(this);
-        }
-    }),
-    'give': new Activity('give', 1, async function (item: string, target: Character) {
-        await this.transferItem(item, target);
-    }),
-    'take': new Activity('take', 1, async function (item: string, target: Character) {
-        await target.transferItem(item, this);
-    }),
-    'drop': new Activity('drop', 1, async function (item: string) {
-        await this.dropItem(item);
-    }),
-    'pickup': new Activity('pickup', 1, async function (item: string) {
-        await this.getItem(item);
-    }),
-    'flee': new Activity('flee', 10, async function () {
-        const direction = this.backDirection;
-        await this.go(direction);
-    }),
-    'follow': new Activity('follow', 0, async function (target: Character) {
-        this.following = target.name;
-    }),
-    'stop': new Activity('stop', 1, async function () {
-        this.following = '';
-    }),
+
+const timeCost: Record<string, number> = {
+    'go': 10,
+    'attack': 10,
+    'repel': 5,
 }
 type BaseStats =
     'max_hp' | 'max_mp' | 'max_sp' | 'strength' | 'speed' | 'coordination' |
@@ -246,7 +201,7 @@ class Character {
     private _fightMove: Action | undefined;
     private _onRespawn: Action | undefined;
     private _onDialog: Action | undefined = async () => { print("They don't want to talk") };
-    private _actions: Map<string, (...args: any[]) => Promise<void>> = new Map()
+    interactions: Map<string, (...args: any[]) => Promise<void>> = new Map()
     attackPlayer: boolean = false;
     chase: boolean = false;
     respawnTime: number = 0;
@@ -257,6 +212,7 @@ class Character {
     timeCounter: number = 0;
     following: string = '';
     actionQueue: string[] = [];
+    actionTiming: Record<string, number>;
 
     constructor({
         name,
@@ -354,6 +310,7 @@ class Character {
         this.flags = flags;
         if (buff) { this.addBuff(new Buff({ name: 'innate', plus: { defense: armor }, ...buff })); }
         this.size = size;
+        this.actionTiming = Object.keys(timeCost).reduce((acc, key) => { acc[key] = 0; return acc }, {} as Record<string, number>);
     }
 
     initialize(game: GameState) {
@@ -454,13 +411,13 @@ class Character {
         return this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
     }
 
-    fight(character: Character | null = null) {
+    async fight(character: Character | null = null) {
         if (this.dead) return;
         console.log(`${this.name} fights ${character?.name || 'nobody'} at ${this.location?.key}.`)
         if (character === null) {
-            this.enemies = this.enemies.filter(name => name != this.attackTarget?.name);
+            this.enemies = [];
             this._attackTarget = null;
-            console.log(`${this.name} stops fighting.`)
+            console.log(`${this.name} is at peace (fight(null)).`)
         } else if (character != this.attackTarget) {
             if (character.location == this.location) {
                 this._attackTarget = character;
@@ -470,14 +427,23 @@ class Character {
                 if (!character.enemies.includes(this.name)) {
                     character.enemies.push(this.name);
                 }
+                this.push_action('attack');
+                await character._onAttack?.(this);
+                if (character.enemies.includes(this.name)) {
+                    character.push_action('repel');
+                }
             } else if (!this.enemies.includes(character.name)) {
                 this.enemies.push(character.name);
             }
         }
     }
 
-    get attackTarget() {
-        return this._attackTarget;
+    get attackTarget(): Character | null {
+        if (this._attackTarget) return this._attackTarget;
+        return null;
+        // return this.location?.characters.find(
+        //     character => this.enemies.includes(character.name) || character.enemies.includes(this.name)
+        // ) || null;
     }
 
     get dead() {
@@ -555,9 +521,9 @@ class Character {
         await this._onSlay?.(character);
         const enemiesLeft = this.location?.characters.filter(character => this.enemies.includes(this.name)) || [];
         if (enemiesLeft.length > 0) {
-            this.fight(randomChoice(enemiesLeft));
+            await this.fight(randomChoice(enemiesLeft));
         } else {
-            this.fight(null);
+            await this.fight(null);
         }
     }
 
@@ -651,7 +617,7 @@ class Character {
             return false;
         }
         for (let character of from.characters) {
-            if (!await character.allowDepart(this, direction)) {
+            if (character !== this && !await character.allowDepart(this, direction)) {
                 console.log(`${this.name} blocked from going ${direction} by ${character.name}`);
                 return false;
             }
@@ -660,15 +626,13 @@ class Character {
     }
 
     async go(direction: string): Promise<void> {
-        if (!this.location || !await this.can_go(direction)) { return }
+        // no check is performed here, so can_go should be called first
+        if (!this.location) return
         console.log(`${this.name} goes ${direction}`)
         const newLocation = this.location.adjacent.get(direction);
-        const lastLocation = this.location;
         if (newLocation) {
+            this.backDirection = Array.from(newLocation.adjacent?.keys()).find(key => newLocation.adjacent?.get(key) === this.location) || '';
             await this.relocate(newLocation);
-            if (this.location?.adjacent?.keys) {
-                this.backDirection = Array.from(this.location?.adjacent?.keys()).find(key => this.location?.adjacent?.get(key) === lastLocation) || '';
-            }
         }
     }
 
@@ -813,39 +777,8 @@ class Character {
         return this;
     }
 
-    addAction(name: string, fn: (args?: string) => Promise<void>) {
-        // wrap the action function to ensure correct game context
-        const wrappedFn = async function (this: Character, args?: string) {
-            await this.game.enterContext();
-            try {
-                return fn.apply(this, [args]);
-            } finally {
-                this.game.exitContext();
-            }
-        };
-        this.actions.set(name, wrappedFn.bind(this));
-        return this;
-    }
-
-    getAction(name: string) {
-        const action = this.actions.get(name);
-        if (!action) {
-            throw new Error(`Action "${name}" not found.`);
-        }
-        return action;
-    }
-
-    get actions() {
-        return this._actions;
-    }
-
-    useAction(name: string, args?: string): Promise<void> {
-        const action = this.getAction(name);
-        return action.call(this, args);
-    }
-
-    removeAction(name: string) {
-        this.actions.delete(name);
+    interaction(name: string, action: (args?: string) => Promise<void>) {
+        this.interactions.set(name, action.bind(this));
         return this;
     }
 
@@ -857,22 +790,24 @@ class Character {
         await this._onEncounter?.(character);
         if (!this.fighting) {
             if (this.enemies.includes(character.name)) {
-                this.fight(character);
+                await this.fight(character);
             } else if (this.attackPlayer && character.isPlayer) {
-                this.fight(character);
+                await this.fight(character);
+            } else if (this.alignment == 'evil' && character.alignment != 'evil') {
+                await this.fight(character);
             }
         }
     }
 
-    async allowDepart(character: Character, direction: string) {
+    async allowDepart(character: Character, direction: string): Promise<boolean> {
         const allow = this._onDeparture ? await this._onDeparture?.(character, direction) : true;
         if (allow && this.attackTarget == character && this.chase) {
             // give chase
             console.log(`${this.name} chases ${character.name} ${direction}!`)
-            this.onTurn(async () => { await this.go(direction) });
+            this.action(`go ${direction}`);
         } else if (allow && this.following == character.name) {
             console.log(`${this.name} follows ${character.name} ${direction}!`)
-            this.actionQueue.unshift(direction);
+            this.push_action(`go ${direction}`);
         }
         return allow;
     }
@@ -893,6 +828,18 @@ class Character {
         return this.coordination * this.speed * Math.random()
     }
 
+    action(command: string) {
+        this.actionQueue = [command];
+    }
+
+    push_action(command: string) {
+        this.actionQueue.unshift(command);
+    }
+
+    queue_action(command: string) {
+        this.actionQueue.push(command);
+    }
+
     async attack(
         target: Character | null = null,
         weapon: Item | string | null = null,
@@ -900,7 +847,7 @@ class Character {
     ) {
         if (!target) target = this.attackTarget;
         if (!target) return;
-        await target?.defend(this)
+        // await target?.repel(this)
         if (!target || target.dead || this.attackTarget !== target || this.dead) return;
         if (!damage_potential) damage_potential = this.base_damage;
         console.log(`${this.name} attacks ${target.name} with ${JSON.stringify(damage_potential)}`)
@@ -964,14 +911,14 @@ class Character {
         return does;
     }
 
-    async defend(attacker: Character) {
+    async repel(attacker: Character) {
         // console.log(`${this.name} is under attack by ${attacker.name}!`)
         if (!this.enemies.includes(attacker.name)) {
             this.enemies.push(attacker.name);
         }
         if (!this.fighting) {
             console.log(`${this.name} fights back against ${attacker.name}!`)
-            this.fight(attacker);
+            await this.fight(attacker);
         } // else { console.log(`${this.name} is already fighting`, this.enemies) }
         for (let character of this.location?.characters ?? []) {
             if (character != this && character.alignment && character.alignment === this.alignment) {
@@ -979,9 +926,9 @@ class Character {
                 if (!character.enemies.includes(attacker.name)) character.enemies.push(attacker.name);
             }
         }
-        if (this._onAttack) {
-            await this._onAttack(attacker);
-        }
+        // if (this._onAttack) {
+        //     await this._onAttack(attacker);
+        // }
     }
 
     async turn() {
@@ -994,7 +941,7 @@ class Character {
             for (let enemy of this.game.find_all_characters(this.enemies)) {
                 if (enemy.location === this.location) {
                     console.log(`${this.name} picks a fight with ${enemy.name}.`)
-                    this.fight(enemy);
+                    await this.fight(enemy);
                     break;
                 }
             }
@@ -1002,7 +949,7 @@ class Character {
                 // console.log(`${this.name} is looking for a player to fight.`)
                 for (let character of this.location?.characters ?? []) {
                     if (character.isPlayer) {
-                        this.fight(character);
+                        await this.fight(character);
                         break;
                     }
                 }
@@ -1012,15 +959,27 @@ class Character {
             // console.log(`${this.name} attacks ${this.attackTarget.name}!`)
             await this.attack(this.attackTarget, this.weaponName, this.base_damage);
         } else if (this.actionQueue.length > 0) {
-            const action = this.actionQueue.shift()!;
-            console.log(`${this.name} next action: ${action}`)
-            if (this.location?.adjacent.has(action)) {
-                await this.go(action);
-            }
-            else {
-                console.log(`${this.name} can't go ${action}`)
-                // try again next turn
-                this.actionQueue.unshift(action);
+            let [verb, args] = splitFirst(this.actionQueue.shift()!);
+            console.log(`${this.name} next action: ${verb} ${args}`)
+            if (verb == 'go') verb = args;
+            if (this.location?.adjacent.has(verb)) {
+                if (await this.can_go(verb)) {
+                    await this.go(verb);
+                } else {
+                    // try again next turn
+                    this.push_action(verb);
+                }
+            } else if (verb == 'attack') {
+                if (!this.attackTarget) {
+                    const enemiesPresent = this.location?.characters.filter(character => this.enemies.includes(character.name)) || [];
+                    await this.fight(randomChoice(enemiesPresent));
+                    if (this.attackTarget) {
+                        await this.attack(this.attackTarget, this.weaponName, this.base_damage);
+                    }
+                }
+            } else if (verb == 'repel') {
+                const attacker = args ? this.game.find_character(args) : this.attackTarget;
+                if (attacker) this.repel(attacker);
             }
         }
         if (this.fighting) {
@@ -1037,6 +996,7 @@ class Character {
             respawn: this.respawns,
             respawnLocation: this.respawnLocation,
             attackPlayer: this.attackPlayer,
+            backDirection: this.backDirection,
         }
         if (this.timeCounter != 0) {
             saveObject['timeCounter'] = this.timeCounter;
