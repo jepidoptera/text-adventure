@@ -42,7 +42,7 @@ const spells: Record<string, SpellAction> = {
         color(brightred);
         if (this.isPlayer) print(`A jet of flame shoots towards ${target.name}.`);
         await damageSpell({
-            spellName: 'fire',
+            spellName: 'magic fire',
             damage: highRandom() * (1 + (this.abilities['fire'] || 1) ** spellPower * 14 / 11) * this.magic_level,
             accuracy: Math.random() * (this.coordination + 2 + (this.abilities['fire'] || 1) / 3),
             damageType: 'fire',
@@ -133,13 +133,16 @@ const spells: Record<string, SpellAction> = {
 function checkRequirements(this: A2dCharacter, spellName: string, magicCost: number): boolean {
     if (!this.isPlayer) return true;
     if (!this.abilities[spellName]) {
-        if (this.isPlayer) print("You don't know that spell.");
+        // if (this.isPlayer) 
+        print("You don't know that spell.");
         return false;
     } else if (this.mp < magicCost) {
-        if (this.isPlayer) print("You don't have enough magic.");
+        // if (this.isPlayer) 
+        print("You don't have enough magic.");
         return false;
     } else if (!this.attackTarget) {
-        if (this.isPlayer) print("There is no target for that spell.");
+        // if (this.isPlayer) 
+        print("There is no target for that spell.");
         return false;
     }
     this.mp -= magicCost;
