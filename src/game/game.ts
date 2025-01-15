@@ -120,77 +120,77 @@ abstract class GameState {
     }
     async start() {
         // sample game setup
-        this.quote('Welcome to the game!');
-        this.quote('press any key');
-        await this.getKey();
-        this.clear();
-        const opt = await this.optionBox({
-            title: 'Adventure 2 Setup',
-            options: ['Start New', 'Load Game', 'Exit']
-        })
-        this.quote('You chose ' + opt);
-        if (opt === 0) {
-            this.quote('Starting new game');
-        } else if (opt === 1) {
-            this.quote('Loading game');
-            // todo: load game
-        } else {
-            this.quote('Exiting game');
-            return;
-        }
-        const classOptions = ['Warrior', 'Mage', 'Rogue']
-        const className = classOptions[await this.optionBox({
-            title: "choose your class:",
-            options: classOptions
-        })];
-        let player = new Character({ name: "you", game: this });
-        switch (className) {
-            case 'Warrior':
-                player.base_stats.strength = 10;
-                player.base_stats.max_hp = 50;
-                player.base_stats.max_sp = 40;
-                player.base_stats.max_mp = 5;
-                player.abilities = { 'berserk': 5 }
-                break;
-            case 'Mage':
-                player.base_stats.strength = 5;
-                player.base_stats.max_hp = 30;
-                player.base_stats.max_sp = 20;
-                player.base_stats.max_mp = 50;
-                player.base_stats.magic_level = 10;
-                player.abilities = { 'bolt': 5 }
-                break;
-            case 'Rogue':
-                player.base_stats.strength = 8;
-                player.base_stats.max_hp = 40;
-                player.base_stats.max_sp = 40;
-                player.base_stats.max_mp = 10;
-                player.abilities = { 'sneak': 5 }
-                break;
-        }
-        player.addAction('', async () => { });
-        player.addAction('n', async function () { await player.go('north') });
-        player.addAction('s', async function () { await player.go('south') });
-        player.addAction('e', async function () { await player.go('east') });
-        player.addAction('w', async function () { await player.go('west') });
-        player.addAction('get', (itemName) => player.getItem(itemName || ''));
-        player.addAction('drop', (itemName) => player.dropItem(itemName || ''));
-        player.location = this.locations.values().next().value || null;
-        let command = ''
-        while (command != 'exit') {
-            let player_input = await this.query('What do you want to do?');
-            let [command, ...args] = player_input.split(' ');
-            if (player.actions.has(command)) {
-                player.getAction(command)?.(args.join(' '));
-            } else {
-                for (let item of player.items) {
-                    if (item.name === command) {
-                        item.getAction(command)?.(args.join(' '));
-                    }
-                }
-                this.quote('I don\'t understand that command');
-            }
-        }
+        // this.quote('Welcome to the game!');
+        // this.quote('press any key');
+        // await this.getKey();
+        // this.clear();
+        // const opt = await this.optionBox({
+        //     title: 'Adventure 2 Setup',
+        //     options: ['Start New', 'Load Game', 'Exit']
+        // })
+        // this.quote('You chose ' + opt);
+        // if (opt === 0) {
+        //     this.quote('Starting new game');
+        // } else if (opt === 1) {
+        //     this.quote('Loading game');
+        //     // todo: load game
+        // } else {
+        //     this.quote('Exiting game');
+        //     return;
+        // }
+        // const classOptions = ['Warrior', 'Mage', 'Rogue']
+        // const className = classOptions[await this.optionBox({
+        //     title: "choose your class:",
+        //     options: classOptions
+        // })];
+        // let player = new Character({ name: "you", game: this });
+        // switch (className) {
+        //     case 'Warrior':
+        //         player.base_stats.strength = 10;
+        //         player.base_stats.max_hp = 50;
+        //         player.base_stats.max_sp = 40;
+        //         player.base_stats.max_mp = 5;
+        //         player.abilities = { 'berserk': 5 }
+        //         break;
+        //     case 'Mage':
+        //         player.base_stats.strength = 5;
+        //         player.base_stats.max_hp = 30;
+        //         player.base_stats.max_sp = 20;
+        //         player.base_stats.max_mp = 50;
+        //         player.base_stats.magic_level = 10;
+        //         player.abilities = { 'bolt': 5 }
+        //         break;
+        //     case 'Rogue':
+        //         player.base_stats.strength = 8;
+        //         player.base_stats.max_hp = 40;
+        //         player.base_stats.max_sp = 40;
+        //         player.base_stats.max_mp = 10;
+        //         player.abilities = { 'sneak': 5 }
+        //         break;
+        // }
+        // player.addAction('', async () => { });
+        // player.addAction('n', async function () { await player.go('north') });
+        // player.addAction('s', async function () { await player.go('south') });
+        // player.addAction('e', async function () { await player.go('east') });
+        // player.addAction('w', async function () { await player.go('west') });
+        // player.addAction('get', (itemName) => player.getItem(itemName || ''));
+        // player.addAction('drop', (itemName) => player.dropItem(itemName || ''));
+        // player.location = this.locations.values().next().value || null;
+        // let command = ''
+        // while (command != 'exit') {
+        //     let player_input = await this.query('What do you want to do?');
+        //     let [command, ...args] = player_input.split(' ');
+        //     if (player.actions.has(command)) {
+        //         player.useAction(command, args.join(' '));
+        //     } else {
+        //         for (let item of player.items) {
+        //             if (item.name === command) {
+        //                 item.getAction(command)?.(args.join(' '));
+        //             }
+        //         }
+        //         this.quote('I don\'t understand that command');
+        //     }
+        // }
     }
     shutdown() {
         // clear intervals or whatever
