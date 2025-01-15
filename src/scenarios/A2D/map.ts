@@ -2492,6 +2492,7 @@ const scenario = {
     },
     flags: {
         orc_battle: false,
+        cradel: false
     }
 }
 
