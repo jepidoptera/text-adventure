@@ -151,29 +151,29 @@ class A2dCharacter extends Character {
         let does = ''
         let callAttack = ''
 
-        const num_enemies = (this.location?.characters.filter(c => {
-            c.enemies.includes(this.name)
-        }).length) || 0
-        const num_allies = (this.location?.characters.filter(c => {
-            c.enemies.includes(this.attackTarget?.name ?? '')
-        }).length) || 0
+        const num_enemies = this.location?.characters.filter(c => {
+            return c.enemies.includes(this.name)
+        }).length || 0
+        const num_allies = this.location?.characters.filter(c => {
+            return c.enemies.includes(target.name)
+        }).length || 0
 
         const attackerPronouns = {
-            subject: num_allies == 0 || this.isPlayer ? this.pronouns.subject : this.name,
-            object: num_allies == 0 || this.isPlayer ? this.pronouns.object : this.name,
-            possessive: num_allies == 0 || this.isPlayer ? this.pronouns.possessive : `${this.name}'s`
+            subject: num_allies == 0 || this.isPlayer ? this.pronouns.subject : this.description,
+            object: num_allies == 0 || this.isPlayer ? this.pronouns.object : this.description,
+            possessive: num_allies == 0 || this.isPlayer ? this.pronouns.possessive : `${this.description}'s`
         }
         const targetPronouns = {
-            subject: num_enemies == 1 || target.isPlayer ? target.pronouns.subject : target.name,
-            object: num_enemies == 1 || target.isPlayer ? target.pronouns.object : target.name,
-            possessive: num_enemies == 1 || target.isPlayer ? target.pronouns.possessive : `${target.name}'s`
+            subject: num_enemies == 1 || target.isPlayer ? target.pronouns.subject : target.description,
+            object: num_enemies == 1 || target.isPlayer ? target.pronouns.object : target.description,
+            possessive: num_enemies == 1 || target.isPlayer ? target.pronouns.possessive : `${target.description}'s`
         }
         const s = ['you', 'they'].includes(this.pronouns.subject) ? (str: string) => str : plural
         const t_s = ['you', 'they'].includes(target.pronouns.subject) ? (str: string) => str : plural
         const t_be = ['you', 'they'].includes(target.pronouns.subject) ? 'are' : 'is'
 
         if (DT < 0) {
-            does = `${attackerPronouns.subject} ${s('miss')} ${targetPronouns.object} with ${weaponName}!`
+            does = `${caps(attackerPronouns.subject)} ${s('miss')} ${targetPronouns.object} with ${weaponName}!`
         } else {
             does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.`
         }
@@ -222,7 +222,7 @@ class A2dCharacter extends Character {
                 if (DT >= 500) { does = `${caps(targetPronouns.possessive)} family is saved the cost of cremation, as ${target.pronouns.possessive} ashes scatter to the wind.` };
                 break;
             case ("bow"):
-                if (DT >= 0) does = `${target.name} barely ${t_s('notices')} ${attackerPronouns.possessive} arrow striking ${target.pronouns.object}.`;
+                if (DT >= 0) does = `${target.description} barely ${t_s('notices')} ${attackerPronouns.possessive} arrow striking ${target.pronouns.object}.`;
                 if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('take')} minimal damage.` };
                 if (DT >= 12) { does = `${caps(targetPronouns.subject)} ${t_be} minorly wounded.` };
                 if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${t_s('sustain')} a major injury.` };
@@ -230,7 +230,7 @@ class A2dCharacter extends Character {
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_be} slain instantly.` };
                 if (DT >= 400) { does = `${caps(attackerPronouns.possessive)} arrow goes straight through ${targetPronouns.object}, leaving a gaping hole.` };
                 if (DT >= 1000) { does = `${caps(targetPronouns.subject)} ${t_be} ripped messily in half.` };
-                if (DT >= 2500) { does = `Tiny pieces of ${target.name} fly in all directions.` };
+                if (DT >= 2500) { does = `Tiny pieces of ${target.description} fly in all directions.` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('shoot')} an arrow at ${targetPronouns.object}!`;
                 break;
             case ("magic"):
@@ -350,11 +350,17 @@ const actions = {
         }
     },
     sleep: async function (this: A2dCharacter, length: number = 1) {
-        print(`TODO: sleep`)
+        if (this.attackTarget?.isPlayer) {
+            const player = this.attackTarget as Player
+            player.disableCommands(Array.from(player.actions.keys()), "Shhh. You are sleeping.");
+            player.addBuff(getBuff('sleep')({ duration: length, power: 1 }));
+        }
     },
     growl: async function (this: A2dCharacter) {
-        color(magenta)
-        print(`${caps(this.name)} growls fiercly, your attack fell.`)
+        if (this.attackTarget?.isPlayer) {
+            color(magenta)
+            print(`${caps(this.name)} growls fiercly, your attack fell.`)
+        }
         this.attackTarget?.addBuff(getBuff('fear')({ power: Math.random() * this.magic_level, duration: 12 }));
     },
     howl: async function (this: A2dCharacter) {
@@ -442,13 +448,16 @@ const actions = {
         if (!item) {
             print("That is not for sale here.");
             return;
-        } else if (item.quantity ?? 0 > 1) {
+        } else if (item.quantity > 1) {
             quantity = parseInt(await input(`How many? `));
             if (isNaN(quantity)) {
                 print("What?");
                 return;
             } else if (quantity > 1) {
                 itemName = plural(item.name);
+            } else if (quantity < 0) {
+                print('No.');
+                return;
             }
         }
 
@@ -460,7 +469,7 @@ const actions = {
             character.removeItem('gold', item.value * quantity);
             print(`Bought ${quantity > 1 ? quantity.toString() + ' ' : ''}${itemName} for ${item.value * quantity} GP.`);
 
-            if (item.equipment_slot === 'armor') {
+            if (item.equipment_slot === 'armor' && quantity > 0) {
                 const player = character as Player
                 if (player.equipment.armor) {
                     print("You remove your old armor...")
@@ -560,7 +569,7 @@ const characters = {
                 print("Ierdale has turned against you!");
             }
             attacker.flags.enemy_of_ierdale = true;
-        }).onDeparture(async function (character, direction) {
+        }).allowDeparture(async function (character, direction) {
             if (
                 this.location?.name.toLowerCase().includes('entrance')
                 && this.location?.character(this.name) === this
@@ -592,6 +601,7 @@ const characters = {
             armor: { blunt: 13, sharp: 20 },
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
             respawns: false,
         }).onEncounter(
             actions.defend_tribe
@@ -780,6 +790,7 @@ const characters = {
             armor: { blunt: 15, sharp: 25 },
             aliases: ['soldier'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
             respawns: false,
         }).onEncounter(
             actions.defend_tribe
@@ -820,6 +831,7 @@ const characters = {
             armor: { blunt: 15, sharp: 25 },
             aliases: ['soldier'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
             respawns: false,
         }).onEncounter(
             actions.defend_tribe
@@ -921,6 +933,7 @@ const characters = {
             pronouns: pronouns.female,
             aliases: ['page'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).onEncounter(
             actions.defend_tribe
         ).dialog(async function (player: Character) {
@@ -1179,6 +1192,7 @@ const characters = {
             agility: 20,
             aliases: ['colonel', 'arach'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
             respawns: false,
             spellChance: () => true,  // always heals
             magic_level: 50,
@@ -1708,7 +1722,6 @@ const characters = {
         ).fightMove(
             actions.call_help('orcish_soldier', 'orc_amazon', 'orc_behemoth')
         )
-
     },
 
     dark_angel(game: GameState) {
@@ -1740,7 +1753,7 @@ const characters = {
                 await spells['fire'].call(this, this.attackTarget)
             }
         }).onEncounter(async function (character) {
-            if (character.alignment !== 'orc' && (character.flags.enemy_of_orcs || !character.flags.orc_pass)) {
+            if (character.alignment !== this.alignment && (character.flags.enemy_of_orcs || !character.flags.orc_pass)) {
                 this.fight(character)
             }
         }).onAttack(async function (attacker) {
@@ -1929,7 +1942,7 @@ const characters = {
             agility: 1,
             respawns: false,
         }).dialog(async function (player: Character) {
-            print("Hello sir! I hope your enjoy our fine orcish cuisine.");
+            print("Hello, sir or madam! I hope you enjoy our fine orcish cuisine.");
             print("Here is what I have for sale:");
             print();
             for (const item of this.items) {
@@ -1964,6 +1977,7 @@ const characters = {
             pronouns: pronouns.female,
             aliases: ['wife'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
             respawns: false,
         }).dialog(async function (player: Character) {
             if (player.flags.forest_pass) {
@@ -2270,7 +2284,8 @@ const characters = {
             damage: { sharp: 25 },
             description: 'spy o scope peddler',
             pronouns: pronouns.male,
-            alignment: 'ierdale'
+            alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             print("They would hang me for saying this... BUT, it is a good idea sometime during");
             print("your adventure to turn AGAINST Ierdale.  I would recomend this after you can");
@@ -3200,6 +3215,7 @@ const characters = {
             armor: { blunt: 2 },
             aliases: ['guard'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).onEncounter(
             actions.defend_tribe
         ).dialog(async function (player: Character) {
@@ -3222,7 +3238,7 @@ const characters = {
             }
         }).onDeath(
             actions.declare_war
-        ).onDeparture(async function (character: Character, direction: string) {
+        ).allowDeparture(async function (character: Character, direction: string) {
             if (!this.game.flags.colonel_arach) {
                 let blockDirection = ''
                 switch (this.location?.name) {
@@ -3265,6 +3281,7 @@ const characters = {
             description: 'snotty ASS page',
             aliases: ['page'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             print("What do you want... wait I am too good and too cool to be talking to you,");
             print("Eldfarl picked me to mentor him because I am the BEST!!!  Way better than you!");
@@ -3295,6 +3312,7 @@ const characters = {
             agility: 9,
             aliases: ['chief'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             if (this.game.flags.biadon && !this.game.flags.ieadon) {
                 print("Mfrmf... Orcs mfrflm... Oh its you.  Stay OUT, we are at war!  Please show");
@@ -3421,6 +3439,7 @@ const characters = {
             armor: { blunt: 5 },
             aliases: ['gaurd'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             print("Be careful...");
             print("It is very dangerous here in the desert.");
@@ -3544,8 +3563,10 @@ const characters = {
             alignment: 'evil',
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
-                color(magenta);
-                print("Kobalt Captain calls for reinforcements!");
+                if (this.location?.playerPresent) {
+                    color(magenta);
+                    print("Kobalt Captain calls for reinforcements!");
+                }
                 this.game.addCharacter({ name: 'kobalt_soldier', location: this.location! });
             }
         });
@@ -3585,6 +3606,7 @@ const characters = {
             armor: { blunt: 10 },
             items: [{ name: 'arrow', quantity: Infinity }, 'short_bow', 'long_bow', 'composite_bow', 'hand_crossbow', 'crossbow', 'heavy_crossbow'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             print("Hi, want some arrows... OR BOWS!");
         }).onDeath(async function (cause) {
@@ -3611,6 +3633,7 @@ const characters = {
             armor: { blunt: 4 },
             aliases: ['peasant'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             print("Nice day aint it?");
             print("I Heard about these 4 jewels once...  heard one was in the forest 'o theives.");
@@ -3641,6 +3664,7 @@ const characters = {
             armor: { blunt: 3 },
             aliases: ['peasant'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             print("Excuse me I need to get to my work.");
             print();
@@ -3776,6 +3800,7 @@ const characters = {
             armor: { blunt: 10 },
             aliases: ['peasant', 'worker'],
             alignment: 'ierdale',
+            flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             print("*grumble* darn this town *grumble* *grumble*");
             print("Oh Hi there!  Rings?  Dont know, heard something about the path of Nod.");
@@ -4381,6 +4406,7 @@ const characters = {
             coordination: 25,
             agility: 12,
             armor: { blunt: 10 },
+            alignment: 'orcs',
             spellChance: () => true,
         }).dialog(async function (player: Character) {
             print("Grrr...");
@@ -4426,7 +4452,7 @@ const characters = {
         return new A2dCharacter({
             game: game,
             name: 'wisp',
-            pronouns: { "subject": "It", "object": "it", "possessive": "its" },
+            pronouns: { "subject": "it", "object": "it", "possessive": "its" },
             max_hp: 110,
             damage: { blunt: 10, sonic: 150 },
             weaponName: 'piercing scream',
@@ -4608,7 +4634,18 @@ const characters = {
             items: [],
         }).fightMove(async function () {
             if (Math.random() < 1 / 3) {
-                print("TODO: shootspike");
+                if (this.attackTarget?.isPlayer) {
+                    print("Mutant hedgehog shoots its poisoned spikes at you!")
+                } else if (this.location?.playerPresent) {
+                    print("Mutant hedgehog shoots its poisoned spikes at " + this.attackTarget?.name + "!")
+                }
+                let dam = highRandom(50)
+                dam = this.attackTarget?.modify_damage(dam, 'sharp') || 0
+                dam = this.attackTarget?.modify_damage(dam, 'poison') || 0
+                console.log('poison damage =', dam)
+                let currentPoison = this.attackTarget?.getBuff('poison')?.power || 0;
+                currentPoison += Math.max(dam, 0);
+                if (currentPoison) this.attackTarget?.addBuff(getBuff('poison')({ power: currentPoison, duration: currentPoison }))
             }
         });
     },
