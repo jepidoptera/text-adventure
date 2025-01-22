@@ -11,8 +11,7 @@ const spellPower = 1.0860331325016919
 const spells: Record<string, SpellAction> = {
     newbie: async function (this: A2dCharacter, target: Character) {
         if (!checkRequirements.call(this, 'newbie', (2 + this.abilities['newbie']) / 4)) return;
-        color(brightred);
-        if (this.isPlayer) print(`You send a bolt of sputtering newbie magic at ${target.name}.`);
+        if (this.isPlayer) print(`<brightred>You send a bolt of sputtering newbie magic at ${target.name}.`);
         await damageSpell({
             spellName: 'newbie',
             damage: highRandom() * (((this.abilities['newbie'] || 1) ** spellPower + 1) / 3) * this.magic_level + Math.random() * 7,
@@ -26,8 +25,7 @@ const spells: Record<string, SpellAction> = {
     bolt: async function (this: A2dCharacter, target: Character) {
         // bolt is low cost, low damage, high accuracy.
         if (!checkRequirements.call(this, 'bolt', 4 + this.abilities['bolt'] / 2)) return;
-        color(brightred);
-        if (this.isPlayer) print(`A jagged flash of lighning strikes towards ${target.name}.`);
+        if (this.isPlayer) print(`<brightred>A jagged flash of lighning strikes towards ${target.name}.`);
         await damageSpell({
             spellName: 'bolt',
             damage: highRandom() * (1.5 + (this.abilities['bolt'] || 1) ** spellPower * 11 / 14) * this.magic_level + Math.random() * 5,
@@ -39,8 +37,7 @@ const spells: Record<string, SpellAction> = {
     fire: async function (this: A2dCharacter, target: Character) {
         // fire is medium cost, medium damage, medium accuracy.
         if (!checkRequirements.call(this, 'fire', 8 + this.abilities['fire'])) return;
-        color(brightred);
-        if (this.isPlayer) print(`A jet of flame shoots towards ${target.name}.`);
+        if (this.isPlayer) print(`<brightred>A jet of flame shoots towards ${target.name}.`);
         await damageSpell({
             spellName: 'magic fire',
             damage: highRandom() * (1 + (this.abilities['fire'] || 1) ** spellPower * 14 / 11) * this.magic_level,
@@ -53,8 +50,7 @@ const spells: Record<string, SpellAction> = {
     blades: async function (this: A2dCharacter, target: Character) {
         // blades is high cost, high damage, low accuracy.
         if (!checkRequirements.call(this, 'blades', 13 + this.abilities['blades'] * 11 / 7)) return;
-        color(brightred);
-        if (this.isPlayer) print(`Blades sprout from your fingers and hurtle towards ${target.name}.`);
+        if (this.isPlayer) print(`<brightred>Blades sprout from your fingers and hurtle towards ${target.name}.`);
         await damageSpell({
             spellName: 'blades',
             damage: highRandom() * (1 + (this.abilities['blades'] || 1) ** spellPower * 2) * this.magic_level,
@@ -68,8 +64,7 @@ const spells: Record<string, SpellAction> = {
         // maximum cost, very high damage, very high accuracy.
         const mp = this.mp
         if (!checkRequirements.call(this, 'powermaxout', Math.max(this.mp, 50))) return;
-        color(brightred);
-        if (this.isPlayer) print(`A booming wave of ULTIMATE POWER rolls towards ${target.name}.`);
+        if (this.isPlayer) print(`<brightred>A booming wave of ULTIMATE POWER rolls towards ${target.name}.`);
         await damageSpell({
             spellName: 'powermaxout',
             damage: highRandom() * (mp / 25 * (this.abilities['powermaxout'] || 1) ** spellPower) * this.magic_level,
@@ -126,7 +121,7 @@ const spells: Record<string, SpellAction> = {
             power: power,
             duration: duration
         }));
-        print("You chant a few words and you feel the bloodlust seeping into your veins.")
+        if (this.isPlayer) print("You chant a few words and you feel the bloodlust seeping into your veins.")
     }
 }
 
@@ -177,7 +172,7 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
             damage = (damage - target.hp) * damage_overflow
             console.log(`${target.name} is dead from ${spellName}!`)
             if (damage_overflow) {
-                const targetRemaining = this.location?.characters.filter(character => character.enemies.includes(this.name) && !casualties.includes(character)) || []
+                const targetRemaining = this.location?.characters.filter(character => (character.enemies.includes(this.name) || this.enemies.includes(character.name)) && !casualties.includes(character)) || []
                 console.log(`damage overflows to ${targetRemaining.length} remaining enemies`)
                 const newTarget = randomChoice(targetRemaining)
                 if (newTarget) {
