@@ -352,7 +352,6 @@ const actions = {
     sleep: async function (this: A2dCharacter, length: number = 1) {
         if (this.attackTarget?.isPlayer) {
             const player = this.attackTarget as Player
-            player.disableCommands(Array.from(player.actions.keys()), "Shhh. You are sleeping.");
             player.addBuff(getBuff('sleep')({ duration: length, power: 1 }));
         }
     },
@@ -2984,7 +2983,14 @@ const characters = {
                 player.base_stats.max_mp += 5;
                 print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player.base_stats.max_mp}`);
             }
-        })).interaction('train', async function (player) {
+        })).interaction('list', async function (player) {
+            print("At the domain of Eldfarl we teach the following:");
+            print(" train mindfulness | increaces BP");
+            print(" train healing     | increases healing power");
+            print(" train archery     | increases archery skills");
+            print(" To train any of these, please type 'train' then");
+            print(" type what to train.");
+        }).interaction('train', async function (player) {
             color(black)
             print('That class is not taught here.')
         });
