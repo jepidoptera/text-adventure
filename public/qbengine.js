@@ -5,6 +5,7 @@ const cols = 80; // Number of columns in the grid
 let currentColor = { fg: 'black', bg: 'lightgray' };
 let cursor = { x: 0, y: 0 };
 let screenBuffer = Array.from({ length: rows }, () => Array(cols).fill({ char: ' ', fg: currentColor.fg, bg: currentColor.bg }));
+let lineHistory = [];
 let continueLine = false;
 let commandMode = 'input';
 let socket;
@@ -12,6 +13,7 @@ let gameID;
 let keepAliveInterval;
 let inputBuffer = [];
 let keyCallbacks = [];
+let token = localStorage.getItem('gameToken') || null;
 
 // Set up the single global event listener
 function initializeInputHandler() {
@@ -28,14 +30,25 @@ function initializeInputHandler() {
 }
 
 // Central function for getting the next keystroke
-function getNextKey() {
-    return new Promise(resolve => {
+function getNextKey(sessionID = null) {
+    return new Promise((resolve) => {
+        if (sessionID && currentSessionID !== sessionID) {
+            resolve(null); // Resolve with null if canceled or session ID mismatch
+            return;
+        }
+
         if (inputBuffer.length > 0) {
-            // If there's a buffered key, use it immediately
+            // Resolve immediately if there's buffered input
             resolve(inputBuffer.shift());
         } else {
-            // Otherwise wait for the next keystroke
-            keyCallbacks.push(resolve);
+            // Otherwise, add to key callbacks
+            keyCallbacks.push((key) => {
+                if (!sessionID || currentSessionID === sessionID) {
+                    resolve(key); // Resolve only for matching session
+                } else {
+                    resolve(null); // Resolve with null if canceled or mismatched
+                }
+            });
         }
     });
 }
@@ -71,7 +84,7 @@ function renderScreen() {
             }
         });
     });
-    console.log('rendering');
+    // console.log('rendering');
 }
 
 // Function to set current colors
@@ -127,11 +140,11 @@ function quote(text = '', extend = false) {
 
 
 // Synchronous input function with in-place updating
-function query(promptText = '') {
+function query(promptText = '', sessionID) {
     quote(promptText, true);
     renderScreen();
 
-    return new Promise(async resolve => {
+    return new Promise(async (resolve) => {
         let inputText = '';
         let initialX = cursor.x, initialY = cursor.y;
 
@@ -155,15 +168,13 @@ function query(promptText = '') {
             }, 400);
         }, 800);
 
-        // Process keystrokes until Enter
-        while (true) {
+        while (currentSessionID == sessionID) {
             const key = await getNextKey();
-
             if (key === 'Enter') {
                 clearInterval(blink);
                 quote('');
                 resolve(inputText);
-                break;
+                return;
             } else if (key === 'Backspace') {
                 inputText = inputText.slice(0, -1);
                 locate(initialX, initialY);
@@ -175,6 +186,8 @@ function query(promptText = '') {
             }
             renderScreen();
         }
+        clearInterval(blink);
+        resolve(null);
     });
 }
 
@@ -185,7 +198,8 @@ async function optionBox(
         selected: { fg: 'black', bg: 'darkred' },
         background: currentColor.bg
     },
-    default_option = 0
+    default_option = 0,
+    sessionID
 ) {
     previousColors = [currentColor.fg, currentColor.bg];
     let key = '';
@@ -206,6 +220,7 @@ async function optionBox(
     quote('─'.repeat(boxWidth), true);
 
     while (key !== 'Enter') {
+        if (sessionID !== currentSessionID) return null;
         if (key === 'ArrowUp') {
             selected = (selected - 1 + options.length) % options.length;
         } else if (key === 'ArrowDown') {
@@ -221,7 +236,7 @@ async function optionBox(
             quote(` ${options[i]}${' '.repeat(boxWidth - options[i].length - 1)}`, true);
         }
         renderScreen();
-        key = await getNextKey();
+        key = await getNextKey(sessionID);
     }
     color(...previousColors);
     quote('');
@@ -241,6 +256,12 @@ function clear() {
 async function processResponse(batch) {
     for (line of batch) {
         console.log(line);
+
+        // Check if the command is input-related and has a sessionID
+        if (line.sessionID) {
+            currentSessionID = line.sessionID; // Update the active session ID
+        }
+
         switch (line.command) {
             case 'locate':
                 locate(line.x, line.y);
@@ -252,19 +273,20 @@ async function processResponse(batch) {
                 quote(('text' in line ? line.text : ''), line.extend);
                 break;
             case 'getKey':
-                const key = await getNextKey();
-                sendCommand(key);
+                renderScreen();
+                const key = await getNextKey(currentSessionID);
+                if (key !== null) sendCommand({ input: key });
                 break;
             case 'input':
-                const userInput = await query(line.prompt);
-                sendCommand(userInput);
+                const userInput = await query(line.prompt, currentSessionID);
+                if (userInput != null) sendCommand({ input: userInput });
                 break;
             case 'clear':
                 clear();
                 break;
             case 'optionBox':
-                const option = await optionBox(line.title, line.options, line.colors, line.default_option);
-                sendCommand(option);
+                const option = await optionBox(line.title, line.options, line.colors, line.default_option, currentSessionID);
+                if (option !== null) sendCommand({ input: option });
                 break;
         }
     }
@@ -277,27 +299,46 @@ function initializeWebSocket() {
         : `wss://${window.location.hostname}`;
 
     socket = new WebSocket(socketUrl);
-    socket.onopen = function (event) {
+
+    socket.onopen = function () {
         console.log('Connected to WebSocket server');
         clearInterval(keepAliveInterval);
+
+        // Send the token to the server on connection
+        const message = {
+            type: 'connect',
+            token: token, // Send the token stored in localStorage (or null if no token exists)
+        };
+        socket.send(JSON.stringify(message));
+
+        // Start keepalive pings
         keepAliveInterval = setInterval(() => {
-            sendCommand('keepalive');
+            sendCommand({ type: 'keepalive' });
         }, 30000);
     };
 
     socket.onmessage = async function (event) {
         const response = JSON.parse(event.data);
-        if (response.gameID) {
-            gameID = response.gameID;
-            console.log('Game ID:', gameID);
+
+        if (response.type === 'token') {
+            // Server sent a new token; store it in localStorage
+            token = response.token;
+            localStorage.setItem('gameToken', token);
+            console.log('Received token from server:', token);
+        } else if (Array.isArray(response)) {
+            // Server sent cached output for reconnection
+            console.log('Processing cached output...');
+            await processResponse(response);
         } else {
+            // Process regular game commands
             await processResponse(response);
         }
     };
 
-    socket.onclose = function (event) {
+    socket.onclose = function () {
         console.log('Disconnected from WebSocket server');
-        // Optionally, try to reconnect after a delay
+        clearInterval(keepAliveInterval);
+        // Attempt to reconnect after a delay
         setTimeout(initializeWebSocket, 5000);
     };
 
@@ -306,9 +347,10 @@ function initializeWebSocket() {
     };
 }
 
+
 function sendCommand(command) {
     if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(command);
+        socket.send(JSON.stringify(command));
     } else {
         console.error('WebSocket is not connected');
     }
