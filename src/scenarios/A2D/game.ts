@@ -126,12 +126,12 @@ class A2D extends GameState {
             while (activeCharacters.length > 0) {
                 for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
                     if (!character.dead) {
-                        await character.turn();
                         if (character.buffs) {
                             for (let buff of Object.values(character.buffs)) {
                                 await buff.turn();
                             }
                         }
+                        if (!character.dead) await character.turn();
                     }
                     character.timeCounter -= 1 / character.action_speed;
                 }

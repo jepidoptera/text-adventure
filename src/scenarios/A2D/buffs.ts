@@ -97,12 +97,14 @@ const buffs: { [key: string]: BuffCreator } = {
             name: 'sleep',
             duration: duration,
             power: power,
-        }).onTurn(async function () {
+        }).onApply(async function () {
             if (this.character.isPlayer) {
                 color(brightcyan);
                 print(`Sleep: ${Math.ceil(this.duration)}`);
                 (this.character as Player).disableCommands(Object.keys((this.character as Player).actions.keys()), 'Shh. You are sleeping.')
             }
+        }).onTurn(async function () {
+            this.apply(this.character)
         }).onExpire(async function () {
             if (this.character.isPlayer) {
                 color(brightcyan);
