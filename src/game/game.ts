@@ -2,18 +2,16 @@ import { WebSocket } from 'ws';
 import { Landmark, Location } from './location.js';
 import { Item, ItemParams, Container } from './item.js'
 import { Character, Buff } from './character.js'
-import { randomChoice, parseColoredText } from './utils.js'
+import { randomChoice, parseColoredText, generateSessionID } from './utils.js'
 import { colorDict } from './colors.js';
 
 abstract class GameState {
-    static current: GameState | null = null;
-    private static contextLock: Promise<void> = Promise.resolve();
-    private static contextRelease: (() => void) | null = null;
+    private outputCache: any[] = [];
+    private wss: WebSocket;
     flags: { [key: string]: any } = {};
     private _locations: Map<string | number, Location> = new Map();
     private batchCommands: { [key: string]: string | number | undefined }[] = [];
     on_input: ((input: string) => void) | null = null;
-    send: (output: object) => void;
     _save: (saveName: string, gameState: object) => Promise<void>;
     _load: (saveName: string) => Promise<object | null>;
     itemTemplates: { [key: string]: (game: GameState) => Item } = {};
@@ -23,14 +21,20 @@ abstract class GameState {
     abstract readonly characterTemplates: Record<string, (game: GameState) => Character>;
     player!: Character;
     playerData: any = {};
+    private currentSessionID: string | null = null;
+    private saveName: string = '';
+
     constructor(
         wss: WebSocket,
         save: (saveName: string, gameState: object) => Promise<void>,
         load: (saveName: string) => Promise<object | null>
     ) {
-        this.send = (output: object) => wss.send(JSON.stringify(output));
+        this.wss = wss;
         this._save = save;
-        this._load = load;
+        this._load = async (saveName: string) => {
+            this.saveName = saveName;
+            return await load(saveName);
+        }
         (global as any).print = this.quote.bind(this);
         (global as any).input = this.query.bind(this);
         (global as any).getKey = this.getKey.bind(this);
@@ -40,28 +44,47 @@ abstract class GameState {
         (global as any).optionBox = this.optionBox.bind(this);
         (global as any).clear = this.clear.bind(this);
     }
+
+    send(output: Object) {
+        this.wss.send(JSON.stringify(output));
+    }
+
     quote(text?: string, extend?: any) {
         const textLines = parseColoredText(text || '');
         if (textLines.length == 0) {
             this.batchCommands.push({ command: 'print', text: text, extend });
+            this.cacheCommand({ command: 'print', text, extend })
         } else {
             for (let i = 0; i < textLines.length; i++) {
                 const [color, text] = textLines[i];
                 const [fg, bg] = color.split(',');
-                if (fg || bg) this.batchCommands.push({ command: 'color', fg: colorDict[fg as keyof typeof colorDict], bg: colorDict[bg as keyof typeof colorDict] });
-                this.batchCommands.push({ command: 'print', text: text, extend: i == textLines.length - 1 ? extend : 1 });
+                if (fg || bg) {
+                    let command = { command: 'color', fg: colorDict[fg as keyof typeof colorDict], bg: colorDict[bg as keyof typeof colorDict] }
+                    this.batchCommands.push(command);
+                    this.cacheCommand(command);
+                }
+                let command = { command: 'print', text: text, extend: i == textLines.length - 1 ? extend : 1 }
+                this.batchCommands.push(command);
+                this.cacheCommand(command)
             }
         }
     }
+
     clear() {
         this.batchCommands.push({ command: 'clear' });
+        this.cacheCommand({ command: 'clear' })
     }
+
     locate(x: number, y?: number) {
         this.batchCommands.push({ command: 'locate', x, y });
+        this.cacheCommand({ command: 'locate', x, y })
     }
+
     color(fg: string, bg?: string) {
         this.batchCommands.push({ command: 'color', fg, bg });
+        this.cacheCommand({ command: 'color', fg, bg })
     }
+
     optionBox({
         title,
         options,
@@ -74,9 +97,12 @@ abstract class GameState {
         default_option?: number
     }) {
         console.log(options);
+        this.currentSessionID = generateSessionID()
         this.send(this.batchCommands);
         this.batchCommands = [];
-        this.send([{ command: 'optionBox', title, options, colors, default_option }]);
+        const command = { command: 'optionBox', title, options, colors, default_option, sessionID: this.currentSessionID }
+        this.send([command]);
+        this.cacheCommand(command)
         return new Promise<number>((resolve) => {
             this.on_input = (response: string) => {
                 console.log(response);
@@ -84,21 +110,32 @@ abstract class GameState {
             };
         });
     }
+
     query(prompt: string): Promise<string> {
         this.send(this.batchCommands);
         this.batchCommands = [];
-        this.send([{ command: 'input', prompt }]);
+        this.currentSessionID = generateSessionID();
+        this.send([{ command: 'input', prompt, sessionID: this.currentSessionID }]);
+        this.cacheCommand({ command: 'print', text: prompt, extend: true })
+        this.cacheCommand({ command: 'input', prompt: '', sessionID: this.currentSessionID })
         return new Promise<string>((resolve) => {
-            this.on_input = resolve;
+            this.on_input = (input: string) => {
+                this.cacheCommand({ command: 'print', text: input, extend: false })
+                resolve(input);
+            }
         });
     }
+
     getKey(options?: string[]): Promise<string> {
         if (options) {
             options = options.map(option => option.slice(0, 1).toLowerCase());
         }
         this.send(this.batchCommands);
         this.batchCommands = [];
-        this.send([{ command: 'getKey', options }]);
+        this.currentSessionID = generateSessionID();
+        const command = { command: 'getKey', options, sessionID: this.currentSessionID }
+        this.send([command]);
+        this.cacheCommand(command)
         console.log('waiting for key');
         return new Promise<string>((resolve) => {
             this.on_input = (input: string) => {
@@ -108,16 +145,66 @@ abstract class GameState {
                     resolve(input);
                 }
                 else {
-                    this.send([{ command: 'getKey', options }]);
+                    this.send([command]);
                 }
             };
         });
     }
+
     pause(seconds: number) {
         this.send(this.batchCommands);
         this.batchCommands = [];
         return new Promise(resolve => setTimeout(resolve, seconds * 1000));
     }
+
+    cacheCommand(command: any) {
+        if (['getKey', 'input', 'optionBox'].includes(command.command)) {
+            this.outputCache = this.outputCache.filter(c => c.command !== 'getKey' && c.command !== 'input' && c.command !== 'optionBox');
+        }
+        this.outputCache.push(command);
+        // this.outputCache = this.outputCache.slice(-100);
+    }
+
+    getCachedOutput() {
+        let startColors = { fg: '', bg: '' };
+        const lookBack = -150;
+        for (let command of this.outputCache.slice(0, lookBack).reverse()) {
+            if (command.command === 'color') {
+                startColors.fg = command.fg || startColors.fg;
+                startColors.bg = command.bg || startColors.bg;
+            }
+            if (startColors.fg && startColors.bg) {
+                break;
+            }
+        }
+        console.log(`cached colors are: ${startColors.fg}, ${startColors.bg}`);
+        return [
+            { command: 'color', fg: startColors.fg, bg: startColors.bg },
+            { command: 'clear' },
+            ...this.outputCache.slice(lookBack)
+        ];
+    }
+
+    reconnect(wss: WebSocket) {
+        this.wss = wss;
+        wss.send(JSON.stringify(this.getCachedOutput()));
+    }
+
+    shutdown() {
+        // clear intervals or whatever
+        return;
+    }
+
+    async process_input(input: string = '') {
+        if (this.on_input) {
+            this.on_input(input);
+        }
+    }
+
+    // ^^ webinterface stuff ^^ //
+    // vv   gamestate stuff  vv //
+
+
     async start() {
         // sample game setup
         // this.quote('Welcome to the game!');
@@ -192,54 +279,6 @@ abstract class GameState {
         //     }
         // }
     }
-    shutdown() {
-        // clear intervals or whatever
-        return;
-    }
-    async enterContext() {
-        // Wait for any existing context to be released
-        await GameState.contextLock;
-
-        // Create a new lock
-        GameState.contextLock = new Promise(resolve => {
-            GameState.contextRelease = resolve;
-        });
-
-        GameState.current = this;
-        (global as any).print = this.quote.bind(this);
-        (global as any).input = this.query.bind(this);
-        (global as any).getKey = this.getKey.bind(this);
-        (global as any).pause = this.pause.bind(this);
-        (global as any).color = this.color.bind(this);
-        (global as any).locate = this.locate.bind(this);
-        (global as any).optionBox = this.optionBox.bind(this);
-        (global as any).clear = this.clear.bind(this);
-    }
-
-    exitContext() {
-        if (GameState.current === this) {
-            GameState.current = null;
-            if (GameState.contextRelease) {
-                GameState.contextRelease();
-                GameState.contextRelease = null;
-            }
-        }
-    }
-
-    // Modify your process_input method
-    async process_input(input: string = '') {
-        this.enterContext();
-        try {
-            if (this.on_input) {
-                this.on_input(input);
-            }
-        } finally {
-            this.exitContext();
-        }
-    }
-
-    // ^^ webinterface stuff ^^ //
-    // vv   gamestate stuff  vv //
 
     async loadScenario(
         scenario: {
@@ -315,6 +354,7 @@ abstract class GameState {
                     });
                     if (newCharacter && character.enemies) {
                         newCharacter.enemies = character.enemies;
+                        console.log(`${newCharacter.name} has enemies ${newCharacter.enemies}`);
                     }
                 } else {
                     console.log(`found player at ${location.name}`);
@@ -666,7 +706,7 @@ abstract class GameState {
         return Array.from(grid.values())
     }
 
-    async save(saveName: string): Promise<void> {
+    async save(): Promise<void> {
 
         const gameStateObj: any = {
             locations: {},
@@ -677,7 +717,7 @@ abstract class GameState {
             gameStateObj.locations[key] = location.save();
         });
 
-        this._save(saveName, gameStateObj);
+        this._save(this.saveName, gameStateObj);
     }
 }
 
