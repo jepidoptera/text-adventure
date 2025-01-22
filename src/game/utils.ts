@@ -80,7 +80,7 @@ function lineBreak(text: string) {
     if (text.length < lineLength) return text;
     for (let word of text.split(' ')) {
         if (currentLine.length + word.length + 1 > lineLength) {
-            lines.push(currentLine);
+            lines.push(currentLine.trim());
             currentLine = '';
         }
         currentLine += word + ' ';
@@ -152,4 +152,8 @@ function splitFirst(str: string): [string, string] {
     return [match[1], match[2] || ''];
 }
 
-export { caps, plural, singular, randomChoice, highRandom, lineBreak, printCharacters, parseColoredText, splitFirst };
+function generateSessionID(): string {
+    return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+}
+
+export { caps, plural, singular, randomChoice, highRandom, lineBreak, printCharacters, parseColoredText, splitFirst, generateSessionID };
