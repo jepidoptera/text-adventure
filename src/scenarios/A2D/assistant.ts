@@ -67,6 +67,17 @@ const hintParams: hintParameters[] = [
         ],
         condition: (player: Player) => player.fighting && player.equipment['right hand']?.name == 'fist',
     }, {
+        name: 'left attack',
+        text: [
+            'type "\\" to attack with your left hand.'
+        ],
+        condition: (player: Player) => {
+            if (player.fighting && Object.values(player.assistantHintsUsed).reduce((sum, current) => current + sum) % player.assistantHintsUsed['left attack'] == 0) {
+                return true;
+            } else { return false }
+        },
+        repeats: 3
+    }, {
         name: 'check equipment',
         text: [
             'type "equipment" to see your gear.',
@@ -80,14 +91,17 @@ const hintParams: hintParameters[] = [
             this.text = [`type "get ${player.location?.items[0].name}" to pick it up.`];
             return true;
         },
+        repeats: 3
     }, {
         name: 'cast spell',
         text: [`type "cast bolt" to cast a spell.`],
         condition: (player: Player) => player.abilities['bolt'] > 0 && player.fighting,
+        repeats: 3
     }, {
         name: 'cast newbie',
         text: ['type "cast newbie" to cast a spell.'],
         condition: (player: Player) => player.abilities['bolt'] == 0 && player.abilities['newbie'] > 0 && player.fighting,
+        repeats: 3
     }, {
         name: 'heal',
         text: ['type "heal" to heal yourself.'],
@@ -99,6 +113,17 @@ const hintParams: hintParameters[] = [
             'type "stats" to check your stats.'
         ],
         condition: (player: Player) => player.lastCommand[0]?.includes('train'),
+    }, {
+        name: 'eat',
+        text: [
+            'you are hungry - your max SP will be lowered until you eat some food.'
+        ],
+        condition: (player: Player) => {
+            if (player.hungerPenalty > 0) {
+
+                return true;
+            } else { return false; }
+        },
     }, {
         name: 'die',
         text: [
