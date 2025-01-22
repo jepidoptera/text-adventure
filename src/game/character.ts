@@ -191,7 +191,7 @@ class Character {
     flags: { [key: string]: any } = {};
     private _attackTarget: Character | null = null;
     private _onEncounter: ((character: Character) => Promise<void>) | undefined;
-    private _onDeparture: ((character: Character, direction: string) => Promise<boolean>) | undefined;
+    private _allowDeparture: ((character: Character, direction: string) => Promise<boolean>) | undefined;
     private _onEnter: Action | undefined;
     private _onLeave: Action | undefined;
     private _onSlay: Action | undefined;
@@ -258,7 +258,7 @@ class Character {
         this.name = name;
         this.game = game;
         // console.log(`Creating ${this.name}`)
-        this.description = description;
+        this.description = description || name;
         this.aliases = aliases;
         this.alignment = alignment;
         this.pronouns = pronouns;
@@ -402,7 +402,7 @@ class Character {
         const subtract = highRandom(this.buff_defense_additive(damageType));
         const multiplier = this.buff_defense_multiplier(damageType);
         if (subtract != 0 || multiplier != 1) {
-            console.log(`${Math.round(baseAmount * 10) / 10} ${damageType} damage ${subtract ? `reduced by ${subtract} and` : ''} ${multiplier > 1 ? ` divided by ${multiplier}` : ` multiplied by ${1 / multiplier}`} = ${Math.round((baseAmount - subtract) / multiplier * 10) / 10}`)
+            console.log(`${Math.round(baseAmount * 10) / 10} ${damageType} damage ${subtract ? `reduced by ${subtract} and` : ''} ${multiplier > 1 ? `divided by ${multiplier}` : `multiplied by ${1 / multiplier}`} = ${Math.round((baseAmount - subtract) / multiplier * 10) / 10}`)
         }
         return Math.max((baseAmount - subtract) / multiplier, 0);
     }
@@ -439,11 +439,15 @@ class Character {
     }
 
     get attackTarget(): Character | null {
-        if (this._attackTarget) return this._attackTarget;
-        return null;
-        // return this.location?.characters.find(
-        //     character => this.enemies.includes(character.name) || character.enemies.includes(this.name)
-        // ) || null;
+        if (this._attackTarget && this._attackTarget?.location == this.location) return this._attackTarget;
+        const enemy = this.location?.characters.find(
+            character => this.enemies.includes(character.name) || character.enemies.includes(this.name)
+        ) || null;
+        if (enemy && !this.enemies.includes(enemy.name)) {
+            this.enemies.push(enemy.name);
+            this._attackTarget = enemy;
+        }
+        return enemy;
     }
 
     get dead() {
@@ -573,10 +577,10 @@ class Character {
         if (finalitem.acquire) await finalitem.acquire(this);
     }
 
-    async removeItem(item: string | Item | undefined, quantity?: number) {
+    async removeItem(item: string | Item | undefined, quantity: number = 1) {
         if (typeof item === 'string') item = this.inventory.item(item);
         if (item) {
-            this.inventory.remove(item, quantity ?? item.quantity);
+            this.inventory.remove(item, quantity);
         }
     }
 
@@ -632,6 +636,11 @@ class Character {
         const newLocation = this.location.adjacent.get(direction);
         if (newLocation) {
             this.backDirection = Array.from(newLocation.adjacent?.keys()).find(key => newLocation.adjacent?.get(key) === this.location) || '';
+            for (let character of this.location.characters) {
+                if (character !== this) {
+                    await character.depart(this, direction);
+                }
+            }
             await this.relocate(newLocation);
         }
     }
@@ -683,7 +692,6 @@ class Character {
         await this._onDeath?.(cause);
         if (!this.dead) return;
         console.log(`${this.name} dies from ${cause?.name ?? 'no reason'}.`)
-        // if (this.location) this.inventory.transferAll(this.location);
         if (this.location) {
             for (let item of this.inventory) {
                 // copy items so they will still have the stuff when they respawn
@@ -694,7 +702,6 @@ class Character {
         if (this.respawns) {
             this.respawnCountdown = this.respawnTime;
             console.log(`${this.name} respawning in ${this.respawnCountdown} seconds from ${this.location?.name}`);
-            // this.respawnLocation = this.location;
         }
         this.location?.removeCharacter(this);
         this.location = null;
@@ -737,8 +744,8 @@ class Character {
         return this;
     }
 
-    onDeparture(action: (this: Character, character: Character, direction: string) => Promise<boolean>) {
-        this._onDeparture = action.bind(this);
+    allowDeparture(action: (this: Character, character: Character, direction: string) => Promise<boolean>) {
+        this._allowDeparture = action.bind(this);
         return this;
     }
 
@@ -800,7 +807,7 @@ class Character {
     }
 
     async allowDepart(character: Character, direction: string): Promise<boolean> {
-        const allow = this._onDeparture ? await this._onDeparture?.(character, direction) : true;
+        const allow = this._allowDeparture ? await this._allowDeparture?.(character, direction) : true;
         if (allow && this.attackTarget == character && this.chase) {
             // give chase
             console.log(`${this.name} chases ${character.name} ${direction}!`)
@@ -810,6 +817,9 @@ class Character {
             this.push_action(`go ${direction}`);
         }
         return allow;
+    }
+
+    async depart(character: Character, direction: string) {
     }
 
     async enter(location: Location) {
