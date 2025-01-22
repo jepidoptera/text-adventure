@@ -399,10 +399,9 @@ class Player extends A2dCharacter {
         }, 25000);
     }
 
-    async allowDepart(character: Character, direction: string): Promise<boolean> {
+    async depart(character: Character, direction: string) {
         color(green);
         print(`${caps(character.name)} leaves ${direction}.`);
-        return true;
     }
 
     async target(target?: Character) {
@@ -636,15 +635,18 @@ class Player extends A2dCharacter {
             }
             i++;
         }
-        if (listItems.length % 2 == 1) print()
+        if (listItems.length % 2 == 1) {
+            print();
+            await nextLine();
+        }
         color(gray)
         print(`Total Object Weight: ${this.inventoryWeight}/${this.max_carry}`)
         await nextLine();
         color(green, white)
         print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
-        await nextLine();
         color(black, darkwhite)
         print()
+        await nextLine();
         color(black)
         print("Wielded:         ", 1)
         color(gray)
@@ -658,8 +660,8 @@ class Player extends A2dCharacter {
         if (this.equipment['bow']) {
             color(blue)
             print("Bow:             " + this.equipment['bow'].name)
+            await nextLine();
         }
-        await nextLine();
         color(black)
         print("Armor:           ", 1)
         color(gray)
@@ -749,10 +751,15 @@ class Player extends A2dCharacter {
         }
     }
 
-    async removeItem(itemName: string | Item | undefined, quantity?: number) {
+    async removeItem(itemName: string | Item | undefined, quantity: number = 1) {
+        /**
+        * Removes an item from the player's inventory or equipment.
+        * @param {string | Item} itemName - The name of the item to remove.
+        * @param {number} quantity - The quantity of the item to remove. Default is 1.
+        */
         const item: Item | undefined = typeof itemName === 'string' ? this.inventory.item(itemName) : itemName;
         if (item) {
-            this.inventory.remove(item, quantity ?? 1);
+            this.inventory.remove(item, quantity);
         } else {
             for (let slot of equipmentSlots) {
                 if (this.equipment[slot]?.name === itemName) {
@@ -809,6 +816,8 @@ class Player extends A2dCharacter {
                 print("That object has no militaristic properties.")
                 return;
             }
+        } else {
+            print(`${item.name} equipped.`)
         }
         if (this.equipment[slot] && this.equipment[slot].name != 'fist') {
             // put their previous weapon in their inventory
@@ -1387,8 +1396,9 @@ class Player extends A2dCharacter {
                     }
                     break;
                 case ('delete'):
-                    this.removeItem(this.item(value), 1);
-                    print(`deleted ${value}`)
+                    const quantity = parseInt(value.slice(value.lastIndexOf(' ') + 1)) || 1
+                    this.removeItem(this.item(value), quantity);
+                    print(`deleted ${quantity} ${value}`)
                     break;
                 case ('regen'):
                     this.game.loadScenario(scenario)
@@ -1572,7 +1582,7 @@ class Player extends A2dCharacter {
 
     async saveGame() {
         color(black)
-        await this.game.save(this.name);
+        await this.game.save();
         print('Game saved.')
     }
 }
