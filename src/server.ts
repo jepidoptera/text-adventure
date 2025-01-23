@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { MongoClient, Db, Collection } from 'mongodb';
 import "dotenv/config.js";
 
-const mongo_url = process.env.MONGO_DB_URL
+const mongo_url = process.env.MONGO_DB_URL;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,19 +26,19 @@ class GameSaver {
         if (mongoUrl === '') {
             throw new Error('MongoDB URL not provided');
         }
-        this.connect()
+        this.connect();
     }
 
     async connect(): Promise<void> {
         return new Promise((resolve, reject) => {
             MongoClient.connect(this.mongoUrl).then(client => {
-                this.client = client
+                this.client = client;
                 this.db = this.client.db(this.dbName);
                 this.savesCollection = this.db.collection<SaveDocument>('A2D');
-                console.log('mongo connected')
-                resolve()
-            })
-        })
+                console.log('mongo connected');
+                resolve();
+            });
+        });
     }
 
     async saveGame(saveName: string, gameState: object): Promise<void> {
@@ -69,7 +69,6 @@ class GameSaver {
         }
 
         console.log(`Game loaded from save '${saveName}'`);
-        // console.log(saveDocument.gameState);
         return saveDocument.gameState;
     }
 
@@ -80,49 +79,79 @@ class GameSaver {
 
 const gameSaver = new GameSaver(mongo_url ?? '', 'save-games');
 
-// server code
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 const port = process.env.PORT || 3000;
 
-// Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Serve index.html for the root route
 app.get('/', (req, res) => {
     console.log('sending index.html');
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-// Store active game instances
-const activeGames = new Map();
+const activeGames = new Map<string | null, { gameState: any; timeout: NodeJS.Timeout }>();
+
+function generateToken(): string {
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
 
 wss.on('connection', (ws) => {
-    const gameState = new A2D(ws, gameSaver.saveGame.bind(gameSaver), gameSaver.loadGame.bind(gameSaver));
-    const gameId = Date.now().toString(); // Use a timestamp as a simple unique identifier
-    activeGames.set(gameId, gameState);
+    let token: string = '';
 
-    ws.on('message', (input) => {
-        const message = input.toString();
-        if (message === 'keepalive') {
-            console.log('keepalive');
+    ws.on('message', async (input) => {
+        let message;
+        try {
+            message = JSON.parse(input.toString());
+        } catch (e) {
+            console.log('Invalid JSON input:', input.toString());
             return;
         }
-        // else console.log(`Received message: ${message}`);
-        gameState.process_input(input.toString());
+        if (message.type === 'connect') {
+            token = message.token || generateToken();
+
+            if (activeGames.has(token)) {
+                clearTimeout(activeGames.get(token)!.timeout);
+                activeGames.get(token)!.gameState.reconnect(ws);
+                console.log(`Reconnected to game with token: ${token}`);
+            } else {
+                const gameState = new A2D(ws, gameSaver.saveGame.bind(gameSaver), gameSaver.loadGame.bind(gameSaver));
+                activeGames.set(token, {
+                    gameState,
+                    timeout: scheduleCleanup(token),
+                });
+                gameState.start();
+                console.log(`New game started with token: ${token}`);
+            }
+
+            ws.send(JSON.stringify({ type: 'token', token }));
+        } else if (message.type === 'keepalive') {
+            console.log('keepalive');
+        } else if (token && activeGames.has(token)) {
+            activeGames.get(token)!.gameState.process_input(message.input);
+        }
     });
 
     ws.on('close', () => {
-        // Clean up the game instance when the client disconnects
-        activeGames.get(gameId).shutdown()
-        activeGames.delete(gameId);
-        console.log(`Client disconnected. Game ${gameId} removed.`);
+        if (token && activeGames.has(token)) {
+            console.log(`Client disconnected. Scheduling cleanup for game with token: ${token}`);
+            activeGames.get(token)!.timeout = scheduleCleanup(token);
+        }
     });
-
-    gameState.start();
-    console.log(`New game started with ID: ${gameId}`);
 });
+
+function scheduleCleanup(token: string): NodeJS.Timeout {
+    return setTimeout(() => {
+        if (activeGames.has(token)) {
+            // save before shutting down
+            activeGames.get(token)!.gameState.save();
+            activeGames.get(token)!.gameState.shutdown();
+            activeGames.delete(token);
+            console.log(`Game with token ${token} removed due to inactivity.`);
+        }
+    }, 3600000); // 1 hour in milliseconds
+}
 
 server.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);

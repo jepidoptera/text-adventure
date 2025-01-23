@@ -4,7 +4,7 @@ import { Character, BaseStats, Buff, DamageTypes } from "../../game/character.js
 import { A2dCharacter } from "./characters.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { GameState } from "../../game/game.js";
-import { caps, plural, printCharacters, randomChoice } from "../../game/utils.js";
+import { caps, plural, printCharacters, randomChoice, splitFirst } from "../../game/utils.js";
 import { spells, abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js"
 import { landmarks } from "./landmarks.js"
@@ -17,6 +17,7 @@ const equipmentSlots = ['right hand', 'left hand', 'bow', 'armor', 'ring'] as co
 type StatKey = BaseStats | `${DamageTypes}_damage` | `${DamageTypes}_defense`;
 
 class Player extends A2dCharacter {
+    actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
     class_name: string = '';
     max_pets: number = 0;
     healed: boolean = false;
@@ -27,7 +28,6 @@ class Player extends A2dCharacter {
     right_fist = this.game.addItem({ name: 'fist' })!;
     left_fist = this.game.addItem({ name: 'fist' })!;
     activeEquipment: { [key in EquipmentSlot]: boolean } = { 'armor': true, 'bow': false, 'left hand': false, 'right hand': false, 'ring': true };
-
     equipment: {
         [key in EquipmentSlot]: Item | null
     } = {
@@ -60,6 +60,7 @@ class Player extends A2dCharacter {
     } as const
     assistantHintsUsed: { [key: string]: number } = {}
     lastCommand: string[] = [];
+    justMoved = false;
 
     constructor(characterName: string, className: string, game: GameState) {
         super({ name: characterName, game: game });
@@ -171,47 +172,47 @@ class Player extends A2dCharacter {
                 break;
         }
 
-        this.addAction('save', this.saveGame);
-        this.addAction('load', this.loadGame);
-        this.addAction('', async () => { if (this.flags.path?.length ?? 0 > 0) this.go('') });
-        this.addAction('n', async () => await this.go('north'));
-        this.addAction('s', async () => await this.go('south'));
-        this.addAction('e', async () => await this.go('east'));
-        this.addAction('w', async () => await this.go('west'));
-        this.addAction('ne', async () => await this.go('northeast'));
-        this.addAction('se', async () => await this.go('southeast'));
-        this.addAction('sw', async () => await this.go('southwest'));
-        this.addAction('nw', async () => await this.go('northwest'));
-        this.addAction('down', async () => await this.go('down'));
-        this.addAction('up', async () => await this.go('up'));
-        this.addAction('go', this.go);
-        this.addAction('flee', async () => { if (this.backDirection) await this.go(this.backDirection); else { color(black); print('you are cornered!') } });
-        this.addAction('i', async () => this.checkInventory());
-        this.addAction('look', this.look);
-        this.addAction('read', this.read);
-        this.addAction('eat', this.eat);
-        this.addAction('drink', this.drink);
-        this.addAction('use', this.use);
-        this.addAction('wield', async (weapon: string) => await this.equip(weapon, 'right hand'));
-        this.addAction('wield2', async (weapon: string) => await this.equip(weapon, 'left hand'));
-        this.addAction('wear', async (item: string) => await this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
-        this.addAction('ready', async (weapon: string) => await this.equip(weapon, 'bow'));
+        this.addAction('save', 0, this.saveGame);
+        this.addAction('load', 0, this.loadGame);
+        this.addAction('', 10, async () => { if (this.flags.path?.length ?? 0 > 0) this.go('') });
+        this.addAction('n', 10, async () => await this.go('north'));
+        this.addAction('s', 10, async () => await this.go('south'));
+        this.addAction('e', 10, async () => await this.go('east'));
+        this.addAction('w', 10, async () => await this.go('west'));
+        this.addAction('ne', 10, async () => await this.go('northeast'));
+        this.addAction('se', 10, async () => await this.go('southeast'));
+        this.addAction('sw', 10, async () => await this.go('southwest'));
+        this.addAction('nw', 10, async () => await this.go('northwest'));
+        this.addAction('down', 10, async () => await this.go('down'));
+        this.addAction('up', 10, async () => await this.go('up'));
+        this.addAction('go', 10, this.go);
+        this.addAction('flee', 10, async () => { if (this.backDirection) await this.go(this.backDirection); else { color(black); print('you are cornered!') } });
+        this.addAction('i', 0, async () => this.checkInventory());
+        this.addAction('look', 5, this.look);
+        this.addAction('read', 20, this.read);
+        this.addAction('eat', 20, this.eat);
+        this.addAction('drink', 20, this.drink);
+        this.addAction('use', 10, this.use);
+        this.addAction('wield', 10, async (weapon: string) => await this.equip(weapon, 'right hand'));
+        this.addAction('wield2', 10, async (weapon: string) => await this.equip(weapon, 'left hand'));
+        this.addAction('wear', 30, async (item: string) => await this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
+        this.addAction('ready', 10, async (weapon: string) => await this.equip(weapon, 'bow'));
 
-        this.addAction('drop', this.drop);
-        this.addAction('get', this.get);
-        this.addAction('hp', async () => { this.checkHP(); this.checkHunger(); this.checkXP() });
-        this.addAction('stats', this.checkStats);
-        this.addAction('equipment', this.checkEquipment);
-        this.addAction('heal', this.heal);
-        this.addAction('talk', this.talkTo);
-        this.addAction('attack', async (name: string) => this.target(this.location?.character?.(name)));
-        this.addAction('\\', async (name: string) => await this.left_attack(name));
-        this.addAction('shoot', async (name: string) => await this.bow_attack(name));
-        this.addAction('cast', this.spell);
-        this.addAction('cheatmode xfish9', async () => { this.cheatMode = true; color(magenta); print('Cheat mode activated.') });
-        this.addAction('cheat', this.cheat);
-        this.addAction('buffs', this.checkBuffs);
-        this.addAction('goto', this.goto);
+        this.addAction('drop', 10, this.drop);
+        this.addAction('get', 10, this.get);
+        this.addAction('hp', 0, async () => { this.checkHP(); this.checkHunger(); this.checkXP() });
+        this.addAction('stats', 0, this.checkStats);
+        this.addAction('equipment', 0, this.checkEquipment);
+        this.addAction('heal', 10, this.heal);
+        this.addAction('talk', 10, this.talkTo);
+        this.addAction('attack', 10, async (name: string) => await this.target(this.location?.character?.(name)));
+        this.addAction('\\', 5, async (name: string) => await this.left_attack(name));
+        this.addAction('shoot', 0, async (name: string) => await this.bow_attack(name));
+        this.addAction('cast', 10, this.spell);
+        this.addAction('cheatmode xfish9', 0, async () => { this.cheatMode = true; color(magenta); print('Cheat mode activated.') });
+        this.addAction('cheat', 0, this.cheat);
+        this.addAction('buffs', 0, this.checkBuffs);
+        this.addAction('goto', 0, this.goto);
 
         console.log('loaded player actions.')
 
@@ -219,6 +220,20 @@ class Player extends A2dCharacter {
         this.recoverStats({ hp: 100, sp: 100, mp: 100 });
         this.autoheal();
         this.onTurn(async () => { this.onSlay(this.checkHP) });
+    }
+
+    addAction(name: string, timeNeeded: number, action: (this: Player, ...args: any[]) => Promise<any>) {
+        this.actions.set(name, action.bind(this));
+        this.actionTiming[name] = timeNeeded;
+        return this;
+    }
+
+    useAction(name: string, args?: string): Promise<void> {
+        const action = this.actions.get(name);
+        if (!action) {
+            throw new Error(`Action "${name}" not found.`);
+        }
+        return action.call(this, args);
     }
 
     async goto(locationName: string) {
@@ -277,9 +292,9 @@ class Player extends A2dCharacter {
             await this.location?.actions.get(command)?.(this);
         } else {
             for (let character of this.location?.characters ?? []) {
-                if (character != this && character.actions.has(command)) {
+                if (character != this && character.interactions.has(command)) {
                     // get character actions next
-                    await character.actions.get(command)?.(this);
+                    await character.interactions.get(command)?.(this);
                     return
                 }
             }
@@ -298,16 +313,14 @@ class Player extends A2dCharacter {
             }
 
             // if not, try to parse the command
-            const words = command.split(' ')
-            const verb = words[0]
-            const args = words.slice(1).join(' ')
+            const [verb, args] = splitFirst(command);
             if (this.location?.actions.has(verb)) {
                 await this.location?.actions.get(verb)?.(this, args);
             } else {
                 // see if any characters in the room can handle the command
                 for (let character of this.location?.characters ?? []) {
-                    if (character != this && character.actions.has(verb)) {
-                        await character.actions.get(verb)?.(this, args);
+                    if (character != this && character.interactions.has(verb)) {
+                        await character.interactions.get(verb)?.(this, args);
                         return
                     }
                 }
@@ -386,12 +399,17 @@ class Player extends A2dCharacter {
         }, 25000);
     }
 
-    target(target?: Character) {
+    async depart(character: Character, direction: string) {
+        color(green);
+        print(`${caps(character.name)} leaves ${direction}.`);
+    }
+
+    async target(target?: Character) {
         console.log(`player targets ${target?.name}`)
         if (!target) {
             print('They are not here.')
         }
-        this.fight(target || this.attackTarget);
+        await this.fight(target || this.attackTarget);
     }
 
     useWeapon(weapon: 'left hand' | 'right hand' | 'bow' | 'none') {
@@ -402,7 +420,7 @@ class Player extends A2dCharacter {
 
     async left_attack(targetName: string) {
         if (targetName) {
-            this.fight(this.location?.character?.(targetName) || this.attackTarget);
+            await this.fight(this.location?.character?.(targetName) || this.attackTarget);
         }
         this.useWeapon('left hand');
         await this.attack(this.attackTarget, this.equipment['left hand'], this.weaponDamage('left hand'));
@@ -424,7 +442,7 @@ class Player extends A2dCharacter {
         if (this.equipment['bow'] && this.has('arrow')) {
             this.removeItem('arrow', 1);
             this.useWeapon('bow');
-            this.fight(enemy);
+            await this.fight(enemy);
             await this.attack(enemy, this.equipment['bow'], this.weaponDamage('bow'));
         } else if (this.equipment['bow'] && !this.has('arrow')) {
             print("You're out of arrows.")
@@ -433,14 +451,35 @@ class Player extends A2dCharacter {
         }
     }
 
-    async defend(attacker: Character) {
+    async repel(attacker: Character) {
+        color(red)
+        print(`<red>${this.name}<black> takes the initiative to attack you!`);
         if (!this.fighting && this.equipment['bow']) await this.bow_attack(attacker);
-        await super.defend(attacker);
+        // await super.repel(attacker);
+    }
+
+    async relocate(newLocation: Location | null, direction?: string) {
+        this.justMoved = true;
+        await this.location?.exit(this, direction);
+        if (this.location) this.exit(this.location);
+        this.location = newLocation;
+        await newLocation?.enter(this);
+        if (newLocation) this.enter(newLocation);
+        for (let character of newLocation?.characters ?? []) {
+            if (character !== this) {
+                await this.encounter(character);
+                await character.encounter(this);
+            }
+        }
+        this.justMoved = false;
     }
 
     async encounter(character: Character) {
-        // await super.encounter(character);
-        console.log(`player encountered "${character.name}", "${character.description}"`)
+        if (!this.justMoved) {
+            console.log(`player encountered "${character.name}", "${character.description}"`)
+            color(green);
+            print(`${caps(character.name)} enters from ${character.backDirection ? `the ${character.backDirection}` : 'nowhere'}.`);
+        }
     }
 
     async look(target?: string) {
@@ -499,14 +538,17 @@ class Player extends A2dCharacter {
     }
 
     async go(direction: string) {
-        const prevLocation = this.location?.key;
         console.log('go!', direction)
         color(black)
-        if (this.sp <= 0) {
-            print("You are too weak!");
-        } else if (!this.location?.adjacent.has(direction)) {
+        if (!this.location?.adjacent.has(direction)) {
             print('You can\'t go that way.')
+            return;
+        } else if (!await this.can_go(direction)) {
+            return;
+        } else if (this.sp <= 0) {
+            print("You are too weak!");
         } else {
+            const prevLocation = this.location?.key;
             await super.go(direction)
             if (this.location?.key != prevLocation) {
                 this.recoverStats({ sp: -0.5 });
@@ -593,15 +635,18 @@ class Player extends A2dCharacter {
             }
             i++;
         }
-        if (listItems.length % 2 == 1) print()
+        if (listItems.length % 2 == 1) {
+            print();
+            await nextLine();
+        }
         color(gray)
         print(`Total Object Weight: ${this.inventoryWeight}/${this.max_carry}`)
         await nextLine();
         color(green, white)
         print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
-        await nextLine();
         color(black, darkwhite)
         print()
+        await nextLine();
         color(black)
         print("Wielded:         ", 1)
         color(gray)
@@ -615,8 +660,8 @@ class Player extends A2dCharacter {
         if (this.equipment['bow']) {
             color(blue)
             print("Bow:             " + this.equipment['bow'].name)
+            await nextLine();
         }
-        await nextLine();
         color(black)
         print("Armor:           ", 1)
         color(gray)
@@ -706,6 +751,26 @@ class Player extends A2dCharacter {
         }
     }
 
+    async removeItem(itemName: string | Item | undefined, quantity: number = 1) {
+        /**
+        * Removes an item from the player's inventory or equipment.
+        * @param {string | Item} itemName - The name of the item to remove.
+        * @param {number} quantity - The quantity of the item to remove. Default is 1.
+        */
+        const item: Item | undefined = typeof itemName === 'string' ? this.inventory.item(itemName) : itemName;
+        if (item) {
+            this.inventory.remove(item, quantity);
+        } else {
+            for (let slot of equipmentSlots) {
+                if (this.equipment[slot]?.name === itemName) {
+                    this.equipment[slot]?.unequip(this);
+                    this.equipment[slot] = null;
+                    return;
+                }
+            }
+        }
+    }
+
     async equip(item: string | Item | undefined, slot: keyof Player['equipment']) {
         color(black)
         if (item == 'fist') {
@@ -751,6 +816,8 @@ class Player extends A2dCharacter {
                 print("That object has no militaristic properties.")
                 return;
             }
+        } else {
+            print(`${item.name} equipped.`)
         }
         if (this.equipment[slot] && this.equipment[slot].name != 'fist') {
             // put their previous weapon in their inventory
@@ -763,6 +830,7 @@ class Player extends A2dCharacter {
             await item.equip(this);
         }
     }
+
     async checkEquipment() {
         const slot_titles = {
             'right hand': 'Wielded',
@@ -1150,18 +1218,17 @@ class Player extends A2dCharacter {
             // group them by name and list them
             printCharacters({ characters: enemies_remaining, capitalize: true });
             print(` ${enemies_remaining.length > 1 ? 'continue' : 'continues'} the attack!`)
-            this.fight(enemies_remaining[0]);
-        } else { this.fight(null) }
+            await this.fight(enemies_remaining[0]);
+        } else { await this.fight(null) }
     }
 
     async turn() {
         if (this.flags.assistant)
             assistant(this);
-
         await this.getInput();
         if (this.fighting) {
             if (!this.attackTarget || this.attackTarget.dead) {
-                this.fight(this.location?.characters.find(char => {
+                await this.fight(this.location?.characters.find(char => {
                     return char.attackTarget === this || char.enemies.includes(this.name) || this.enemies.includes(char.name)
                 }) || null);
             }
@@ -1329,8 +1396,9 @@ class Player extends A2dCharacter {
                     }
                     break;
                 case ('delete'):
-                    this.removeItem(this.item(value), 1);
-                    print(`deleted ${value}`)
+                    const quantity = parseInt(value.slice(value.lastIndexOf(' ') + 1)) || 1
+                    this.removeItem(this.item(value), quantity);
+                    print(`deleted ${quantity} ${value}`)
                     break;
                 case ('regen'):
                     this.game.loadScenario(scenario)
@@ -1384,6 +1452,20 @@ class Player extends A2dCharacter {
                         this.game.removeLocation(location)
                     }
                     this.game.enter_the_void();
+                    break;
+                case ('kill'):
+                    const target = this.location?.character(value);
+                    if (target) {
+                        target.die(this);
+                        this.slay(target);
+                    } else {
+                        print('target not found.')
+                    }
+                    break;
+                case ('spawn'):
+                    const location = this.location!;
+                    this.game.addCharacter({ name: value as keyof typeof this.game.characterTemplates, location });
+                    print(`${value} spawned.`)
                     break;
             }
         }
@@ -1500,7 +1582,7 @@ class Player extends A2dCharacter {
 
     async saveGame() {
         color(black)
-        await this.game.save(this.name);
+        await this.game.save();
         print('Game saved.')
     }
 }

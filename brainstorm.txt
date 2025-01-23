@@ -1,0 +1,59 @@
+process:
+an item in the action queue consists of a command (string) and timer (number). When the character's time counter >= action timer, the character's turn comes around. First, the action happens (if still applicable) and then, the character can decide what to do next. This would be the time to scan for enemies, etc.
+
+a reaction item consists of a reaction time (number) and something to react to (string). This is probably a character who is attacking, but could be something else. Reactions happen in parallel, so a character can finish an action while simultaneously reacting to one or more things.
+
+faq:
+Q. what happens if an enemy dies before the planned attack can happen?
+A. when a character is killed, we should find any characters who are attacking them. They should all have the chance to scan for enemies. Scanning for enemies should be a specific function.
+
+for each character:
+ character.time += character.speed
+ if character.time > character.nextAction.time:
+  character.turn()
+ for each act in character.reactions:
+  act.reactionTime -= character.speed
+  if act.reactionTime =< 0:
+   character.react(act.stimulus)
+ 
+Character {
+
+reactionTime = 5
+reactionQueue: [string, number][] // parallel
+actionQueue: [string, number][] // one at a time
+actions: {[key: string]: [number, function]}
+
+turn:
+ this.nextAction.do()
+ this.time -= this.nextAction.time
+ this.actions.shift()
+ if ! this.hasAttackTarget:
+  this.fight(this.findAttackTarget ?? null)
+
+hasAttackTarget():
+ do we have an attackTarget, and can we actually attack them?
+   
+fight(character):
+ this.attackTarget = character
+ character.repel(this)
+
+repel(character):
+ if this.onAttack? this.onAttack()
+ this.reactions.push(`repel ${character.name}`, this.reactionTime)
+
+ontimer(action: string, time: number):
+ this.reactionQueue.push([action, time])
+
+react(stim: string):
+ verb = first word of stim
+ args = the rest
+ if verb in this.reactions
+ if verb == 'repel':
+  character = this.game.character(args)
+  if character.attackTarget == this && !this.hasAttackTarget:
+   this.fight(character)
+
+reaction(stim: string pattern, action: function, time):
+ this.reactions.push()
+   
+}

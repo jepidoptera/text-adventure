@@ -27,7 +27,7 @@ const items = {
             game: game,
         }).on_acquire(async function (player) {
             player.giveItem('gold', this.quantity ?? 1)
-            player.removeItem(this)
+            player.removeItem(this, player.itemCount(this.name))
             color(yellow)
             print(`Got ${this.quantity ?? 0} GP`)
             this.displayName(function () { return '' })
@@ -991,7 +991,7 @@ const items = {
                 await pause(2)
                 print("The earth shakes beneath you as the crevice seals itself shut.")
                 player.location.removeLandmark('slash_in_the_earth')
-                player.removeItem(this)
+                player.removeItem(this, 1)
             } else {
                 print("You aren't supposed to use that here.")
             }
@@ -1109,7 +1109,7 @@ const items = {
         return new Item({
             name: 'light chainmail',
             size: 4,
-            value: 200,
+            value: 100,
             equipment_slot: 'armor',
             game: game,
             buff: { plus: { defense: { 'blunt': 5, 'sharp': 22, 'magic': 3 } } }
@@ -1206,7 +1206,7 @@ const items = {
                 ' !           |              a         |        e      e        Path           !',
                 ' !     <darkwhite, gray>^/  ^ <black>|  <, darkwhite>            k   .     | Eldin--e      r          |            !',
                 ' !    <darkwhite, gray>^/     ^/  <black, darkwhite>           |         |        t      n st.     of            !',
-                ' !   <darkwhite, gray> Mountains    <black, darkwhite>         |--alley--|-alley---------|          |            !',
+                ' !   <darkwhite, gray> Mountains    <black, darkwhite>         |--alley--|        |-alley-          |            !',
                 ' !   <darkwhite, gray>/     /^     ^\\<black, darkwhite>        st.                st.    |         Nod           !',
                 ' !     <darkwhite, gray>^      /  <black, darkwhite>                                  Doo Dad       |            !',
                 ' !                                                   Man         |            !',
@@ -1687,6 +1687,7 @@ const items = {
         }).on_acquire(async function (player) {
             color(brightmagenta)
             player.removeItem('gold', this.quantity)
+            player.removeItem(this, this.quantity)
             print(`Got negative ${this.quantity} GP`)
         })
     },

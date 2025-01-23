@@ -1,6 +1,7 @@
 import { randomChoice } from "../../game/utils.js";
 import { Buff } from "../../game/character.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js";
+import { Player } from "./player.js";
 
 type BuffCreator = (({ power, duration }: { power: number, duration: number }) => Buff) | (() => Buff);
 const buffs: { [key: string]: BuffCreator } = {
@@ -80,14 +81,36 @@ const buffs: { [key: string]: BuffCreator } = {
     poison: ({ power, duration }: { power: number, duration: number }) => {
         return new Buff({
             name: 'poison',
-            duration: duration,
-            power: power
+            duration: Math.ceil(duration || power || 1),
+            power: Math.ceil(power || duration || 1)
         }).onTurn(async function () {
             this.character.hurt(Math.ceil(this.power), "poison");
             this.power *= this.duration / (this.duration + 1);
             if (this.character.isPlayer && this.power > 0) {
                 color(brightgreen);
                 print(`Poison: ${Math.ceil(this.power)}`);
+            }
+        })
+    },
+    sleep: ({ power, duration }: { power: number, duration: number }) => {
+        return new Buff({
+            name: 'sleep',
+            duration: duration,
+            power: power,
+        }).onApply(async function () {
+            if (this.character.isPlayer) {
+                color(brightcyan);
+                print(`Sleep: ${Math.ceil(this.duration)}`);
+                (this.character as Player).disableCommands(Object.keys((this.character as Player).actions.keys()), 'Shh. You are sleeping.')
+            }
+        }).onTurn(async function () {
+            this.apply(this.character)
+        }).onExpire(async function () {
+            if (this.character.isPlayer) {
+                color(brightcyan);
+                print("You wake up.");
+                const player = this.character as Player;
+                player.enableCommands(Object.keys(player.disabledCommands))
             }
         })
     },
