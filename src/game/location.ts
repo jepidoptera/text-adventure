@@ -135,11 +135,12 @@ class Location extends Container {
     character(name: string = ''): Character | undefined {
         if (!name) return;
         const charlist = [...this._characters]
+        name = name.toLowerCase();
         const char = (
-            charlist.find(character => character.name === name)
+            charlist.find(character => character.unique_id.toLowerCase() === name)
+            || charlist.find(character => character.name.toLowerCase() === name)
             || charlist.find(character => character.description === name)
-            || charlist.find(character => character.name.toLowerCase() === name.toLowerCase())
-            || charlist.find(character => character.description.toLowerCase() === name.toLowerCase())
+            || charlist.find(character => character.description.toLowerCase() === name)
             || charlist.find(character => character.aliases.includes(name))
         )
         // console.log(`found ${char?.name}`)
