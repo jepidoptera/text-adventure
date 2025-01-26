@@ -27,16 +27,17 @@ X bows
 X use <color> in print statements
 X + and x buffs
 X damage/defense buffs
-/ map of the (human) world
-
-/ spells (trance, transport and vanish)
-  two-handed weapons
-/ context switching to support multiple games at once
+X support multiple games at once
 X robust gameState map on server
-  list of existing (player) character names, enforce uniqueness
-  onTimer event
-  pets
-/ strictly separate code files from content files
+X onTimer event
+X pets
+X map of the (human) world
+X eat multiple food items at once
+
+/ revamp timing system (each action takes a specific amount of time, pop next action from the queue when character.time > action.timeNeeded)
 / battle royal vs orcs ... If Arach lives, he'll tell the player how to get to the void. If Arach dies, then Ieadon saunters back into town.
+/ spells (trance, transport and vanish)
+/ strictly separate code files from content files
   battle royal vs humans
-  revamp timing system (each action takes a specific amount of time, pop next action from the queue when character.timeCounter > action.timeNeeded)
+  two-handed weapons
+  list of existing (player) character names, enforce uniqueness
