@@ -11,7 +11,7 @@ const spellPower = 1.0860331325016919
 const spells: Record<string, SpellAction> = {
     newbie: async function (this: A2dCharacter, target: Character) {
         if (!checkRequirements.call(this, 'newbie', (2 + this.abilities['newbie']) / 4)) return;
-        if (this.isPlayer) print(`<brightred>You send a bolt of sputtering newbie magic at ${target.name}.`);
+        if (this.isPlayer) this.game.print(`<brightred>You send a bolt of sputtering newbie magic at ${target.name}.`);
         await damageSpell({
             spellName: 'newbie',
             damage: highRandom() * (((this.abilities['newbie'] || 1) ** spellPower + 1) / 3) * this.magic_level + Math.random() * 7,
@@ -25,7 +25,7 @@ const spells: Record<string, SpellAction> = {
     bolt: async function (this: A2dCharacter, target: Character) {
         // bolt is low cost, low damage, high accuracy.
         if (!checkRequirements.call(this, 'bolt', 4 + this.abilities['bolt'] / 2)) return;
-        if (this.isPlayer) print(`<brightred>A jagged flash of lighning strikes towards ${target.name}.`);
+        if (this.isPlayer) this.game.print(`<brightred>A jagged flash of lighning strikes towards ${target.name}.`);
         await damageSpell({
             spellName: 'bolt',
             damage: highRandom() * (1.5 + (this.abilities['bolt'] || 1) ** spellPower * 11 / 14) * this.magic_level + Math.random() * 5,
@@ -37,7 +37,7 @@ const spells: Record<string, SpellAction> = {
     fire: async function (this: A2dCharacter, target: Character) {
         // fire is medium cost, medium damage, medium accuracy.
         if (!checkRequirements.call(this, 'fire', 8 + this.abilities['fire'])) return;
-        if (this.isPlayer) print(`<brightred>A jet of flame shoots towards ${target.name}.`);
+        if (this.isPlayer) this.game.print(`<brightred>A jet of flame shoots towards ${target.name}.`);
         await damageSpell({
             spellName: 'magic fire',
             damage: highRandom() * (1 + (this.abilities['fire'] || 1) ** spellPower * 14 / 11) * this.magic_level,
@@ -50,7 +50,7 @@ const spells: Record<string, SpellAction> = {
     blades: async function (this: A2dCharacter, target: Character) {
         // blades is high cost, high damage, low accuracy.
         if (!checkRequirements.call(this, 'blades', 13 + this.abilities['blades'] * 11 / 7)) return;
-        if (this.isPlayer) print(`<brightred>Blades sprout from your fingers and hurtle towards ${target.name}.`);
+        if (this.isPlayer) this.game.print(`<brightred>Blades sprout from your fingers and hurtle towards ${target.name}.`);
         await damageSpell({
             spellName: 'blades',
             damage: highRandom() * (1 + (this.abilities['blades'] || 1) ** spellPower * 2) * this.magic_level,
@@ -64,7 +64,7 @@ const spells: Record<string, SpellAction> = {
         // maximum cost, very high damage, very high accuracy.
         const mp = this.mp
         if (!checkRequirements.call(this, 'powermaxout', Math.max(this.mp, 50))) return;
-        if (this.isPlayer) print(`<brightred>A booming wave of ULTIMATE POWER rolls towards ${target.name}.`);
+        if (this.isPlayer) this.game.print(`<brightred>A booming wave of ULTIMATE POWER rolls towards ${target.name}.`);
         await damageSpell({
             spellName: 'powermaxout',
             damage: highRandom() * (mp / 25 * (this.abilities['powermaxout'] || 1) ** spellPower) * this.magic_level,
@@ -76,7 +76,7 @@ const spells: Record<string, SpellAction> = {
     },
     shield: async function (this: A2dCharacter) {
         if (!this.abilities['shield']) {
-            if (this.isPlayer) print("You don't know that spell.");
+            if (this.isPlayer) this.game.print("You don't know that spell.");
             return;
         }
         const power = 7 + (this.abilities['shield'] ** spellPower * 2) * this.magic_level / 7
@@ -84,7 +84,7 @@ const spells: Record<string, SpellAction> = {
         const existingShield = this.getBuff('shield')
         const magicCost = (3 + this.abilities['shield']) * 2 * (existingShield ? 1 - existingShield.duration / duration : 1)
         if (this.mp < magicCost) {
-            if (this.isPlayer) print("You are too bored!");
+            if (this.isPlayer) this.game.print("You are too bored!");
             return;
         }
         this.mp -= magicCost;
@@ -92,11 +92,11 @@ const spells: Record<string, SpellAction> = {
             power: power,
             duration: duration
         }));
-        print("An invisible barrier shimmers into place, protecting you from harm.")
+        this.game.print("An invisible barrier shimmers into place, protecting you from harm.")
     },
     bloodlust: async function (this: A2dCharacter) {
         if (!this.abilities['bloodlust']) {
-            if (this.isPlayer) print("You don't know that spell.");
+            if (this.isPlayer) this.game.print("You don't know that spell.");
             return;
         }
         let magicCost = 10
@@ -107,13 +107,12 @@ const spells: Record<string, SpellAction> = {
             power *= this.mp / maxCost
             duration = Math.floor(duration * this.mp / maxCost)
             if (this.flags.assistant && this.max_mp < maxCost) {
-                color(magenta)
-                print("Assistant -- You don't have enough magic to cast bloodlust at full power.")
+                this.game.print("<magenta>Assistant -- You don't have enough magic to cast bloodlust at full power.")
             }
             magicCost = this.mp;
         } else magicCost = maxCost
         if (this.mp < magicCost) {
-            if (this.isPlayer) print("You are too bored!");
+            if (this.isPlayer) this.game.print("You are too bored!");
             return;
         }
         this.mp -= magicCost;
@@ -121,7 +120,7 @@ const spells: Record<string, SpellAction> = {
             power: power,
             duration: duration
         }));
-        if (this.isPlayer) print("You chant a few words and you feel the bloodlust seeping into your veins.")
+        if (this.isPlayer) this.game.print("You chant a few words and you feel the bloodlust seeping into your veins.")
     }
 }
 
@@ -129,15 +128,15 @@ function checkRequirements(this: A2dCharacter, spellName: string, magicCost: num
     if (!this.isPlayer) return true;
     if (!this.abilities[spellName]) {
         // if (this.isPlayer) 
-        print("You don't know that spell.");
+        this.game.print("You don't know that spell.");
         return false;
     } else if (this.mp < magicCost) {
         // if (this.isPlayer) 
-        print("You don't have enough magic.");
+        this.game.print("You don't have enough magic.");
         return false;
     } else if (!this.attackTarget) {
         // if (this.isPlayer) 
-        print("There is no target for that spell.");
+        this.game.print("There is no target for that spell.");
         return false;
     }
     this.mp -= magicCost;
@@ -164,8 +163,8 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
             console.log(`${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
         }
         if (this.location?.playerPresent) {
-            color(damage ? black : gray)
-            print(this.describeAttack(target, spellName, weaponType, damage, false))
+            this.game.color(damage ? black : gray)
+            this.game.print(this.describeAttack(target, spellName, weaponType, damage, false))
         }
         if (damage >= target.hp) {
             casualties.push(target)
