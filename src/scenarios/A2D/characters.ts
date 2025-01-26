@@ -10,6 +10,7 @@ import { A2D } from "./game.js";
 import { abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js";
 import { spells } from "./spells.js";
+import { get } from "http";
 
 interface A2dCharacterParams extends CharacterParams {
     spellChance?: ((this: A2dCharacter) => boolean) | undefined
@@ -131,7 +132,7 @@ class A2dCharacter extends Character {
         weapon: Item | string | null = null,
         damage_potential: Partial<{ [key in DamageTypes]: number }> = this.base_damage
     ) {
-        color(black)
+        this.game.color(black)
         await super.attack(target, weapon, damage_potential);
     }
 
@@ -198,7 +199,7 @@ class A2dCharacter extends Character {
                 if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('lacerate')} ${targetPronouns.object} with ${weaponName}, inflicting a mortal wound.` };
                 if (DT >= 100) { does = `${caps(attackerPronouns.subject)} ${s('hew')} ${targetPronouns.object} with ${weaponName}, severing limbs.` };
                 if (DT >= 200) { does = `${caps(attackerPronouns.subject)} ${s('cleave')} ${targetPronouns.object} with ${weaponName}, slicing ${target.pronouns.object} in half.` };
-                if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('flick')} ${this.pronouns.possessive} ${weaponName} and ${targetPronouns.subject} tumbles into a pile of diced meat.` };
+                if (DT >= 500) { does = `${caps(attackerPronouns.subject)} ${s('flick')} ${this.pronouns.possessive} ${weaponName} and ${targetPronouns.subject} ${t_s('tumble')} into a pile of diced meat.` };
                 break;
             case ("stab"):
                 if (DT >= 0) { does = `${caps(attackerPronouns.subject)} ${s('graze')} ${targetPronouns.object} with ${weaponName}, doing little to no damage.` };
@@ -222,13 +223,13 @@ class A2dCharacter extends Character {
                 if (DT >= 500) { does = `${caps(targetPronouns.possessive)} family is saved the cost of cremation, as ${target.pronouns.possessive} ashes scatter to the wind.` };
                 break;
             case ("bow"):
-                if (DT >= 0) does = `${target.description} barely ${t_s('notices')} ${attackerPronouns.possessive} arrow striking ${target.pronouns.object}.`;
+                if (DT >= 0) does = `${target.description} barely ${t_s('notice')} ${attackerPronouns.possessive} arrow striking ${target.pronouns.object}.`;
                 if (DT >= 5) { does = `${caps(targetPronouns.subject)} ${t_s('take')} minimal damage.` };
                 if (DT >= 12) { does = `${caps(targetPronouns.subject)} ${t_be} minorly wounded.` };
                 if (DT >= 25) { does = `${caps(targetPronouns.subject)} ${t_s('sustain')} a major injury.` };
                 if (DT >= 50) { does = `${caps(targetPronouns.subject)} ${t_s('suffer')} damage to vital organs.` };
                 if (DT >= 100) { does = `${caps(targetPronouns.subject)} ${t_be} slain instantly.` };
-                if (DT >= 400) { does = `${caps(attackerPronouns.possessive)} arrow goes straight through ${targetPronouns.object}, leaving a gaping hole.` };
+                if (DT >= 400) { does = `${caps(attackerPronouns.possessive)} arrow goes straight through ${targetPronouns.object}, leaving a hole the size of your fist.` };
                 if (DT >= 1000) { does = `${caps(targetPronouns.subject)} ${t_be} ripped messily in half.` };
                 if (DT >= 2500) { does = `Tiny pieces of ${target.description} fly in all directions.` };
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('shoot')} an arrow at ${targetPronouns.object}!`;
@@ -333,20 +334,20 @@ const actions = {
     },
     pish2: async function (this: A2dCharacter, character: Character) {
         // usage: character.onAttack(actions.pish2)
-        if (character.isPlayer) print("I don't want to fight.");
+        if (character.isPlayer) this.game.print("I don't want to fight.");
         await character.fight(null);
         await this.fight(null);
     },
     heal: async function (this: A2dCharacter) {
         if (this.spellChance) {
             this.recoverStats({ hp: this.magic_level });
-            if (this.location?.playerPresent) print(`${caps(this.name)} heals ${this.pronouns.object}self.`);
+            if (this.location?.playerPresent) this.game.print(`${caps(this.name)} heals ${this.pronouns.object}self.`);
         }
     },
     max_heal: async function (this: A2dCharacter) {
         if (this.spellChance) {
             this.recoverStats({ hp: this.max_hp });
-            if (this.location?.playerPresent) print(`${caps(this.name)} heals ${this.pronouns.object}self fully.`);
+            if (this.location?.playerPresent) this.game.print(`${caps(this.name)} heals ${this.pronouns.object}self fully.`);
         }
     },
     sleep: async function (this: A2dCharacter, length: number = 1) {
@@ -357,14 +358,14 @@ const actions = {
     },
     growl: async function (this: A2dCharacter) {
         if (this.attackTarget?.isPlayer) {
-            color(magenta)
-            print(`${caps(this.name)} growls fiercly, your attack fell.`)
+            this.game.color(magenta)
+            this.game.print(`${caps(this.name)} growls fiercly, your attack fell.`)
         }
         this.attackTarget?.addBuff(getBuff('fear')({ power: Math.random() * this.magic_level, duration: 12 }));
     },
     howl: async function (this: A2dCharacter) {
         if (this.attackTarget?.isPlayer) {
-            print(`TODO: howl`);
+            this.game.print(`TODO: howl`);
         }
     },
     train: function ({ skillName, requirements, classDiscount, result }:
@@ -376,13 +377,13 @@ const actions = {
         }
     ): (this: A2dCharacter, player: Player) => Promise<void> {
         return async function (this: A2dCharacter, player: Player) {
-            color(black)
+            this.game.color(black)
 
             const discount = (classDiscount[player.class_name] ? (1 - classDiscount[player.class_name] / 100) : 1)
             const reqs = Object.assign({ other: true }, requirements(player))
 
             if (!reqs.other) {
-                print('You will not be able to train at this time.');
+                this.game.print('You will not be able to train at this time.');
                 return;
             }
 
@@ -391,98 +392,98 @@ const actions = {
             reqs.magic_level = Math.floor(reqs.magic_level || 0)
 
             if (player.isPlayer) {
-                print("It will require the following attributes:");
+                this.game.print("It will require the following attributes:");
                 if (classDiscount[player.class_name]) {
-                    print(`Because you are of the ${player.class_name} class, "${skillName}"`)
-                    print(`will take ${classDiscount[player.class_name]}% less gold and experience.`);
+                    this.game.print(`Because you are of the ${player.class_name} class, "${skillName}"`)
+                    this.game.print(`will take ${classDiscount[player.class_name]}% less gold and experience.`);
                 }
-                print(`Exp: ${reqs.xp}`);
-                if (reqs.magic_level) print(`Magic Level: ${reqs.magic_level} or higher.`);
-                print(`Gold: ${reqs.gold}`);
+                this.game.print(`Exp: ${reqs.xp}`);
+                if (reqs.magic_level) this.game.print(`Magic Level: ${reqs.magic_level} or higher.`);
+                this.game.print(`Gold: ${reqs.gold}`);
             }
 
             if (player.has('gold', reqs.gold) && player.experience >= reqs.xp && player.magic_level >= reqs.magic_level) {
                 if (
                     !player.isPlayer
-                    || await (async () => { print("Procede with training? [y/n]"); return await getKey(['y', 'n']) == 'y' })()
+                    || await (async () => { this.game.print("Procede with training? [y/n]"); return await this.game.getKey(['y', 'n']) == 'y' })()
                 ) {
                     player.removeItem('gold', reqs.gold);
                     player.experience -= reqs.xp;
                     if (player.isPlayer) {
-                        print("You begin your training...");
-                        await pause(3);
-                        print();
-                        print("You continue your training...");
-                        await pause(3);
-                        print();
-                        print("Your training is almost complete...");
-                        await pause(2);
-                        print();
+                        this.game.print("You begin your training...");
+                        await this.game.pause(3);
+                        this.game.print();
+                        this.game.print("You continue your training...");
+                        await this.game.pause(3);
+                        this.game.print();
+                        this.game.print("Your training is almost complete...");
+                        await this.game.pause(2);
+                        this.game.print();
                     }
                     result(player);
                     return;
                 } else return;
             } else if (player.isPlayer) {
                 if (player.experience < reqs.xp) {
-                    print("You do not have enough experience.");
+                    this.game.print("You do not have enough experience.");
                 }
                 if (!player.has('gold', reqs.gold)) {
-                    print("You do not have enough gold.");
+                    this.game.print("You do not have enough gold.");
                 }
                 if (player.magic_level < reqs.magic_level) {
-                    print("You are too low of a magic level.");
+                    this.game.print("You are too low of a magic level.");
                 }
-                print("You will not be able to train at this time.");
-                print("Press any key.");
-                await getKey();
+                this.game.print("You will not be able to train at this time.");
+                this.game.print("Press any key.");
+                await this.game.getKey();
             }
         }
     },
     buy: async function (this: A2dCharacter, character: Character, itemName: string) {
-        color(black)
+        this.game.color(black)
         itemName = itemName.toLowerCase().trim();
         let item = this.item(itemName);
         if (!item) item = this.item(singular(itemName));
         let quantity = 1
         if (!item) {
-            print("That is not for sale here.");
+            this.game.print("That is not for sale here.");
             return;
         } else if (item.quantity > 1) {
-            quantity = parseInt(await input(`How many? `));
+            quantity = parseInt(await this.game.input(`How many? `));
             if (isNaN(quantity)) {
-                print("What?");
+                this.game.print("What?");
                 return;
             } else if (quantity > 1) {
                 itemName = plural(item.name);
             } else if (quantity < 0) {
-                print('No.');
+                this.game.print('No.');
                 return;
             }
         }
 
         if (item.value * quantity > character.itemCount('gold')) {
-            print("You don't have enough money.");
+            this.game.print("You don't have enough money.");
             return;
         } else {
             character.giveItem(item.key, quantity);
             character.removeItem('gold', item.value * quantity);
-            print(`Bought ${quantity > 1 ? quantity.toString() + ' ' : ''}${itemName} for ${item.value * quantity} GP.`);
+            this.game.print(`Bought ${quantity > 1 ? quantity.toString() + ' ' : ''}${itemName} for ${item.value * quantity} GP.`);
 
             if (item.equipment_slot === 'armor' && quantity > 0) {
                 const player = character as Player
                 if (player.equipment.armor) {
-                    print("You remove your old armor...")
-                    await pause(1)
+                    this.game.print("You remove your old armor...")
+                    await this.game.pause(1)
                 }
                 player.equip(item, 'armor')
-                print(`${item.name} equipped.`)
+                this.game.print(`${item.name} equipped.`)
             }
         }
     },
     declare_war: async function (this: Character, character: Character) {
         if (character?.isPlayer && !character?.flags?.[`enemy_of_${this.alignment}`]) {
-            color(red);
-            print(`${tribe_name[this.alignment]} has turned against you!`);
+            this.game.color(red);
+            this.game.print(`${tribe_name[this.alignment]} has turned against you!`);
         }
         if (character?.flags) character.flags[`enemy_of_${this.alignment}`] = true;
     },
@@ -517,22 +518,22 @@ const characters = {
             description: 'A sick old cleric, lying in bed',
             items: ['clear_liquid', 'blue_liquid', 'red_liquid'],
         }).dialog(async function (player: Character) {
-            print("A young fresh piece of meat... how nice.  I am leaving this world, I can feal")
-            print("it.  Please, I have something to ask of you.  My father's father was alive in")
-            print("the year of 1200, during that year there was rumored to be a strange")
-            print("wizard living in this town, in this room.  It was rumored he died putting all")
-            print("his life into 5 rings.  Rings of Time, Stone, Nature, Dreams, and")
-            print("the ring of Ultimate Power.  Please... recover these jewels for the good of ")
-            print("life as whole.  They were taken from this wizard on his death bed, before the")
-            print("kings guards could come and take them to the stronghold.  It was heard that  ")
-            print("goblins had raided and plundered them.  This world will never survive with ")
-            print("them in the power of Evil...")
-            print("Before I go- take these, they will help you:")
-            color(red)
-            print("<recieved blue liquid>")
-            print("<recieved red liquid>")
-            print("<recieved clear liquid>")
-            print("Good lu -----")
+            this.game.print("A young fresh piece of meat... how nice.  I am leaving this world, I can feal")
+            this.game.print("it.  Please, I have something to ask of you.  My father's father was alive in")
+            this.game.print("the year of 1200, during that year there was rumored to be a strange")
+            this.game.print("wizard living in this town, in this room.  It was rumored he died putting all")
+            this.game.print("his life into 5 rings.  Rings of Time, Stone, Nature, Dreams, and")
+            this.game.print("the ring of Ultimate Power.  Please... recover these jewels for the good of ")
+            this.game.print("life as whole.  They were taken from this wizard on his death bed, before the")
+            this.game.print("kings guards could come and take them to the stronghold.  It was heard that  ")
+            this.game.print("goblins had raided and plundered them.  This world will never survive with ")
+            this.game.print("them in the power of Evil...")
+            this.game.print("Before I go- take these, they will help you:")
+            this.game.color(red)
+            this.game.print("<recieved blue liquid>")
+            this.game.print("<recieved red liquid>")
+            this.game.print("<recieved clear liquid>")
+            this.game.print("Good lu -----")
             this.location?.removeCharacter(this)
             this.game.addLandmark('dead_cleric', this.location!)
             this.transferAllItems(player)
@@ -555,17 +556,17 @@ const characters = {
             aliases: ['forester'],
         }).dialog(async function (player: Character) {
             if (!player.flags.forest_pass) {
-                print("You need a pass to get in to this forest.");
-                print("You can buy one at the police station.  South");
-                print("three times, west once, north once.");
+                this.game.print("You need a pass to get in to this forest.");
+                this.game.print("You can buy one at the police station.  South");
+                this.game.print("three times, west once, north once.");
             } else {
-                print("Be careful in here.  Most of these theives are dangerous.");
+                this.game.print("Be careful in here.  Most of these theives are dangerous.");
             }
         }).onAttack(async function (attacker) {
             if (attacker.isPlayer && !attacker.flags.enemy_of_ierdale) {
-                color(red)
-                print(`Forester blows a short blast on ${this.pronouns.possessive} horn.`);
-                print("Ierdale has turned against you!");
+                this.game.color(red)
+                this.game.print(`Forester blows a short blast on ${this.pronouns.possessive} horn.`);
+                this.game.print("Ierdale has turned against you!");
             }
             attacker.flags.enemy_of_ierdale = true;
         }).allowDeparture(async function (character, direction) {
@@ -574,11 +575,11 @@ const characters = {
                 && this.location?.character(this.name) === this
                 && direction == 'north' && character.isPlayer && character.flags.forest_pass) {
 
-                print("Cautiously you pull back your sleve to reveal your tatoo...")
-                await pause(3)
-                print("Yup you're fine, proceed.")
+                this.game.print("Cautiously you pull back your sleve to reveal your tatoo...")
+                await this.game.pause(3)
+                this.game.print("Yup you're fine, proceed.")
             } else if (direction == 'north' && !character.flags.forest_pass) {
-                if (character.isPlayer) print("Sorry you shal have no admitance.  You need a pass.");
+                if (character.isPlayer) this.game.print("Sorry you shal have no admitance.  You need a pass.");
                 return false;
             }
             return true
@@ -609,53 +610,53 @@ const characters = {
         ).dialog(async function (player: Character) {
             const assignMission = async () => {
                 this.game.flags.ierdale_mission = 'yes';
-                print("You are a true hero. GLORY TO IERDALE!")
-                await pause(2)
-                print("Half now, half when you return. You may need this to equip yourself for")
-                print("the fight.")
+                this.game.print("You are a true hero. GLORY TO IERDALE!")
+                await this.game.pause(2)
+                this.game.print("Half now, half when you return. You may need this to equip yourself for")
+                this.game.print("the fight.")
                 player.giveItem('gold', 5000)
-                print("<received 5000 GP>")
-                await pause(2)
-                color(black)
-                print("This may also help you - ")
-                color(magenta)
+                this.game.print("<received 5000 GP>")
+                await this.game.pause(2)
+                this.game.color(black)
+                this.game.print("This may also help you - ")
+                this.game.color(magenta)
                 player.giveItem('pocket_ballista')
                 player.giveItem('arrow', 10)
-                print("<recieved pocket ballista>")
+                this.game.print("<recieved pocket ballista>")
             }
             const completeMission = async () => {
-                print("You have it!  You have saved us ALL!")
-                await pause(2)
-                print("Here is the rest of your reward.")
+                this.game.print("You have it!  You have saved us ALL!")
+                await this.game.pause(2)
+                this.game.print("Here is the rest of your reward.")
                 player.giveItem('gold', 5000)
-                print("<received 5000 GP>")
-                await pause(1)
-                color(black)
-                print("I'm sure that Colonel Arach -")
-                await pause(2)
-                color(magenta)
-                print("<ka-thump>")
-                await pause(3)
-                color(black)
-                print("What was that?")
-                await pause(2)
-                color(magenta)
-                print("<ka-thump>")
-                await pause(2)
-                print("<ka-thump>")
-                await pause(2)
-                print("<ka-thump>")
-                await pause(1)
-                color(black)
-                print("Security Guard -- Enemy at the gates!")
-                await pause(3)
-                color(magenta)
-                print("<CRASH>")
-                await pause(2)
-                print("<distant screams>")
-                await pause(2)
-                color(black)
-                print("Guard Captain -- They've breached the gates! It's time to FIGHT!")
+                this.game.print("<received 5000 GP>")
+                await this.game.pause(1)
+                this.game.color(black)
+                this.game.print("I'm sure that Colonel Arach -")
+                await this.game.pause(2)
+                this.game.color(magenta)
+                this.game.print("<ka-thump>")
+                await this.game.pause(3)
+                this.game.color(black)
+                this.game.print("What was that?")
+                await this.game.pause(2)
+                this.game.color(magenta)
+                this.game.print("<ka-thump>")
+                await this.game.pause(2)
+                this.game.print("<ka-thump>")
+                await this.game.pause(2)
+                this.game.print("<ka-thump>")
+                await this.game.pause(1)
+                this.game.color(black)
+                this.game.print("Security Guard -- Enemy at the gates!")
+                await this.game.pause(3)
+                this.game.color(magenta)
+                this.game.print("<CRASH>")
+                await this.game.pause(2)
+                this.game.print("<distant screams>")
+                await this.game.pause(2)
+                this.game.color(black)
+                this.game.print("Guard Captain -- They've breached the gates! It's time to FIGHT!")
                 const breach_point = this.game.find_location('Eastern Gatehouse')
                 this.goto(breach_point!)
                 this.game.find_character('colonel arach')?.goto(breach_point!)
@@ -680,53 +681,53 @@ const characters = {
                 this.game.flags.orc_battle = true
             }
             if (!this.game.flags.biadon) {
-                print("Beware... if you attack me I will call more guards to help me.");
+                this.game.print("Beware... if you attack me I will call more guards to help me.");
             } else if (!this.game.flags.ierdale_mission) {
-                print("Guard captain looks up from her maps and schematics.");
-                print(`${caps(player.name)}. You came.`)
-                await pause(3)
-                print()
-                print("We need your help for a desperate mission. The orcs have been plotting to")
-                print("invade Ierdale. We've raised the gates and are preparing for a siege, but")
-                print("it may not be enough. The worst part is that the legendary Ieadon has turned")
-                print("against us and escaped town. With him on their side, we are in real trouble.")
-                print("I think our best shot may be to send a lone hero to Grobin to steal their")
-                print("most potent weapon, the Mighty Gigasarm. That would weaken their forces and")
-                print("give ours a much needed boost to morale.")
-                print()
-                print("I've heard good things about you. I think you may be up to the task.")
-                await pause(11)
-                print()
-                print("What do you say? Will you help us?")
-                print("If so, the orcs' best weapon will be YOURS to keep, and you will have")
-                print("all the GLORY of Ierdale!")
-                await pause(5)
-                print()
-                print("Also, 10 thousand GP.")
-                await pause(2)
-                print('[y/n]')
-                const answer = await getKey(['y', 'n'])
+                this.game.print("Guard captain looks up from her maps and schematics.");
+                this.game.print(`${caps(player.name)}. You came.`)
+                await this.game.pause(3)
+                this.game.print()
+                this.game.print("We need your help for a desperate mission. The orcs have been plotting to")
+                this.game.print("invade Ierdale. We've raised the gates and are preparing for a siege, but")
+                this.game.print("it may not be enough. The worst part is that the legendary Ieadon has turned")
+                this.game.print("against us and escaped town. With him on their side, we are in real trouble.")
+                this.game.print("I think our best shot may be to send a lone hero to Grobin to steal their")
+                this.game.print("most potent weapon, the Mighty Gigasarm. That would weaken their forces and")
+                this.game.print("give ours a much needed boost to morale.")
+                this.game.print()
+                this.game.print("I've heard good things about you. I think you may be up to the task.")
+                await this.game.pause(11)
+                this.game.print()
+                this.game.print("What do you say? Will you help us?")
+                this.game.print("If so, the orcs' best weapon will be YOURS to keep, and you will have")
+                this.game.print("all the GLORY of Ierdale!")
+                await this.game.pause(5)
+                this.game.print()
+                this.game.print("Also, 10 thousand GP.")
+                await this.game.pause(2)
+                this.game.print('[y/n]')
+                const answer = await this.game.getKey(['y', 'n'])
                 if (answer == 'y') {
                     await assignMission()
                 } else {
-                    print("I understand. This is a difficult thing to ask.")
-                    print("Come back later if you change your mind.")
+                    this.game.print("I understand. This is a difficult thing to ask.")
+                    this.game.print("Come back later if you change your mind.")
                     this.game.flags.ierdale_mission = 'maybe';
                 }
             } else if (this.game.flags.ierdale_mission == 'maybe') {
-                print("Are you ready to accept the mission?");
-                print("[y/n]");
-                const answer = await getKey(['y', 'n'])
+                this.game.print("Are you ready to accept the mission?");
+                this.game.print("[y/n]");
+                const answer = await this.game.getKey(['y', 'n'])
                 if (answer == 'y') {
                     await assignMission()
                 } else {
-                    print("Come back later if you change your mind.")
+                    this.game.print("Come back later if you change your mind.")
                 }
             } else if (this.game.flags.ierdale_mission == 'yes') {
                 if (player.has('mighty gigasarm')) {
                     await completeMission();
                 } else {
-                    print("You have accepted the mission.  Go to Grobin and steal the Mighty Gigasarm!")
+                    this.game.print("You have accepted the mission.  Go to Grobin and steal the Mighty Gigasarm!")
                 }
             }
         }).fightMove(
@@ -798,10 +799,10 @@ const characters = {
                 if (!this.flags.dialog) {
                     this.flags.dialog = this.game.flags.soldier_dialogue.shift() || "Sir! Yes sir!";
                 }
-                print(lineBreak(this.flags.dialog));
+                this.game.print(lineBreak(this.flags.dialog));
                 this.flags.dialog = 'Sir! Yes sir!'
             } else {
-                print(`${player.name}! ${player.name}! The hero returns!`)
+                this.game.print(`${player.name}! ${player.name}! The hero returns!`)
             }
         }).onAttack(
             actions.declare_war
@@ -836,12 +837,12 @@ const characters = {
             actions.defend_tribe
         ).dialog(async function (player: Character) {
             if (player.has('mighty_gigasarm')) {
-                print("Let the hero pass!")
+                this.game.print("Let the hero pass!")
             } else {
                 if (!this.flags.dialog) {
                     this.flags.dialog = this.game.flags.soldier_dialogue.shift() || "Sir! Yes sir!";
                 }
-                print(lineBreak(this.flags.dialog));
+                this.game.print(lineBreak(this.flags.dialog));
                 this.flags.dialog = "We are ready to attack the filthy Orcs at a moment's notice!"
             }
         }).onAttack(
@@ -881,9 +882,9 @@ const characters = {
                 await soldier.fight(this.attackTarget)
             }
         }).dialog(async function (player: Character) {
-            print("Ieadon is nowhere to be found, and our best intelligence is that he has")
-            print("joined the Orcs.  We must prepare for the worst.  We have locked the gates")
-            print("and are preparing for a siege.")
+            this.game.print("Ieadon is nowhere to be found, and our best intelligence is that he has")
+            this.game.print("joined the Orcs.  We must prepare for the worst.  We have locked the gates")
+            this.game.print("and are preparing for a siege.")
         });
     },
 
@@ -904,9 +905,9 @@ const characters = {
             aliases: ['general'],
             respawns: false,
         }).dialog(async function (player: Character) {
-            print("Back in LINE!  This is a time of seriousness.  We are planning on crushing the");
-            print("Orcs for helping Ieadon break free.  All the gates where the Orcs could enter");
-            print("are locked.  Once you leave through a gate you won't be able to come back!");
+            this.game.print("Back in LINE!  This is a time of seriousness.  We are planning on crushing the");
+            this.game.print("Orcs for helping Ieadon break free.  All the gates where the Orcs could enter");
+            this.game.print("are locked.  Once you leave through a gate you won't be able to come back!");
         }).onAttack(
             actions.declare_war
         ).onEncounter(
@@ -936,51 +937,51 @@ const characters = {
         }).onEncounter(
             actions.defend_tribe
         ).dialog(async function (player: Character) {
-            print("HI!  Isn't the police chief sexy!  He's my boy friend.  Would you like a pass");
-            print("to the forest?  It costs 30 gp and requires 500 exp, however we don't need to");
-            print("use your exp, we just need to know you have it.");
-            print("Type 'pass' to get a pass.");
+            this.game.print("HI!  Isn't the police chief sexy!  He's my boy friend.  Would you like a pass");
+            this.game.print("to the forest?  It costs 30 gp and requires 500 exp, however we don't need to");
+            this.game.print("use your exp, we just need to know you have it.");
+            this.game.print("Type 'pass' to get a pass.");
         }).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
-                color(red);
-                print("AVENGE ME!");
+                this.game.color(red);
+                this.game.print("AVENGE ME!");
                 this.game.player.flags.murders += 1
                 this.game.player.flags.enemy_of_ierdale = true
                 let chief = this.game?.find_character('police chief')
                 if (chief && !chief.dead) {
-                    print();
-                    pause(2);
-                    print("Police chief hears cry and enters.");
-                    print("POLICE CHIEF");
-                    print("Now I bring the world down on your ASS!")
-                    print("That was my CHICK!");
-                    print();
+                    this.game.print();
+                    this.game.pause(2);
+                    this.game.print("Police chief hears cry and enters.");
+                    this.game.print("POLICE CHIEF");
+                    this.game.print("Now I bring the world down on your ASS!")
+                    this.game.print("That was my CHICK!");
+                    this.game.print();
                     chief.relocate(this.location);
                 }
             }
         }).interaction('pass', async function (player) {
             if (player.flags.forest_pass) {
-                if (player.isPlayer) print("You already have a pass.")
+                if (player.isPlayer) this.game.print("You already have a pass.")
                 return;
             }
-            color(black)
+            this.game.color(black)
             if (player.experience < 500 || !player.inventory.has('gold', 30)) {
-                if (player.isPlayer) print("Sorry sir, you are not aplicable.")
+                if (player.isPlayer) this.game.print("Sorry sir, you are not aplicable.")
                 return;
             }
             player.removeItem('gold', 30)
             if (player.isPlayer) {
-                print("The Page takes out a hot iron and sets it in the fire.")
-                print("One moment please!  *beams*")
-                print()
-                await pause(3)
-                print("The page removes the iron and ", 1)
-                color(red)
-                print("BURNS", 1)
-                color(black)
-                print(" something on your shoulder.")
-                print("There you go, the foresters at the gate will admit")
-                print("you now.  Thankyou for your business!")
+                this.game.print("The Page takes out a hot iron and sets it in the fire.")
+                this.game.print("One moment please!  *beams*")
+                this.game.print()
+                await this.game.pause(3)
+                this.game.print("The page removes the iron and ", 1)
+                this.game.color(red)
+                this.game.print("BURNS", 1)
+                this.game.color(black)
+                this.game.print(" something on your shoulder.")
+                this.game.print("There you go, the foresters at the gate will admit")
+                this.game.print("you now.  Thankyou for your business!")
             }
             player.flags.forest_pass = true
             // this is the signal for the farm goblins to appear
@@ -1011,33 +1012,33 @@ const characters = {
             description: '',
             spellChance: () => Math.random() < 3 / 4,
         }).dialog(async function (player: Character) {
-            print("Welcome to my thop.  Here we buy and thell many an ithem.");
-            print("Read my thign to learn more bucko.  Teehhehehehe.");
+            this.game.print("Welcome to my thop.  Here we buy and thell many an ithem.");
+            this.game.print("Read my thign to learn more bucko.  Teehhehehehe.");
         }).interaction('pawn', async function (player: Character, itemName: string) {
-            color(black)
+            this.game.color(black)
             const item = player.item(itemName)
             if (!item) {
-                print("You don't have that.");
+                this.game.print("You don't have that.");
                 return;
             }
             if (!item.value) {
-                print("Hmm... nice piece of equipment there.")
-                print("Sorry, can't give ya money for it, I'll take it though.")
+                this.game.print("Hmm... nice piece of equipment there.")
+                this.game.print("Sorry, can't give ya money for it, I'll take it though.")
             } else {
-                print(`Selling price: ${item.value}`);
+                this.game.print(`Selling price: ${item.value}`);
             }
-            print("How many?")
-            const quantity: number = Math.min(parseInt(await input()) || 0, player.itemCount(itemName));
+            this.game.print("How many?")
+            const quantity: number = Math.min(parseInt(await player.game.input()) || 0, player.itemCount(itemName));
             const payment = item.value * quantity;
             if (quantity > 0) {
-                print("Thanks, here's your money - HEHEHAHAHOHOHO!!")
+                this.game.print("Thanks, here's your money - HEHEHAHAHOHOHO!!")
                 player.giveItem('gold', payment);
                 player.removeItem(itemName, quantity);
             }
             if (quantity === 1) {
-                print(`----Pawned 1 ${itemName} for ${payment} GP.`)
+                this.game.print(`----Pawned 1 ${itemName} for ${payment} GP.`)
             } else {
-                print(`----Pawned ${quantity} ${plural(itemName)} for ${payment} GP.`)
+                this.game.print(`----Pawned ${quantity} ${plural(itemName)} for ${payment} GP.`)
             }
         }).fightMove(actions.heal);
     },
@@ -1068,13 +1069,13 @@ const characters = {
             respawns: false,
             spellChance: () => Math.random() < 1 / 3,
         }).dialog(async function (player: Character) {
-            print("May I aid in assisting you?  Read the sign.  It contains all of our products.");
-            print("Also: I've heard thiers a ring somewhere in the caves off the meadow.");
+            this.game.print("May I aid in assisting you?  Read the sign.  It contains all of our products.");
+            this.game.print("Also: I've heard thiers a ring somewhere in the caves off the meadow.");
         }).onDeath(async function () {
             this.clearInventory();
             this.giveItem('gold', 1418);
-            color(red);
-            print("armor merchant lets out a strangled cry as he dies.  The blacksmith is pissed.");
+            this.game.color(red);
+            this.game.print("armor merchant lets out a strangled cry as he dies.  The blacksmith is pissed.");
             const blacksmith = this.game.find_character('blacksmith')
             if (!blacksmith) {
                 console.log('character "blacksmith" not found.')
@@ -1104,7 +1105,7 @@ const characters = {
             respawns: false,
             spellChance: () => Math.random() < 3 / 4,
         }).dialog(async function (player: Character) {
-            print("'Ello me'lad.  Please, I am not much of a talker, talk to the other un'");
+            this.game.print("'Ello me'lad.  Please, I am not much of a talker, talk to the other un'");
         }).fightMove(
             actions.heal
         );
@@ -1126,25 +1127,25 @@ const characters = {
             agility: 1,
             respawns: false,
         }).dialog(async function (player: Character) {
-            print("Hello SIR!  How are you on this fine day!  I love life!  Isn't this a great");
-            print("job I have here!  I get to bag groceries all day long!  Weeee!");
-            print("Can I help you PLLLEEEASEEE?  I'd love to help you.");
-            await pause(10)
-            print("Can I help you?");
-            await pause(1.5)
-            print("Pretty Please may I help?");
-            await pause(1.5)
-            print("May I be of assistance?");
-            await pause(1.5)
-            print("GOOD DAY!  What can I help ya with?");
-            await pause(1.5)
-            print("Here to serve you!  Just holler!");
-            await pause(1.5)
-            print("Seriously though, if you need anything just ASK AWAY!  Weeee!");
+            this.game.print("Hello SIR!  How are you on this fine day!  I love life!  Isn't this a great");
+            this.game.print("job I have here!  I get to bag groceries all day long!  Weeee!");
+            this.game.print("Can I help you PLLLEEEASEEE?  I'd love to help you.");
+            await this.game.pause(10)
+            this.game.print("Can I help you?");
+            await this.game.pause(1.5)
+            this.game.print("Pretty Please may I help?");
+            await this.game.pause(1.5)
+            this.game.print("May I be of assistance?");
+            await this.game.pause(1.5)
+            this.game.print("GOOD DAY!  What can I help ya with?");
+            await this.game.pause(1.5)
+            this.game.print("Here to serve you!  Just holler!");
+            await this.game.pause(1.5)
+            this.game.print("Seriously though, if you need anything just ASK AWAY!  Weeee!");
         }).onDeath(async function () {
-            color(brightblue);
-            print("---Grocer");
-            print("Thank god you killed him, he was getting annoying.");
+            this.game.color(brightblue);
+            this.game.print("---Grocer");
+            this.game.print("Thank god you killed him, he was getting annoying.");
         });
     },
 
@@ -1163,10 +1164,10 @@ const characters = {
             attackVerb: 'magic',
             spellChance: () => Math.random() < 1 / 4,
         }).dialog(async function (player: Character) {
-            print("Wanna play?");
+            this.game.print("Wanna play?");
         }).onDeath(async function () {
-            color(brightblue);
-            print(`Baby spritzer vanishes to be with ${this.pronouns.possessive} parents, ${this.pronouns.subject} is done playing.`);
+            this.game.color(brightblue);
+            this.game.print(`Baby spritzer vanishes to be with ${this.pronouns.possessive} parents, ${this.pronouns.subject} is done playing.`);
         }).fightMove(
             actions.sleep
         ).onRespawn(async function () {
@@ -1199,36 +1200,36 @@ const characters = {
             actions.defend_tribe
         ).dialog(async function (player: Character) {
             if (this.game.flags.biadon && !this.game.flags.ierdale_mission) {
-                print("You've heard the news? I fear the orcish attack is imminent. Arm yourself!");
+                this.game.print("You've heard the news? I fear the orcish attack is imminent. Arm yourself!");
             } else if (this.game.flags.ierdale_mission) {
-                print(`Good luck with your mission, brave ${player.name}. We're all counting on you!`);
+                this.game.print(`Good luck with your mission, brave ${player.name}. We're all counting on you!`);
             } else if (player.has("bug repellent")) {
-                print("Whats that you're holding in your hand?");
-                print();
-                color(red);
-                print("<show colonel arach your bug repellent?> [y/n]");
-                color(black)
+                this.game.print("Whats that you're holding in your hand?");
+                this.game.print();
+                this.game.color(red);
+                this.game.print("<show colonel arach your bug repellent?> [y/n]");
+                this.game.color(black)
 
-                if (await getKey(['y', 'n']) == "y") {
-                    print();
-                    print("Whats that you say... bug repellent???  BUG repellent!");
-                    pause(2);
-                    print("I DIDN'T KNOW THE STUFF EXISTED!");
-                    print("Wow does that mean I am bug-free!");
-                    print();
-                    pause(3);
-                    print("This calls for a song:");
+                if (await this.game.getKey(['y', 'n']) == "y") {
+                    this.game.print();
+                    this.game.print("Whats that you say... bug repellent???  BUG repellent!");
+                    this.game.pause(2);
+                    this.game.print("I DIDN'T KNOW THE STUFF EXISTED!");
+                    this.game.print("Wow does that mean I am bug-free!");
+                    this.game.print();
+                    this.game.pause(3);
+                    this.game.print("This calls for a song:");
                     // Play Musicc$(3)
-                    print("Bug free the way to be");
+                    this.game.print("Bug free the way to be");
                     // Play Musicc$(6)
-                    print("way up there, happy in the tree");
+                    this.game.print("way up there, happy in the tree");
                     // Play Musicc$(7)
-                    print("I am as happy as she and he");
+                    this.game.print("I am as happy as she and he");
                     // Play Musicc$(7)
-                    print("Oh away from the big fat BEE!");
+                    this.game.print("Oh away from the big fat BEE!");
                     // Play Musicc$(7)
-                    color(red);
-                    print("<colonel Arach skips away happily to unlock the gates>");
+                    this.game.color(red);
+                    this.game.print("<colonel Arach skips away happily to unlock the gates>");
                     player.removeItem('bug repellent')
                     this.game.flags.colonel_arach = true
                     this.flags['cured'] = true
@@ -1245,81 +1246,81 @@ const characters = {
                     })
                     this.relocate(this.game.find_location('Ierdale Barracks'))
                 } else {
-                    color(black);
-                    print();
-                    print("Alright, looks curious though.");
-                    print();
+                    this.game.color(black);
+                    this.game.print();
+                    this.game.print("Alright, looks curious though.");
+                    this.game.print();
                 }
             } else if (!this.flags['talked'] && !this.flags['cured']) {
                 this.flags['talked'] = true;
-                color(black);
-                print("I am terrified of anything on more than 4 legs.");
-                print("Have you be warned though, that mockerey of this is stricktly forbidden.");
-                print("Mark my words, my terror of spiders and the like will not take a chunk");
-                print("from my courage.  I am as brave as ever.");
-                print("I am the military leader of Ieardale.");
-                print();
-                print("Would you like me to tell you about our town. [y/n]");
-                print();
-                if (await getKey(['y', 'n']) == "y") {
-                    print("The areas around our town are scattered like a drop of water.");
-                    print("To learn more about specific areas, read the sign.");
-                    print("I would recomend some clubman for beginners.  They are a pesky bunch of denizens");
-                    print("we could stand to loose a few of.  They lay dormant west and recently some have");
-                    print("been spotted wandering... Why won't they just rot in their houses?");
-                    print();
-                    print("Anyway, I wouldn't risk opening the gates right now.  The entire town is under");
-                    print("risk of invasion from nasty little bugs.  The rest of the town thinks I'm crazy");
-                    print("and is on the verge of my impeachement.  *Sniffle* *Sniffle*");
-                    print("Which brings me to my next topic... my personal matters.");
+                this.game.color(black);
+                this.game.print("I am terrified of anything on more than 4 legs.");
+                this.game.print("Have you be warned though, that mockerey of this is stricktly forbidden.");
+                this.game.print("Mark my words, my terror of spiders and the like will not take a chunk");
+                this.game.print("from my courage.  I am as brave as ever.");
+                this.game.print("I am the military leader of Ieardale.");
+                this.game.print();
+                this.game.print("Would you like me to tell you about our town. [y/n]");
+                this.game.print();
+                if (await this.game.getKey(['y', 'n']) == "y") {
+                    this.game.print("The areas around our town are scattered like a drop of water.");
+                    this.game.print("To learn more about specific areas, read the sign.");
+                    this.game.print("I would recomend some clubman for beginners.  They are a pesky bunch of denizens");
+                    this.game.print("we could stand to loose a few of.  They lay dormant west and recently some have");
+                    this.game.print("been spotted wandering... Why won't they just rot in their houses?");
+                    this.game.print();
+                    this.game.print("Anyway, I wouldn't risk opening the gates right now.  The entire town is under");
+                    this.game.print("risk of invasion from nasty little bugs.  The rest of the town thinks I'm crazy");
+                    this.game.print("and is on the verge of my impeachement.  *Sniffle* *Sniffle*");
+                    this.game.print("Which brings me to my next topic... my personal matters.");
                 }
-                print();
-                print("Open your heart to my personal troubles? [y/n]");
-                print();
-                if (await getKey(['y', 'n']) == "y") {
-                    print("I was not cursed with arachnafobia until after I was elected to office about 6");
-                    print("months ago.  Back then I had nothing to fear and the town had reason to elect");
-                    print("me.  Until about 3 months ago when my mother was eaten by a spider.");
-                    print("You see I come from very unique genes.  My mother was a thumb fairy and my");
-                    print("father a local legend by the name of Mino.");
-                    pause(4);
-                    print("Shortly after my birth my father left town down the path of Nod, never to be");
-                    print("seen again.  I wish I could meet him.");
-                    print("I will continue...");
-                    print("After my mother - and only family member - was killed, my fear began and has");
-                    print("contiued perpetually.  The cut of trade has practically broken our little town.");
-                    pause(4);
-                    print("After all, the gates have been closed for a good 2 months now.  Even though");
-                    print("the town loves me, I fear for their saftey and refuse to open the gates.");
-                    print("Oh how I dread Impeachement!");
+                this.game.print();
+                this.game.print("Open your heart to my personal troubles? [y/n]");
+                this.game.print();
+                if (await this.game.getKey(['y', 'n']) == "y") {
+                    this.game.print("I was not cursed with arachnafobia until after I was elected to office about 6");
+                    this.game.print("months ago.  Back then I had nothing to fear and the town had reason to elect");
+                    this.game.print("me.  Until about 3 months ago when my mother was eaten by a spider.");
+                    this.game.print("You see I come from very unique genes.  My mother was a thumb fairy and my");
+                    this.game.print("father a local legend by the name of Mino.");
+                    this.game.pause(4);
+                    this.game.print("Shortly after my birth my father left town down the path of Nod, never to be");
+                    this.game.print("seen again.  I wish I could meet him.");
+                    this.game.print("I will continue...");
+                    this.game.print("After my mother - and only family member - was killed, my fear began and has");
+                    this.game.print("contiued perpetually.  The cut of trade has practically broken our little town.");
+                    this.game.pause(4);
+                    this.game.print("After all, the gates have been closed for a good 2 months now.  Even though");
+                    this.game.print("the town loves me, I fear for their saftey and refuse to open the gates.");
+                    this.game.print("Oh how I dread Impeachement!");
                 }
-                print();
-                print("Would you like to tell", 1);
-                color(red);
-                print(" colonel arach ", 1);
-                color(black);
-                print("about yourself? [y/n]");
-                if (await getKey(['y', 'n']) == "y") {
-                    print();
-                    color(red);
-                    print(`${caps(player.name)}: I am headed out of town in search of adventure.`);
-                    color(black);
-                    print();
-                    print("So you want to leave huh?  Well I sure won't have you going out there.  I let");
-                    print("no one out the gates.  I myself, admittedly, am afraid to leave.  I am sorry.");
-                    print();
+                this.game.print();
+                this.game.print("Would you like to tell", 1);
+                this.game.color(red);
+                this.game.print(" colonel arach ", 1);
+                this.game.color(black);
+                this.game.print("about yourself? [y/n]");
+                if (await this.game.getKey(['y', 'n']) == "y") {
+                    this.game.print();
+                    this.game.color(red);
+                    this.game.print(`${caps(player.name)}: I am headed out of town in search of adventure.`);
+                    this.game.color(black);
+                    this.game.print();
+                    this.game.print("So you want to leave huh?  Well I sure won't have you going out there.  I let");
+                    this.game.print("no one out the gates.  I myself, admittedly, am afraid to leave.  I am sorry.");
+                    this.game.print();
                 }
             } else if (!this.flags['cured']) {
-                print("I'm sorry, no one will be allowed to leave as long as the menace persists.");
+                this.game.print("I'm sorry, no one will be allowed to leave as long as the menace persists.");
             } else {
-                print("Greetings to you. All is well in Ierdale today.")
+                this.game.print("Greetings to you. All is well in Ierdale today.")
             }
         }).onAttack(async function (attacker) {
             actions.declare_war.bind(this)(attacker);
             if (attacker.isPlayer) {
-                color(red)
-                print(`Colonel Arach -- Assassin!`);
-                print('              -- Soldiers!  To me!')
+                this.game.color(red)
+                this.game.print(`Colonel Arach -- Assassin!`);
+                this.game.print('              -- Soldiers!  To me!')
             }
             actions.call_help('ierdale_soldier', 'general_gant', 'general_kerry', 'security_guard').bind(this)();
         }).fightMove(actions.heal);
@@ -1347,35 +1348,43 @@ const characters = {
             this.game.flags.sift = true;
         }).fightMove(async function () {
             if (!this.attackTarget) return;
-            color(magenta)
+            this.game.color(magenta)
             await randomChoice([
                 async function (this: A2dCharacter) {
                     if (this.attackTarget!.isPlayer) {
-                        print("Sift recalls a dream where he stalked in the shadows, unseen.");
-                        print("-- sift vanishes --")
+                        this.game.print("Sift recalls a dream where he stalked in the shadows, unseen.");
+                        this.game.print("-- sift vanishes --")
                     }
                     this.attackTarget?.addBuff(getBuff('blindness')({ power: 25, duration: 2 }))
                 },
                 async function (this: A2dCharacter) {
                     if (this.attackTarget!.isPlayer) {
-                        print("Sift recalls a dream where he was invulnerable.");
-                        print("-- defenses raised --")
+                        this.game.print("Sift recalls a dream where he was invulnerable.");
+                        this.game.print("-- defenses raised --")
                     }
                     this.addBuff(getBuff('shield')({ power: 50, duration: 2 }))
                 },
                 async function (this: A2dCharacter) {
                     if (this.attackTarget!.isPlayer) {
-                        print("A lightning storm is the dream as Sift tears around in his trance.");
+                        this.game.print("A lightning storm is the dream as Sift tears around in his trance.");
                     }
-                    this.attack(this.attackTarget, 'lightning bolt', { electric: 50 })
+                    this.attack(this.attackTarget, 'lightning bolt', { electric: 75 })
                 },
                 async function (this: A2dCharacter) {
                     if (this.attackTarget!.isPlayer) {
-                        print("He remembers a dream where he was aided by bats.");
-                        print("-- bats summoned --")
+                        this.game.print("He remembers a dream where he was aided by bats.");
+                        this.game.print("-- bats summoned --")
                     }
-                    this.game.addCharacter({ name: 'mutant_bat', location: this.location! })
-                    this.game.addCharacter({ name: 'mutant_bat', location: this.location! })
+                    const bats = [
+                        this.game.addCharacter({ name: 'mutant_bat', location: this.location! }),
+                        this.game.addCharacter({ name: 'mutant_bat', location: this.location! })
+                    ]
+                    bats.forEach(bat => {
+                        if (bat) {
+                            bat!.fight(this.attackTarget!);
+                            bat!.persist = false;
+                        }
+                    })
                 }
             ]).call(this);
         });
@@ -1400,14 +1409,14 @@ const characters = {
             respawns: false,
         }).dialog(async function (player: Character) {
             if (!this.game.flags.cradel) {
-                print("mumble mumble");
-                print("Oh to be able to sleep.");
-                print("I lay long hours at trying to sleep.");
-                print("To anyone who could make me fall asleep... I");
-                print("would grant any wish in my power.");
+                this.game.print("mumble mumble");
+                this.game.print("Oh to be able to sleep.");
+                this.game.print("I lay long hours at trying to sleep.");
+                this.game.print("To anyone who could make me fall asleep... I");
+                this.game.print("would grant any wish in my power.");
             } else {
-                print("Cradel grins at you sleepily");
-                print("'Thankyou once again friend.'");
+                this.game.print("Cradel grins at you sleepily");
+                this.game.print("'Thankyou once again friend.'");
             }
         }).fightMove(
             actions.growl
@@ -1419,58 +1428,58 @@ const characters = {
             this.location?.adjacent?.set('south', this.game.find_location(192) || this.location);
         }).interaction('play lute', async function (player: Character) {
             if (!player.has('lute de lumonate')) {
-                color(gray);
-                print("You don't have that.");
+                this.game.color(gray);
+                this.game.print("You don't have that.");
                 return;
             } else {
-                color(blue)
-                print("You lift the beautiful lute to your lips, and unleash a tune...")
-                await pause(1)
+                this.game.color(blue)
+                this.game.print("You lift the beautiful lute to your lips, and unleash a tune...")
+                await this.game.pause(1)
                 play(musicc$(10))
-                print()
+                this.game.print()
                 if (!this.game.flags.cradel) {
-                    color(black)
-                    print("Cradel jerks his head suddenly...")
-                    print("He looks up at you longingly and then slowly, ever so slowly...")
-                    print("The music goes on, his head sinks twords his chest.")
-                    print()
-                    await pause(6)
+                    this.game.color(black)
+                    this.game.print("Cradel jerks his head suddenly...")
+                    this.game.print("He looks up at you longingly and then slowly, ever so slowly...")
+                    this.game.print("The music goes on, his head sinks twords his chest.")
+                    this.game.print()
+                    await this.game.pause(6)
                     if (!player.has('ring of dreams')) {
-                        print("Not enough, almost, and yet I still cannot sleep.")
-                        await pause(1);
+                        this.game.print("Not enough, almost, and yet I still cannot sleep.")
+                        await this.game.pause(1);
                         return;
                     } else {
-                        print("Cradel eyes your ring of dreams.")
-                        await pause(1)
-                        print("Cradel gasps I have lived long and seen that ring many times...")
-                        print("I never knew it would fall into the hands of one the likes of")
-                        print("you.  With the help of that I know I could sleep.")
-                        print("Help me out? [y/n]")
-                        if (await getKey(['y', 'n']) == "n") {
-                            print("Oh, I am a peaceful troll.  Now would seem a time as any though to break")
-                            print("my pasifistic nature.  I will not however it agains my beliefs.  Please re-")
-                            print("consider later.")
-                            await pause(5)
+                        this.game.print("Cradel eyes your ring of dreams.")
+                        await this.game.pause(1)
+                        this.game.print("Cradel gasps I have lived long and seen that ring many times...")
+                        this.game.print("I never knew it would fall into the hands of one the likes of")
+                        this.game.print("you.  With the help of that I know I could sleep.")
+                        this.game.print("Help me out? [y/n]")
+                        if (await this.game.getKey(['y', 'n']) == "n") {
+                            this.game.print("Oh, I am a peaceful troll.  Now would seem a time as any though to break")
+                            this.game.print("my pasifistic nature.  I will not however it agains my beliefs.  Please re-")
+                            this.game.print("consider later.")
+                            await this.game.pause(5)
                             return
                         } else {
-                            print("'Thankyou, whatever do you want... You have GIVEN ME SLEEP!'")
-                            print("You seek to open these gates, and find what reality has in store on the")
-                            print("other side. I can tell, for your eyes say it aloud.")
-                            await pause(4)
-                            print()
-                            print("That is one wish I have the power to grant, Make it so? [y/n]")
-                            if (await getKey(['y', 'n']) == "y") {
-                                color(black)
-                                print("Cradel gets off of his huge rump.")
-                                print("With a shudder he opens the gates and thanks you with all his heart.")
-                                print(`'Thankyou again ${player.name}, come see me again soon!'`)
+                            this.game.print("'Thankyou, whatever do you want... You have GIVEN ME SLEEP!'")
+                            this.game.print("You seek to open these gates, and find what reality has in store on the")
+                            this.game.print("other side. I can tell, for your eyes say it aloud.")
+                            await this.game.pause(4)
+                            this.game.print()
+                            this.game.print("That is one wish I have the power to grant, Make it so? [y/n]")
+                            if (await this.game.getKey(['y', 'n']) == "y") {
+                                this.game.color(black)
+                                this.game.print("Cradel gets off of his huge rump.")
+                                this.game.print("With a shudder he opens the gates and thanks you with all his heart.")
+                                this.game.print(`'Thankyou again ${player.name}, come see me again soon!'`)
                                 player.removeItem('ring of dreams')
                                 this.game.flags.cradel = true;
                                 this.location!.landmarks = [this.game.addLandmark('open_gate', this.location!)!];
                                 this.location?.adjacent?.set('south', this.game.find_location(192) || this.location);
                             } else {
-                                print("Thankyou anyway.");
-                                print("If you change your mind play that wonderful tune again.");
+                                this.game.print("Thankyou anyway.");
+                                this.game.print("If you change your mind play that wonderful tune again.");
                             }
                         }
                     }
@@ -1497,36 +1506,36 @@ const characters = {
             respawns: false,
         }).dialog(async function (player: Character) {
             if (this.flags.won) {
-                print("You have already won the lute de lumonate.");
+                this.game.print("You have already won the lute de lumonate.");
                 return
             }
             play(musicc$(3))
-            print("Welcome to my humble abode.");
-            print();
-            print("I am a Traveler who has come to make my rest in these caves, away from");
-            print("civilization...");
-            print("In fact, you're the only person I've seen in YEARS!");
-            pause(5);
-            print("Want to play a little game with me?");
-            print("Its called 'Name That Tune'");
-            print("[y/n]");
-            switch (await getKey(['y', 'n'])) {
+            this.game.print("Welcome to my humble abode.");
+            this.game.print();
+            this.game.print("I am a Traveler who has come to make my rest in these caves, away from");
+            this.game.print("civilization...");
+            this.game.print("In fact, you're the only person I've seen in YEARS!");
+            this.game.pause(5);
+            this.game.print("Want to play a little game with me?");
+            this.game.print("Its called 'Name That Tune'");
+            this.game.print("[y/n]");
+            switch (await this.game.getKey(['y', 'n'])) {
                 case "y":
-                    print("Good choice!");
-                    print("Heres the rules:");
-                    print("  ");
-                    print("1) I will play you 6 tunes, and tell you who composed them");
-                    print("2) I will play (1) of them once more and you must identify it");
-                    print();
-                    print("   IF YOU WIN!:");
-                    print("        I give you a special prize - TO BE REVEALED");
-                    print("   IF YOU LOOSE :-(:");
-                    print("        You can just play me again!");
-                    print();
-                    print("Still wanna play?");
-                    print("[y/n]");
-                    if (await getKey(['y', 'n']) == "n") return
-                    print("Ok, here I go.");
+                    this.game.print("Good choice!");
+                    this.game.print("Heres the rules:");
+                    this.game.print("  ");
+                    this.game.print("1) I will play you 6 tunes, and tell you who composed them");
+                    this.game.print("2) I will play (1) of them once more and you must identify it");
+                    this.game.print();
+                    this.game.print("   IF YOU WIN!:");
+                    this.game.print("        I give you a special prize - TO BE REVEALED");
+                    this.game.print("   IF YOU LOOSE :-(:");
+                    this.game.print("        You can just play me again!");
+                    this.game.print();
+                    this.game.print("Still wanna play?");
+                    this.game.print("[y/n]");
+                    if (await this.game.getKey(['y', 'n']) == "n") return
+                    this.game.print("Ok, here I go.");
                     // Dim tune$(1 To 6)
                     this.flags.tune = {
                         'grogrin': [],
@@ -1536,82 +1545,82 @@ const characters = {
                         'doo-dad man': [],
                         'ieadon': [],
                     }
-                    print("Tune one, by Grogrin");
+                    this.game.print("Tune one, by Grogrin");
                     this.flags.tune['grogrin'] = play(musicc$(10));
-                    print()
-                    print("Press a key when finished.");
-                    await getKey()
-                    print("Tune two, by ME!");
+                    this.game.print()
+                    this.game.print("Press a key when finished.");
+                    await this.game.getKey()
+                    this.game.print("Tune two, by ME!");
                     this.flags.tune['mino'] = play(musicc$(10));
-                    print()
-                    print("Press a key when finished.");
-                    await getKey()
-                    print("Tune three, by Turlin");
+                    this.game.print()
+                    this.game.print("Press a key when finished.");
+                    await this.game.getKey()
+                    this.game.print("Tune three, by Turlin");
                     this.flags.tune['turlin'] = play(musicc$(10));
-                    print()
-                    print("Press a key when finished.");
-                    await getKey()
-                    print("Tune four, by the old cat woman");
+                    this.game.print()
+                    this.game.print("Press a key when finished.");
+                    await this.game.getKey()
+                    this.game.print("Tune four, by the old cat woman");
                     this.flags.tune['cat woman'] = play(musicc$(10));
-                    print()
-                    print("Press a key when finished.");
-                    await getKey()
-                    print("Tune five, by doo-dad man");
+                    this.game.print()
+                    this.game.print("Press a key when finished.");
+                    await this.game.getKey()
+                    this.game.print("Tune five, by doo-dad man");
                     this.flags.tune['doo-dad man'] = play(musicc$(10));
-                    print()
-                    print("Press a key when finished.");
-                    await getKey()
-                    print("Tune six, by Ieadon");
+                    this.game.print()
+                    this.game.print("Press a key when finished.");
+                    await this.game.getKey()
+                    this.game.print("Tune six, by Ieadon");
                     this.flags.tune['ieadon'] = play(musicc$(10));
-                    print()
-                    print("Press a key when finished.");
-                    await getKey()
-                    clear()
+                    this.game.print()
+                    this.game.print("Press a key when finished.");
+                    await this.game.getKey()
+                    this.game.clear()
                     this.flags['right answer'] = randomChoice(Object.keys(this.flags.tune));
-                    print("Ok...");
-                    print("Now, which artist played this tune:");
+                    this.game.print("Ok...");
+                    this.game.print("Now, which artist played this tune:");
                     let yn = 'y'
                     while (yn == "y") {
                         play(this.flags.tune[this.flags['right answer']])
-                        print()
-                        print("Want me to replay it? [y/n]");
-                        yn = await getKey(['y', 'n'])
+                        this.game.print()
+                        this.game.print("Want me to replay it? [y/n]");
+                        yn = await this.game.getKey(['y', 'n'])
                     }
-                    print("Now type, 'guess <artist name>' to go for a try.");
-                    print("As a reminder they are (type them like this):");
-                    print("-Grogrin");
-                    print("-Mino");
-                    print("-Turlin");
-                    print("-Cat Woman");
-                    print("-Doo-dad Man");
-                    print("-Ieadon");
-                    color(blue);
-                    print("Thanks again!");
+                    this.game.print("Now type, 'guess <artist name>' to go for a try.");
+                    this.game.print("As a reminder they are (type them like this):");
+                    this.game.print("-Grogrin");
+                    this.game.print("-Mino");
+                    this.game.print("-Turlin");
+                    this.game.print("-Cat Woman");
+                    this.game.print("-Doo-dad Man");
+                    this.game.print("-Ieadon");
+                    this.game.color(blue);
+                    this.game.print("Thanks again!");
                     break;
                 case "n":
-                    print("Fine, come again some other day!");
+                    this.game.print("Fine, come again some other day!");
                     play(musicc$(10))
                     break;
             }
         }).interaction('guess', async function (player: Character, guess: string) {
             if (guess.toLocaleLowerCase() == this.flags['right answer']) {
-                color(blue)
-                print("CORRECT!")
+                this.game.color(blue)
+                this.game.print("CORRECT!")
                 play(musicc$(10))
-                print("  -- Mino gives you the 'lute de lumonate'")
-                print()
-                print("Hey, this might help you in detroying Sift")
-                print("To play this at any time, type 'play lute'")
+                this.game.print("  -- Mino gives you the 'lute de lumonate'")
+                this.game.print()
+                this.game.print("Hey, this might help you in detroying Sift")
+                this.game.print("To play this at any time, type 'play lute'")
                 this.transferItem('lute de lumonate', player)
                 this.flags.won = true
             } else if (!Object.keys(this.flags.tune).includes(guess)) {
-                color(black)
-                print("I didn't play a song by them.")
+                this.game.color(black)
+                this.game.print("I didn't play a song by them.")
             } else {
-                color(black)
-                print("I am so sorry, that is INCORRECT!")
-                color(blue)
-                print("TRY AGAIN!")
+                this.game.color(black)
+                this.game.print("I am so sorry, that is INCORRECT!")
+                this.game.color(blue)
+                this.game.print("TRY AGAIN!")
             }
         }).fightMove(actions.sleep);
     },
@@ -1632,8 +1641,8 @@ const characters = {
             alignment: 'orcs',
             flags: { enemy_of_ierdale: true },
         }).dialog(async function (player: Character) {
-            print("Ierdale will stop at nothing to destroy us!");
-            print("Join us against them, brother!");
+            this.game.print("Ierdale will stop at nothing to destroy us!");
+            this.game.print("Join us against them, brother!");
         }).onTurn(
             actions.wander({ bounds: ['grobin gates'] })
         ).onAttack(
@@ -1659,8 +1668,8 @@ const characters = {
             alignment: 'orcs',
             flags: { enemy_of_ierdale: true },
         }).dialog(async function (player: Character) {
-            print("Ierdale will stop at nothing to destroy us!");
-            print("Join us against them, brother!");
+            this.game.print("Ierdale will stop at nothing to destroy us!");
+            this.game.print("Join us against them, brother!");
         }).onTurn(
             actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
         ).onAttack(
@@ -1685,7 +1694,7 @@ const characters = {
             flags: { enemy_of_ierdale: true },
             pronouns: randomChoice([pronouns.male, pronouns.female]),
         }).dialog(async function (player: Character) {
-            print('Kill humans! Weeeee!')
+            this.game.print('Kill humans! Weeeee!')
         }).onTurn(
             actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
         ).onAttack(
@@ -1713,7 +1722,7 @@ const characters = {
         }).onTurn(
             actions.wander({ bounds: ['grobin gates', 'peon house', 'orc house', 'house', 'orcish grocery'] })
         ).dialog(async function (player: Character) {
-            print("Ten-hut! The humans will find no quarter with me!");
+            this.game.print("Ten-hut! The humans will find no quarter with me!");
         }).onEncounter(
             actions.defend_tribe
         ).onAttack(
@@ -1742,12 +1751,12 @@ const characters = {
             flags: { enemy_of_ierdale: true },
             size: -1,
         }).dialog(async function (player: Character) {
-            print("hissss..... deeeeeathhhhh...");
+            this.game.print("hissss..... deeeeeathhhhh...");
         }).fightMove(async function () {
             if (this.attackTarget && Math.random() < 1 / 3) {
                 if (this.location?.playerPresent) {
-                    color(brightred);
-                    print("Dark angel launches a fireball...");
+                    this.game.color(brightred);
+                    this.game.print("Dark angel launches a fireball...");
                 }
                 await spells['fire'].call(this, this.attackTarget)
             }
@@ -1784,9 +1793,9 @@ const characters = {
             flags: { enemy_of_ierdale: true },
         }).dialog(async function (player: Character) {
             if (!this.game.flags.ieadon) {
-                print("A hang glider is nice... for gliding from high places.");
+                this.game.print("A hang glider is nice... for gliding from high places.");
             } else {
-                print("Try out my newest invention... the PORTAL DETECTOR!");
+                this.game.print("Try out my newest invention... the PORTAL DETECTOR!");
             }
         }).onAttack(
             actions.declare_war
@@ -1814,62 +1823,62 @@ const characters = {
             flags: { enemy_of_ierdale: true },
             chase: true,
         }).dialog(async function (player: Character) {
-            print(`I am the emissary of the orcs. I'm seeking you in particular, `, 1)
-            color(red)
-            print(player.name, 1);
-            color(black)
-            print(".")
-            print("We are at war with the humans, but we are not evil. We're simply trying to");
-            print("protect our land while taking as much of theirs as we can for ourselves.");
-            await pause(5)
-            print()
-            print("We are not the enemy. We need your help.");
-            await pause(2)
-            print()
-            print("Word has spread that you are a friend to the orcs, and that there is something");
-            print("that you want. I tell you that we know the whereabouts of the fifth ring, the");
-            color(blue)
-            print("ring of ultimate power", 1)
-            color(black)
-            print(", and we are prepared to deliver it to you, if you can");
-            print("accomplish our mission.");
-            print()
-            print("Do you want to hear about it [y/n]")
-            if (await getKey(['y', 'n']) == "y") {
-                print("We seek to destroy the humans' leader, Colonel Arach.");
-                await pause(2)
-                print()
-                print("To do so, you will probably have to kill every human soldier in Ierdale.");
-                print("I would go myself, but I don't want to die. This way, we risk nothing");
-                print("<cough> except human lives <cough>, and you get the ring. It's a win-win.");
-                await pause(5)
-                print()
-                print("We would also provide you with a powerful weapon and several of our best");
-                print("soldiers. If you succeed, the ring is yours.");
-                print("Accept? [y/n]");
-                if (await getKey(['y', 'n']) == "y") {
-                    print("Follow me, then.")
+            this.game.print(`I am the emissary of the orcs. I'm seeking you in particular, `, 1)
+            this.game.color(red)
+            this.game.print(player.name, 1);
+            this.game.color(black)
+            this.game.print(".")
+            this.game.print("We are at war with the humans, but we are not evil. We're simply trying to");
+            this.game.print("protect our land while taking as much of theirs as we can for ourselves.");
+            await this.game.pause(5)
+            this.game.print()
+            this.game.print("We are not the enemy. We need your help.");
+            await this.game.pause(2)
+            this.game.print()
+            this.game.print("Word has spread that you are a friend to the orcs, and that there is something");
+            this.game.print("that you want. I tell you that we know the whereabouts of the fifth ring, the");
+            this.game.color(blue)
+            this.game.print("ring of ultimate power", 1)
+            this.game.color(black)
+            this.game.print(", and we are prepared to deliver it to you, if you can");
+            this.game.print("accomplish our mission.");
+            this.game.print()
+            this.game.print("Do you want to hear about it [y/n]")
+            if (await this.game.getKey(['y', 'n']) == "y") {
+                this.game.print("We seek to destroy the humans' leader, Colonel Arach.");
+                await this.game.pause(2)
+                this.game.print()
+                this.game.print("To do so, you will probably have to kill every human soldier in Ierdale.");
+                this.game.print("I would go myself, but I don't want to die. This way, we risk nothing");
+                this.game.print("<cough> except human lives <cough>, and you get the ring. It's a win-win.");
+                await this.game.pause(5)
+                this.game.print()
+                this.game.print("We would also provide you with a powerful weapon and several of our best");
+                this.game.print("soldiers. If you succeed, the ring is yours.");
+                this.game.print("Accept? [y/n]");
+                if (await this.game.getKey(['y', 'n']) == "y") {
+                    this.game.print("Follow me, then.")
                     this.game.player.flags.orc_pass = true;
                     this.flags.lead_player = true;
                     this.goto('Orcish Stronghold')
                 } else {
-                    print("That means death.");
-                    await pause(2);
+                    this.game.print("That means death.");
+                    await this.game.pause(2);
                     await this.fight(player);
                 }
             } else {
-                print("I'm sorry to hear that. You die now.");
+                this.game.print("I'm sorry to hear that. You die now.");
                 await this.fight(player)
             }
         }).onTurn(async function () {
             if (this.flags.lead_player) {
                 if (this.location?.name == 'Orcish Stronghold') {
                     delete this.flags.lead_player;
-                    color(magenta);
-                    print("Orcish emissary -- Blobin will tell you the rest.");
+                    this.game.color(magenta);
+                    this.game.print("Orcish emissary -- Blobin will tell you the rest.");
                 } else if (this.actionQueue.length == 0 && this.location?.playerPresent) {
-                    color(magenta);
-                    print("Orcish emissary -- follow me.");
+                    this.game.color(magenta);
+                    this.game.print("Orcish emissary -- follow me.");
                     this.goto('Orcish Stronghold');
                 } else {
                     this.actionQueue = [];
@@ -1877,10 +1886,10 @@ const characters = {
             }
         }).onAttack(async function (attacker) {
             if (attacker.isPlayer && attacker.flags.orc_pass && !this.flags.minions) {
-                color(red);
-                print("Minions! Help!");
+                this.game.color(red);
+                this.game.print("Minions! Help!");
                 attacker.flags.orc_pass = false;
-                color(black)
+                this.game.color(black)
                 // call all the backup
                 this.game.addCharacter({ name: 'orc_amazon', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
                 this.game.addCharacter({ name: 'orc_behemoth', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
@@ -1905,13 +1914,13 @@ const characters = {
             description: 'doo-dad man',
             pronouns: pronouns.male,
         }).dialog(async function (player: Character) {
-            print("Want some doo-dads?  They're really neat!");
+            this.game.print("Want some doo-dads?  They're really neat!");
         }).onAttack(async function (attacker) {
             if (attacker.isPlayer && attacker.flags.orc_pass) {
-                color(red);
-                print("The orcs have turned against you!");
+                this.game.color(red);
+                this.game.print("The orcs have turned against you!");
                 attacker.flags.orc_pass = false;
-                color(black)
+                this.game.color(black)
             };
         })
     },
@@ -1941,20 +1950,20 @@ const characters = {
             agility: 1,
             respawns: false,
         }).dialog(async function (player: Character) {
-            print("Hello, sir or madam! I hope you enjoy our fine orcish cuisine.");
-            print("Here is what I have for sale:");
-            print();
+            this.game.print("Hello, sir or madam! I hope you enjoy our fine orcish cuisine.");
+            this.game.print("Here is what I have for sale:");
+            this.game.print();
             for (const item of this.items) {
-                print(`${item.name} - ${item.value} GP`);
+                this.game.print(`${item.name} - ${item.value} GP`);
             }
         }).interaction(
             'buy', actions.buy
         ).onAttack(async function (attacker) {
             if (attacker.isPlayer && attacker.flags.orc_pass) {
-                color(red);
-                print("The orcs have turned against you!");
+                this.game.color(red);
+                this.game.print("The orcs have turned against you!");
                 attacker.flags.orc_pass = false;
-                color(black)
+                this.game.color(black)
             };
         }).onDeath(async function () {
             for (const item of this.items) {
@@ -1980,19 +1989,19 @@ const characters = {
             respawns: false,
         }).dialog(async function (player: Character) {
             if (player.flags.forest_pass) {
-                print("Help!  Help!, please save us!  There are treacherous evil things invaiding");
-                print("our farm... Ahh... Goblins, Kobolds, Zombies, Ahhh... BOOOHOOO, my poor ");
-                print("husband... WAHHHHH!!!!");
+                this.game.print("Help!  Help!, please save us!  There are treacherous evil things invaiding");
+                this.game.print("our farm... Ahh... Goblins, Kobolds, Zombies, Ahhh... BOOOHOOO, my poor ");
+                this.game.print("husband... WAHHHHH!!!!");
             } else {
-                print("Hello sweetheart!  Fine day out here on the farm!  If you are hungry, feel");
-                print("free to pick off a few chickens, we have plenty.  In the same way help");
-                print("yourself to our cows too, just please don't butcher all of them.");
-                print("You may hunt here until you get a pass to the forest of theives.");
+                this.game.print("Hello sweetheart!  Fine day out here on the farm!  If you are hungry, feel");
+                this.game.print("free to pick off a few chickens, we have plenty.  In the same way help");
+                this.game.print("yourself to our cows too, just please don't butcher all of them.");
+                this.game.print("You may hunt here until you get a pass to the forest of theives.");
             }
         }).onDeath(async function (attacker) {
             if (attacker instanceof Character && attacker.isPlayer && !this.game.player.flags.enemy_of_ierdale) {
-                color(red);
-                print("You shall regret this, Ierdale has turned against you!");
+                this.game.color(red);
+                this.game.print("You shall regret this, Ierdale has turned against you!");
                 attacker.flags.enemy_of_ierdale = true
             }
         });
@@ -2013,7 +2022,7 @@ const characters = {
             alignment: 'clubmen clan',
             pronouns: pronouns.male,
         }).dialog(async function (player: Character) {
-            print("Duuuu... Ummmmmm... How me I forget to breathe...");
+            this.game.print("Duuuu... Ummmmmm... How me I forget to breathe...");
         });
     },
 
@@ -2032,7 +2041,7 @@ const characters = {
             alignment: 'clubmen clan',
             pronouns: pronouns.male,
         }).dialog(async function (player: Character) {
-            print("Duuuu... Ummmmmm... How me I forget to breathe...");
+            this.game.print("Duuuu... Ummmmmm... How me I forget to breathe...");
         }).onTurn(
             actions.wander({ bounds: [] })
         );
@@ -2054,7 +2063,7 @@ const characters = {
             pronouns: pronouns.male,
             attackPlayer: true,
         }).fightMove(async function () {
-            print("Clubman attacks with his other hand!");
+            this.game.print("Clubman attacks with his other hand!");
             await this.attack(this.attackTarget, 'club', { blunt: 23 });
         });
     },
@@ -2286,19 +2295,19 @@ const characters = {
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
-            print("They would hang me for saying this... BUT, it is a good idea sometime during");
-            print("your adventure to turn AGAINST Ierdale.  I would recomend this after you can");
-            print("beat the Forest of Thieves.");
-            print("The security guards are a good source of vital EXP!");
-            print();
-            pause((6));
-            print("Oh, sorry, I have something to sell.");
-            print("Its called a \"spy o scope\". Cost ", 1);
-            color(yellow);
-            print("200gp");
-            color(black);
-            print("It allows you to peek into rooms that are next to you.");
-            print("Type \"buy spy o scope\" to purchase it.");
+            this.game.print("They would hang me for saying this... BUT, it is a good idea sometime during");
+            this.game.print("your adventure to turn AGAINST Ierdale.  I would recomend this after you can");
+            this.game.print("beat the Forest of Thieves.");
+            this.game.print("The security guards are a good source of vital EXP!");
+            this.game.print();
+            this.game.pause((6));
+            this.game.print("Oh, sorry, I have something to sell.");
+            this.game.print("Its called a \"spy o scope\". Cost ", 1);
+            this.game.color(yellow);
+            this.game.print("200gp");
+            this.game.color(black);
+            this.game.print("It allows you to peek into rooms that are next to you.");
+            this.game.print("Type \"buy spy o scope\" to purchase it.");
         }).onDeath(
             actions.declare_war
         ).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
@@ -2340,7 +2349,7 @@ const characters = {
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         }).fightMove(async function () {
-            // if (Math.random() * 1 < 8) { print('TODO: armorkill') }
+            // if (Math.random() * 1 < 8) { this.game.print('TODO: armorkill') }
         });
     },
 
@@ -2404,6 +2413,53 @@ const characters = {
             pronouns: pronouns.male,
         }).onRespawn(async function () {
             this.item('gold')!.quantity = Math.random() * 56 + 1;
+        })
+    },
+
+    effelin(game: GameState) {
+        return new A2dCharacter({
+            game: game,
+            name: 'forest elf',
+            items: ['elven_bow', { name: 'gold', quantity: 10 }],
+            max_hp: 100,
+            damage: { blunt: 5, sharp: 15 },
+            weaponName: 'elven bow',
+            attackVerb: 'bow',
+            description: 'forest elf',
+            coordination: 10,
+            agility: 8,
+            armor: { blunt: 5 },
+            attackPlayer: false,
+            alignment: 'elf',
+
+        }).onEncounter(
+            actions.defend_tribe
+        ).onAttack(
+            actions.declare_war
+        ).dialog(async function (player: Character) {
+            this.game.print("")
+        })
+    },
+
+    silver_fox(game: GameState) {
+        return new A2dCharacter({
+            game: game,
+            name: 'silver fox',
+            items: ['silver_fur', { name: 'gold', quantity: 5 }],
+            max_hp: 30,
+            damage: { blunt: 3, sharp: 2 },
+            weaponName: 'teeth',
+            attackVerb: 'bite',
+            description: 'silver fox',
+            coordination: 5,
+            agility: 6,
+            armor: { blunt: 1 },
+            pronouns: pronouns.inhuman,
+            flags: { path: 'west south west north east' }
+        }).onEncounter(async function (character) {
+            if (character.isPlayer) {
+
+            }
         })
     },
 
@@ -2500,13 +2556,13 @@ const characters = {
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
         }).onDeath(async function (cause: Character) {
             if (cause.isPlayer) {
-                color(brightblue);
-                print("Yea, you killed a cow!  good job");
+                this.game.color(brightblue);
+                this.game.print("Yea, you killed a cow!  good job");
             }
         }).fightMove(async function () {
             if (this.attackTarget?.isPlayer) {
-                color(magenta)
-                print('Moooooo!')
+                this.game.color(magenta)
+                this.game.print('Moooooo!')
             }
         })
     },
@@ -2543,11 +2599,11 @@ const characters = {
             description: 'jury member',
             pronouns: randomChoice([pronouns.male, pronouns.female]),
         }).dialog(async function (player: Character) {
-            print("GUILTY!");
+            this.game.print("GUILTY!");
         }).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
-                color(red);
-                print("Murder in our own COURT!");
+                this.game.color(red);
+                this.game.print("Murder in our own COURT!");
                 this.game.player.flags.enemy_of_ierdale = true
                 this.game.player.flags.murders += 1
             }
@@ -2565,92 +2621,92 @@ const characters = {
         }).dialog(async function (player: Character) {
             switch (this.flags['talk']) {
                 case 0:
-                    print("I heard that the old wizard Eldin moved to the mountains West of town.");
+                    this.game.print("I heard that the old wizard Eldin moved to the mountains West of town.");
                     break;
                 case 1:
-                    print("The butcher has a giraffe gizzard for you.");
+                    this.game.print("The butcher has a giraffe gizzard for you.");
                     break;
                 case 2:
-                    print("The Archives are a great place to learn about the world!");
-                    print("(Located east of the security office)");
+                    this.game.print("The Archives are a great place to learn about the world!");
+                    this.game.print("(Located east of the security office)");
                     break;
                 case 3:
-                    print("My grand daughter once found an awesome weapon for sale at the pawn shop!");
-                    print("Type \"list\" sometime when you're there to take a look.");
+                    this.game.print("My grand daughter once found an awesome weapon for sale at the pawn shop!");
+                    this.game.print("Type \"list\" sometime when you're there to take a look.");
                     break;
                 case 4:
-                    print("Most people don't realize there's a path that goes from the forest of thieves");
-                    print("to the path of nod.  Its a handy shortcut!");
+                    this.game.print("Most people don't realize there's a path that goes from the forest of thieves");
+                    this.game.print("to the path of nod.  Its a handy shortcut!");
                     break;
                 case 7:
-                    print("I said go away, didn't I?");
+                    this.game.print("I said go away, didn't I?");
                     break;
                 case 11:
-                    print("Vamoose! Get outta here!");
+                    this.game.print("Vamoose! Get outta here!");
                     break;
                 case 17:
-                    print("Inquisitive fella, aren't you?");
-                    print("Here, take these... ought to keep you occupied for a bit.");
-                    print("Heheh.");
+                    this.game.print("Inquisitive fella, aren't you?");
+                    this.game.print("Here, take these... ought to keep you occupied for a bit.");
+                    this.game.print("Heheh.");
                     // CreateOBJ -1, "mushroom"
                     // CreateOBJ -1, "mushroom"
                     // CreateOBJ -1, "mushroom"
-                    color(green);
-                    print("<Received 3 mushrooms>");
+                    this.game.color(green);
+                    this.game.print("<Received 3 mushrooms>");
                     break;
                 case 20:
-                    print("Ok, ok... here's one more.");
+                    this.game.print("Ok, ok... here's one more.");
                     // CreateOBJ -1, "mushroom"
-                    color(green);
-                    print("<Received 1 mushroom>");
+                    this.game.color(green);
+                    this.game.print("<Received 1 mushroom>");
                     break;
                 case 22:
-                    print("Seriously, that's all I've got.");
+                    this.game.print("Seriously, that's all I've got.");
                     break;
                 case 35:
-                    print("My mind is spinning - ");
-                    print("how many times in a row have I said the same thing?");
+                    this.game.print("My mind is spinning - ");
+                    this.game.print("how many times in a row have I said the same thing?");
                     break;
                 case 53:
-                    print("Ok... enough, enough.  You've finally worn me down.  I can't take it");
-                    print("anymore.  I will tell you my final secret.  A way to bend reality");
-                    print("itself.  This is the most powerful spell in the game.");
-                    pause(5);
-                    print("Hit ctrl+backspace to make this rune:");
-                    print("⌂.  Then type \"~\".  Then type \"Glory Blade\".");
-                    print("⌂~ \"Glory Blade\".  Make sure to use proper capitalization.");
-                    print("Please don't bother me anymore.");
+                    this.game.print("Ok... enough, enough.  You've finally worn me down.  I can't take it");
+                    this.game.print("anymore.  I will tell you my final secret.  A way to bend reality");
+                    this.game.print("itself.  This is the most powerful spell in the game.");
+                    this.game.pause(5);
+                    this.game.print("Hit ctrl+backspace to make this rune:");
+                    this.game.print("⌂.  Then type \"~\".  Then type \"Glory Blade\".");
+                    this.game.print("⌂~ \"Glory Blade\".  Make sure to use proper capitalization.");
+                    this.game.print("Please don't bother me anymore.");
                     break;
                 case 54:
-                    print("No more.  Please.");
+                    this.game.print("No more.  Please.");
                     break;
                 case 55:
-                    print("Just stop.");
+                    this.game.print("Just stop.");
                     break;
                 case 56:
-                    print("I can't take any more of this.");
+                    this.game.print("I can't take any more of this.");
                     break;
                 case 57:
-                    print("Go away.");
+                    this.game.print("Go away.");
                     break;
                 case 58:
-                    print("For the love of God, stop bothering me!");
+                    this.game.print("For the love of God, stop bothering me!");
                     break;
                 case 59:
-                    print("Ok.  Ok.  I can see where this is going.");
+                    this.game.print("Ok.  Ok.  I can see where this is going.");
                     break;
                 case 60:
-                    print("--Peasant elder takes out a vial of irrdescent liquid and swallows it.");
-                    pause(3);
-                    print("I hope you're happy, young one.");
-                    pause(3);
-                    print("--Peasant elder keels over backwards and dissolves in a cloud of putrid gas.");
+                    this.game.print("--Peasant elder takes out a vial of irrdescent liquid and swallows it.");
+                    this.game.pause(3);
+                    this.game.print("I hope you're happy, young one.");
+                    this.game.pause(3);
+                    this.game.print("--Peasant elder keels over backwards and dissolves in a cloud of putrid gas.");
                     await this.die(player);
-                    print();
-                    print("peasant elder drops magic ring")
+                    this.game.print();
+                    this.game.print("peasant elder drops magic ring")
                     break;
                 default:
-                    print("Get on there, young one.  My ears are tired.");
+                    this.game.print("Get on there, young one.  My ears are tired.");
                     break;
             }
             this.flags['talk'] += 1;
@@ -2730,10 +2786,10 @@ const characters = {
                 { name: 'keg_of_wine', quantity: Infinity },
             ],
         }).dialog(async function (player: Character) {
-            print("Please ignore my bag boy.  He scares away the majority of our customers.");
-            print("Unfortunatley he's my grandson and I can't really fire him.");
-            print("If you aren't scared off, please be my guest and read the sign to see what");
-            print("we have to offer you.");
+            this.game.print("Please ignore my bag boy.  He scares away the majority of our customers.");
+            this.game.print("Unfortunatley he's my grandson and I can't really fire him.");
+            this.game.print("If you aren't scared off, please be my guest and read the sign to see what");
+            this.game.print("we have to offer you.");
         }).onAttack(
             actions.pish2
         ).interaction('buy', actions.buy);
@@ -2746,15 +2802,15 @@ const characters = {
             pronouns: pronouns.female,
             max_hp: 1000,
         }).dialog(async function (player: Character) {
-            print("Hello little one...");
-            print("This music box here is more valuable than you may think.  Crafted by the great");
-            print("Mino of old, it is said to contain the tunes of any song ever writen.");
-            print("I am willing to part with it, for the good of civilization, but it will not");
-            print("be easy.  Its pretty boring living up here with only a mixing pot and a music");
-            print("box.  If you take the box it will even be worse.");
-            print("But if you must...  I guess...");
-            print("OH!  Regarding your quest - I have one hint, one word that will be essential:");
-            print("                It is: \"jump\"");
+            this.game.print("Hello little one...");
+            this.game.print("This music box here is more valuable than you may think.  Crafted by the great");
+            this.game.print("Mino of old, it is said to contain the tunes of any song ever writen.");
+            this.game.print("I am willing to part with it, for the good of civilization, but it will not");
+            this.game.print("be easy.  Its pretty boring living up here with only a mixing pot and a music");
+            this.game.print("box.  If you take the box it will even be worse.");
+            this.game.print("But if you must...  I guess...");
+            this.game.print("OH!  Regarding your quest - I have one hint, one word that will be essential:");
+            this.game.print("                It is: \"jump\"");
         }).onAttack(actions.pish2)
     },
 
@@ -2771,19 +2827,19 @@ const characters = {
             flags: { enemy_of_ierdale: true },
         }).dialog(async function (player: Character) {
             if (!this.game.flags.biadon) {
-                print("Visit Gerard's shop for the latest equipment!");
+                this.game.print("Visit Gerard's shop for the latest equipment!");
             } else {
                 if (!this.game?.flags.orc_mission) {
-                    print("We need a General to lead an attack on Ierdale very desperatley.");
-                    print();
-                    print("I know something important about Ieadon's whereabouts that will be vital for");
-                    print("your quest.  Ierdale thinks WE helped Ieadon escape but the truth is that he");
-                    print("ran to hide from YOU!  I will tell you where Ieadon is ONLY if you agree to");
-                    print("lead our army against IERDALE!!! Will you?? [y/n]");
-                    if (await getKey(['y', 'n']) == "y") {
-                        print("These soldiers will accompany you in your battle.");
-                        print("Is this ok? [y/n]");
-                        if (await getKey(['y', 'n']) == "y") {
+                    this.game.print("We need a General to lead an attack on Ierdale very desperatley.");
+                    this.game.print();
+                    this.game.print("I know something important about Ieadon's whereabouts that will be vital for");
+                    this.game.print("your quest.  Ierdale thinks WE helped Ieadon escape but the truth is that he");
+                    this.game.print("ran to hide from YOU!  I will tell you where Ieadon is ONLY if you agree to");
+                    this.game.print("lead our army against IERDALE!!! Will you?? [y/n]");
+                    if (await this.game.getKey(['y', 'n']) == "y") {
+                        this.game.print("These soldiers will accompany you in your battle.");
+                        this.game.print("Is this ok? [y/n]");
+                        if (await this.game.getKey(['y', 'n']) == "y") {
                             this.game.player.flags.enemy_of_ierdale = true
                             const soldiers = [
                                 this.game.addCharacter({ name: 'orc_amazon', location: this.location! }),
@@ -2792,37 +2848,37 @@ const characters = {
                                 this.game.addCharacter({ name: 'gryphon', location: this.location! })
                             ].filter(c => c) as Character[];
                             soldiers.forEach(soldier => soldier.following = player.name);
-                            print("Here, take these soldiers and this gryphon on your way.");
-                            print("Good luck and remeber you must kill EVERY LAST soldier and general in Ierdale.");
+                            this.game.print("Here, take these soldiers and this gryphon on your way.");
+                            this.game.print("Good luck and remeber you must kill EVERY LAST soldier and general in Ierdale.");
                         } else {
-                            print("Fine, if you can do it on your own, good luck.");
-                            print("Just remember you must kill EVERY LAST soldier and general in Ierdale.");
+                            this.game.print("Fine, if you can do it on your own, good luck.");
+                            this.game.print("Just remember you must kill EVERY LAST soldier and general in Ierdale.");
                         }
-                        print()
-                        print("Bring me Arach's sword to prove that it's done.")
+                        this.game.print()
+                        this.game.print("Bring me Arach's sword to prove that it's done.")
                         this.game.flags.orc_mission = true;
                     } else {
-                        print("Fine, but you won't get that ring without me telling you!");
-                        print("KAHAHAHAHAEHEHEHEHEHEAHAHAHAHAOHOHOHOH!");
+                        this.game.print("Fine, but you won't get that ring without me telling you!");
+                        this.game.print("KAHAHAHAHAEHEHEHEHEHEAHAHAHAHAOHOHOHOH!");
                     }
                 } else {
                     const arach = this.game.find_character('colonel arach')
                     if (arach && !arach.dead) {
-                        print("You must kill ALL the soldiers and generals in Ierdale before I tell you my");
-                        print("secret.");
-                        print("NOW GET BACK TO BATTLE!");
+                        this.game.print("You must kill ALL the soldiers and generals in Ierdale before I tell you my");
+                        this.game.print("secret.");
+                        this.game.print("NOW GET BACK TO BATTLE!");
                     }
-                    print("Congradulations!  You have defeated the entire army of Ierdale. That will show");
-                    print("thoes dirty HUMAN BASTARDS!");
-                    print("I will now tell you the Vital secret.");
-                    await pause(5.5);
-                    print("Ieadon is right - HERE!");
-                    pause(1);
-                    print();
-                    pause(2);
-                    print("-- Ieadon steps from the shadows.");
-                    pause(1);
-                    print("Ieadon -- \"Orcish soldiers! Attack!");
+                    this.game.print("Congradulations!  You have defeated the entire army of Ierdale. That will show");
+                    this.game.print("thoes dirty HUMAN BASTARDS!");
+                    this.game.print("I will now tell you the Vital secret.");
+                    await this.game.pause(5.5);
+                    this.game.print("Ieadon is right - HERE!");
+                    this.game.pause(1);
+                    this.game.print();
+                    this.game.pause(2);
+                    this.game.print("-- Ieadon steps from the shadows.");
+                    this.game.pause(1);
+                    this.game.print("Ieadon -- \"Orcish soldiers! Attack!");
                     // if (this.game) this.game.flags['LastRoom'] = r;
                     let soldiers_dead = 0;
                     const soldierDown = async () => {
@@ -2835,19 +2891,19 @@ const characters = {
                                 return;
                             }
                             for (let a = 0; a < 5; a++) {
-                                color(black, qbColors[a * 2])
-                                clear();
-                                pause(1);
+                                this.game.color(black, qbColors[a * 2])
+                                this.game.clear();
+                                this.game.pause(1);
                             }
-                            color(orange, darkwhite)
-                            print("Ieadon -- those were the best soldiers of Grobin!");
-                            print("Ieadon -- now it is ON!");
-                            pause(4);
-                            color(red)
-                            print(" -- Ieadon launches himself at your throat.");
-                            pause(1);
-                            color(black)
-                            ieadon.relocate(this.location);
+                            this.game.color(orange, darkwhite)
+                            this.game.print("Ieadon -- those were the best soldiers of Grobin!");
+                            this.game.print("Ieadon -- now it is ON!");
+                            this.game.pause(4);
+                            this.game.color(red)
+                            this.game.print(" -- Ieadon launches himself at your throat.");
+                            this.game.pause(1);
+                            this.game.color(black)
+                            await ieadon.relocate(this.location);
                             await ieadon.fight(player);
                         }
                     }
@@ -2857,23 +2913,23 @@ const characters = {
                     this.game.addCharacter({ name: 'orc_amazon', location: this.location! })?.onDeath(soldierDown);
                     (player as Player).disableCommands(['save'], 'no.')
                     // Fight 157
-                    // print("Ieadon is hiding in a mysterious place know as ", 1);
-                    // color(red);
-                    // print("\"THE VOID\"");
-                    // color(black);
-                    // print("This place is not reached by walking from anywhere on the map, in fact, there");
-                    // print("is only one way to get there.");
-                    // print("Do you want to hear it? [y/n]");
-                    // if (await getKey(['y', 'n']) == "y") {
-                    //     print("Climb to the top of the highest tree in the world, carying a hang glider.");
-                    //     print("From the top of this tree, type \"jump void\" to dive into");
-                    //     print("the infernal void.");
-                    //     print("Good luck!");
+                    // this.game.print("Ieadon is hiding in a mysterious place know as ", 1);
+                    // this.game.color(red);
+                    // this.game.print("\"THE VOID\"");
+                    // this.game.color(black);
+                    // this.game.print("This place is not reached by walking from anywhere on the map, in fact, there");
+                    // this.game.print("is only one way to get there.");
+                    // this.game.print("Do you want to hear it? [y/n]");
+                    // if (await this.game.getKey(['y', 'n']) == "y") {
+                    //     this.game.print("Climb to the top of the highest tree in the world, carying a hang glider.");
+                    //     this.game.print("From the top of this tree, type \"jump void\" to dive into");
+                    //     this.game.print("the infernal void.");
+                    //     this.game.print("Good luck!");
                     //     // If spet$ = "gryphon" Then Quote "You can keep the gryphon as another token of my thanks."
-                    //     print();
-                    //     print("Ierdale has been crushed once and for all.");
+                    //     this.game.print();
+                    //     this.game.print("Ierdale has been crushed once and for all.");
                     // } else {
-                    //     print("Alright then!  Talk to me again and I will tell you.");
+                    //     this.game.print("Alright then!  Talk to me again and I will tell you.");
                     // }
                 }
             }
@@ -2892,25 +2948,25 @@ const characters = {
             weaponName: 'fist',
             attackVerb: 'club',
         }).dialog(async function (player: Character) {
-            print("Hmmmmfff...");
+            this.game.print("Hmmmmfff...");
             if (!player.has('gold', 10)) return;
-            print("Do you have 10gp spare change? [y/n]");
-            if (await getKey(['y', 'n']) == "n") {
-                print("Hmmfff... Thanks a lot...");
+            this.game.print("Do you have 10gp spare change? [y/n]");
+            if (await this.game.getKey(['y', 'n']) == "n") {
+                this.game.print("Hmmfff... Thanks a lot...");
             } else {
-                color(yellow);
+                this.game.color(yellow);
                 player.removeItem('gold', 10)
-                pause(2)
-                color(black);
-                print("I will tell you something now:");
-                print();
-                pause(4)
-                print(" There is a portal somewhere near");
-                print(" People used to grow things here");
-                print(" A portal detector can be found");
-                print(" Only when 5 rings are safe... and... sound...");
-                print();
-                print("Just an old prophecy, not much.  Thanks for the money");
+                this.game.pause(2)
+                this.game.color(black);
+                this.game.print("I will tell you something now:");
+                this.game.print();
+                this.game.pause(4)
+                this.game.print(" There is a portal somewhere near");
+                this.game.print(" People used to grow things here");
+                this.game.print(" A portal detector can be found");
+                this.game.print(" Only when 5 rings are safe... and... sound...");
+                this.game.print();
+                this.game.print("Just an old prophecy, not much.  Thanks for the money");
             }
         }).onTurn(actions.wander({ bounds: [] }));
     },
@@ -2930,10 +2986,10 @@ const characters = {
             description: 'cleric tendant',
             aliases: ['cleric'],
         }).dialog(async function (player: Character) {
-            print("Welcome.  I must be stern with you when I say NO TALKING, read the sign.");
+            this.game.print("Welcome.  I must be stern with you when I say NO TALKING, read the sign.");
         }).onAttack(async function (attacker: Character) {
             if (attacker.isPlayer) {
-                print(`${this.name} yells: ELDFARL!  HELP ME!  QUICK!`);
+                this.game.print(`${this.name} yells: ELDFARL!  HELP ME!  QUICK!`);
             }
             const eldfarl = this.game.find_character('eldfarl')
             if (!eldfarl) {
@@ -2953,7 +3009,7 @@ const characters = {
             },
             result: (player: Character) => {
                 player.base_stats.healing += 1;
-                print(`Your healing capabilitys Improved.  Congradulations, you now heal by: ${player.base_stats.healing}`);
+                player.game.print(`Your healing capabilitys Improved.  Congradulations, you now heal by: ${player.base_stats.healing}`);
             }
         })).interaction('train archery', actions.train({
             skillName: 'archery',
@@ -2967,7 +3023,7 @@ const characters = {
             },
             result: (player: Character) => {
                 player.base_stats.archery += 1;
-                print(`Your archery skills improved.  Congradulations, you now have Archery: ${player.base_stats.archery}`);
+                player.game.print(`Your archery skills improved.  Congradulations, you now have Archery: ${player.base_stats.archery}`);
             }
         })).interaction('train mindfulness', actions.train({
             skillName: 'mindfulness',
@@ -2981,18 +3037,18 @@ const characters = {
             },
             result: (player: Character) => {
                 player.base_stats.max_mp += 5;
-                print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player.base_stats.max_mp}`);
+                player.game.print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player.base_stats.max_mp}`);
             }
         })).interaction('list', async function (player) {
-            print("At the domain of Eldfarl we teach the following:");
-            print(" train mindfulness | increaces BP");
-            print(" train healing     | increases healing power");
-            print(" train archery     | increases archery skills");
-            print(" To train any of these, please type 'train' then");
-            print(" type what to train.");
+            this.game.print("At the domain of Eldfarl we teach the following:");
+            this.game.print(" train mindfulness | increaces BP");
+            this.game.print(" train healing     | increases healing power");
+            this.game.print(" train archery     | increases archery skills");
+            this.game.print(" To train any of these, please type 'train' then");
+            this.game.print(" type what to train.");
         }).interaction('train', async function (player) {
-            color(black)
-            print('That class is not taught here.')
+            this.game.color(black)
+            this.game.print('That class is not taught here.')
         });
     },
 
@@ -3006,49 +3062,49 @@ const characters = {
             description: 'blind hermit',
             aliases: ['hermit'],
         }).dialog(async function (player: Character) {
-            print("'The sight of a blind man probes beyond visual perceptions'");
-            print("           - Vershi, tempest shaman");
-            print();
-            await pause(4);
-            print("Hey, whats up?");
-            print("Though I am blind I may see things you do not.");
-            print("I am in desperate need of the head of Mythin the forester.  He is a traitor");
-            print("to Ierdale and deserves no other fate than death.  If you could tell me the");
-            print("whereabouts of Mythin this would be yours.");
-            color(blue);
-            await pause(6);
-            print("<blind hermit reveals 10000gp>");
-            await pause(3);
-            color(black);
-            print("Take it or leave it? [y/n]");
-            if (await getKey(['y', 'n']) == "y") {
-                color(blue);
-                print("<Something moves in the shadows>");
-                print("<blind hermit turns twords you:>");
-                await pause(4);
-                color(black);
-                print("Mythin,");
-                print("He is the one, kill him");
-                await pause(4);
-                color(blue);
-                print("<Mythin leaps from the shadows and just as you see him, you feel cold steel>");
-                print("<in your chest>");
-                await pause(3);
-                print("MYTHIN:", 1);
-                color(black);
-                print("The dark lord has naught a chance now that the one is dead");
-                print("A normal human would not take such a risky bribe.");
-                await pause(7);
+            this.game.print("'The sight of a blind man probes beyond visual perceptions'");
+            this.game.print("           - Vershi, tempest shaman");
+            this.game.print();
+            await this.game.pause(4);
+            this.game.print("Hey, whats up?");
+            this.game.print("Though I am blind I may see things you do not.");
+            this.game.print("I am in desperate need of the head of Mythin the forester.  He is a traitor");
+            this.game.print("to Ierdale and deserves no other fate than death.  If you could tell me the");
+            this.game.print("whereabouts of Mythin this would be yours.");
+            this.game.color(blue);
+            await this.game.pause(6);
+            this.game.print("<blind hermit reveals 10000gp>");
+            await this.game.pause(3);
+            this.game.color(black);
+            this.game.print("Take it or leave it? [y/n]");
+            if (await this.game.getKey(['y', 'n']) == "y") {
+                this.game.color(blue);
+                this.game.print("<Something moves in the shadows>");
+                this.game.print("<blind hermit turns twords you:>");
+                await this.game.pause(4);
+                this.game.color(black);
+                this.game.print("Mythin,");
+                this.game.print("He is the one, kill him");
+                await this.game.pause(4);
+                this.game.color(blue);
+                this.game.print("<Mythin leaps from the shadows and just as you see him, you feel cold steel>");
+                this.game.print("<in your chest>");
+                await this.game.pause(3);
+                this.game.print("MYTHIN:", 1);
+                this.game.color(black);
+                this.game.print("The dark lord has naught a chance now that the one is dead");
+                this.game.print("A normal human would not take such a risky bribe.");
+                await this.game.pause(7);
                 await player.die(this.game.find_character('Mythin'));
             } else {
-                print("Fine, but 10000gp will cover most any expense");
-                print();
+                this.game.print("Fine, but 10000gp will cover most any expense");
+                this.game.print();
                 if (!player.has('list')) {
-                    print("Though I rarely trouble myself in the affairs of man, take these for I fear");
-                    print("your future is un-eventful without them.");
-                    color(blue);
-                    print("<recieved a list>");
-                    print("<recieved an amber chunk>");
+                    this.game.print("Though I rarely trouble myself in the affairs of man, take these for I fear");
+                    this.game.print("your future is un-eventful without them.");
+                    this.game.color(blue);
+                    this.game.print("<recieved a list>");
+                    this.game.print("<recieved an amber chunk>");
                     player.giveItem('list');
                     player.giveItem('amber_chunk');
                 }
@@ -3067,30 +3123,30 @@ const characters = {
             agility: 100,
             coordination: 10,
         }).dialog(async function (player: Character) {
-            color(red);
-            print("<*chop*>");
-            await pause(1);
-            print("<*crack*>");
-            await pause(1);
-            print("<*rip leg off animal*>");
-            await pause(1);
-            print("<*WHACK*>");
-            print("<*Blood splaters in your face*>");
-            await pause(2);
-            color(black);
-            print("Sorry about that.");
-            print("I like meat.  My father was a butcher, his father before him...");
-            await pause(2);
+            this.game.color(red);
+            this.game.print("<*chop*>");
+            await this.game.pause(1);
+            this.game.print("<*crack*>");
+            await this.game.pause(1);
+            this.game.print("<*rip leg off animal*>");
+            await this.game.pause(1);
+            this.game.print("<*WHACK*>");
+            this.game.print("<*Blood splaters in your face*>");
+            await this.game.pause(2);
+            this.game.color(black);
+            this.game.print("Sorry about that.");
+            this.game.print("I like meat.  My father was a butcher, his father before him...");
+            await this.game.pause(2);
             for (let a = 0; a < 25; a++) {
-                print("and his father before him,", 1);
+                this.game.print("and his father before him,", 1);
             }            // Next
-            print();
-            print("As you can see I come from a long line of butchers, and I'm proud!");
-            print("I left a 'giraffe gizzard' on the floor a while ago.  I am too fat");
-            print("to see it or my feet but if it's still there and you want it...");
-            color(red);
-            await pause(3);
-            print("<*Whack-Splatter*>");
+            this.game.print();
+            this.game.print("As you can see I come from a long line of butchers, and I'm proud!");
+            this.game.print("I left a 'giraffe gizzard' on the floor a while ago.  I am too fat");
+            this.game.print("to see it or my feet but if it's still there and you want it...");
+            this.game.color(red);
+            await this.game.pause(3);
+            this.game.print("<*Whack-Splatter*>");
         });
     },
 
@@ -3109,7 +3165,7 @@ const characters = {
             alignment: 'evil',
         }).fightMove(async function () {
             if (Math.random() > 2 / 3) {
-                // print('TODO: poison fang')
+                // this.game.print('TODO: poison fang')
             }
         });
     },
@@ -3129,10 +3185,10 @@ const characters = {
             armor: { blunt: 1 },
             aliases: ['troll'],
         }).dialog(async function (player: Character) {
-            print("trying to bother me?");
-            print("worthless little human...");
-            await pause(2);
-            print("aarrr... get off my bridge!");
+            this.game.print("trying to bother me?");
+            this.game.print("worthless little human...");
+            await this.game.pause(2);
+            this.game.print("aarrr... get off my bridge!");
             await this.fight(player);
         });
     },
@@ -3226,20 +3282,20 @@ const characters = {
             actions.defend_tribe
         ).dialog(async function (player: Character) {
             if (!this.game.flags.colonel_arach) {
-                print("Sorry... we can't let you past.  Colonel Arach has us locking these gates down");
-                print("good and tight!  No one may get through.");
+                this.game.print("Sorry... we can't let you past.  Colonel Arach has us locking these gates down");
+                this.game.print("good and tight!  No one may get through.");
             } else if (this.game.flags.biadon && !this.game.flags.ieadon) {
-                print("The guard captain wants to see you! Report to the security office, please!");
+                this.game.print("The guard captain wants to see you! Report to the security office, please!");
             } else if (this.game.flags.ieadon || !this.game.flags.ziatos) {
-                print("Hello... how are you on this fine day.  We will treat you with respect, if");
-                print("you show respect to our town.  If you wish to inquire of something visit");
-                print("the security office on North Road. ", 1);
+                this.game.print("Hello... how are you on this fine day.  We will treat you with respect, if");
+                this.game.print("you show respect to our town.  If you wish to inquire of something visit");
+                this.game.print("the security office on North Road. ", 1);
                 if (this.location?.name == 'Eastern Gatehouse') {
-                    print("(west and north of here)");
+                    this.game.print("(west and north of here)");
                 } else if (this.location?.name == 'Western Gatehouse') {
-                    print("(east and north of here)");
+                    this.game.print("(east and north of here)");
                 } else if (this.location?.name == 'Northern Gatehouse') {
-                    print("(south of here)");
+                    this.game.print("(south of here)");
                 }
             }
         }).onDeath(
@@ -3259,15 +3315,15 @@ const characters = {
                         break;
                 }
                 if (direction == blockDirection) {
-                    if (character.isPlayer) print("Sorry... we can't let you past.");
+                    if (character.isPlayer) this.game.print("Sorry... we can't let you past.");
                     return false
                 }
             }
             return true
         }).onAttack(async function (attacker) {
             if (attacker.isPlayer) {
-                color(red)
-                print("Security Guard -- Colonel Arach!  Help!");
+                this.game.color(red)
+                this.game.print("Security Guard -- Colonel Arach!  Help!");
             }
             actions.call_help('colonel_arach').bind(this)()
         })
@@ -3288,18 +3344,19 @@ const characters = {
             aliases: ['page'],
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
+            items: ['partial healing potion', 'mostly healing potion', 'full healing potion']
         }).dialog(async function (player: Character) {
-            print("What do you want... wait I am too good and too cool to be talking to you,");
-            print("Eldfarl picked me to mentor him because I am the BEST!!!  Way better than you!");
-            print("Go away, you're breathing on me, EWWW FAT SLOB!");
+            this.game.print("What do you want... wait I am too good and too cool to be talking to you,");
+            this.game.print("Eldfarl picked me to mentor him because I am the BEST!!!  Way better than you!");
+            this.game.print("Go away, you're breathing on me, EWWW FAT SLOB!");
         }).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer && !this.game.player.flags.enemy_of_ierdale) {
-                color(red);
-                print("The Guards will get you for this!");
+                this.game.color(red);
+                this.game.print("The Guards will get you for this!");
                 this.game.player.flags.enemy_of_ierdale = true
                 this.game.player.flags.murders += 1
             }
-        });
+        }).interaction('buy', actions.buy)
     },
 
     police_chief(game: GameState) {
@@ -3321,15 +3378,15 @@ const characters = {
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
             if (this.game.flags.biadon && !this.game.flags.ieadon) {
-                print("Mfrmf... Orcs mfrflm... Oh its you.  Stay OUT, we are at war!  Please show");
-                print("some respect for the fighting men of Ierdale.");
-                print("Its interesting how in our time of greatest need, Ieadon - our best and most");
-                print("trusted fighter - can disapear.  Some say to have seen him leaving town at");
-                print("dusk one night.");
+                this.game.print("Mfrmf... Orcs mfrflm... Oh its you.  Stay OUT, we are at war!  Please show");
+                this.game.print("some respect for the fighting men of Ierdale.");
+                this.game.print("Its interesting how in our time of greatest need, Ieadon - our best and most");
+                this.game.print("trusted fighter - can disapear.  Some say to have seen him leaving town at");
+                this.game.print("dusk one night.");
             } else {
-                print("*cough*  How may I help you?");
-                print("Don't try anything funny: here in Ierdale we crack down hard on crime!");
-                print("We sell passes to the forest of theives up North at the information desk.");
+                this.game.print("*cough*  How may I help you?");
+                this.game.print("Don't try anything funny: here in Ierdale we crack down hard on crime!");
+                this.game.print("We sell passes to the forest of theives up North at the information desk.");
             }
         }).onEncounter(
             actions.defend_tribe
@@ -3418,11 +3475,11 @@ const characters = {
             description: 'Judge',
             aliases: ['judge'],
         }).dialog(async function (player: Character) {
-            print("Hello, would you like a trial?");
+            this.game.print("Hello, would you like a trial?");
         }).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
-                color(red);
-                print("Murder in our own COURT!");
+                this.game.color(red);
+                this.game.print("Murder in our own COURT!");
                 this.game.player.flags.murders += 1
                 this.game.player.flags.enemy_of_ierdale = true
             }
@@ -3447,8 +3504,8 @@ const characters = {
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
-            print("Be careful...");
-            print("It is very dangerous here in the desert.");
+            this.game.print("Be careful...");
+            this.game.print("It is very dangerous here in the desert.");
         }).onDeath(
             actions.declare_war
         ).onEncounter(
@@ -3475,7 +3532,6 @@ const characters = {
         }).fightMove(async function () {
             if (Math.random() < 1 / 5) {
                 // heal
-                print
             }
         });
     },
@@ -3497,10 +3553,40 @@ const characters = {
             aliases: ['orkin'],
             respawns: false,
         }).dialog(async function (player: Character) {
-            print("Echoo Dakeee??  Wul you like to buy some any-mas!");
+            this.game.print("Echoo Dakeee??  Wul you like to buy some any-mas!");
         }).fightMove(async function () {
-            print('TODO: animals')
-        });
+            this.game.print('TODO: animals')
+        }).interaction('buy', async function (player, petname: string) {
+            if (player instanceof Player) {
+                const petNames = [
+                    "ferret",
+                    "white weasel",
+                    "hunting weasel",
+                    "hamster",
+                    "small dog",
+                    "hunting dog",
+                    "high bred dog",
+                    "attack dog",
+                    "red wolf",
+                    "dark wolf",
+                    "vicious wolf",
+                    "pigeon",
+                    "falcon",
+                    "hunting falcon",
+                    "owl",
+                ]
+                if (player.pets.length >= player.max_pets) {
+                    this.game.print("You already have too many pets.");
+                } else if (player.has('gold', 200)) {
+                    player.removeItem('gold', 200);
+                    const wolf = this.game.addCharacter({ name: 'wolf', location: this.location! });
+                    (player as Player).addPet(wolf);
+                    this.game.print("You bought a wolf!");
+                } else {
+                    this.game.print("You don't have enough gold.");
+                }
+            }
+        })
     },
 
     lion(game: GameState) {
@@ -3521,9 +3607,9 @@ const characters = {
             alignment: 'nice lion',
             spellChance: () => Math.random() < 2 / 3,
         }).dialog(async function (player: Character) {
-            color(red);
+            this.game.color(red);
             // If QBRed = QBDefault Then SetColor QBBlue
-            print("      ROAR!");
+            this.game.print("      ROAR!");
         }).fightMove(actions.growl);
     },
 
@@ -3540,14 +3626,7 @@ const characters = {
             coordination: 20,
             agility: 10,
             buff: { times: { defense: { sonic: 25 } } },
-        }).fightMove(async function () {
-            if (Math.random() < 2 / 3) {
-                this.game.addCharacter({
-                    name: 'mutant_bat', location: this.location!, respawns: false, persist: false
-                })?.onTurn(
-                    async function () { await this.die() }
-                );
-            }
+            alignment: 'evil',
         });
     },
 
@@ -3570,8 +3649,8 @@ const characters = {
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
                 if (this.location?.playerPresent) {
-                    color(magenta);
-                    print("Kobalt Captain calls for reinforcements!");
+                    this.game.color(magenta);
+                    this.game.print("Kobalt Captain calls for reinforcements!");
                 }
                 this.game.addCharacter({ name: 'kobalt_soldier', location: this.location! });
             }
@@ -3614,11 +3693,11 @@ const characters = {
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
-            print("Hi, want some arrows... OR BOWS!");
+            this.game.print("Hi, want some arrows... OR BOWS!");
         }).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
-                color(red);
-                print("This is MURDER! The guards will have your head for this!");
+                this.game.color(red);
+                this.game.print("This is MURDER! The guards will have your head for this!");
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
@@ -3641,15 +3720,15 @@ const characters = {
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
-            print("Nice day aint it?");
-            print("I Heard about these 4 jewels once...  heard one was in the forest 'o theives.");
-            print("Talk to the Cleric to get some liquid... if he's still alive, he's dying.");
-            print();
-            print("Talk to the \"peasant elder\" more than once, she has a lot to say.");
+            this.game.print("Nice day aint it?");
+            this.game.print("I Heard about these 4 jewels once...  heard one was in the forest 'o theives.");
+            this.game.print("Talk to the Cleric to get some liquid... if he's still alive, he's dying.");
+            this.game.print();
+            this.game.print("Talk to the \"peasant elder\" more than once, she has a lot to say.");
         }).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
-                color(red);
-                print("This is MURDER! The guards will have your head for this!");
+                this.game.color(red);
+                this.game.print("This is MURDER! The guards will have your head for this!");
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
@@ -3672,15 +3751,15 @@ const characters = {
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
-            print("Excuse me I need to get to my work.");
-            print();
-            print("Whats that you say??? Interested in rings?  I heard one is in the mountains.");
-            print("Floated by my ear also that it was guarded by some strange beast... Henge???");
-            print("Now excuse me, must work work work.");
+            this.game.print("Excuse me I need to get to my work.");
+            this.game.print();
+            this.game.print("Whats that you say??? Interested in rings?  I heard one is in the mountains.");
+            this.game.print("Floated by my ear also that it was guarded by some strange beast... Henge???");
+            this.game.print("Now excuse me, must work work work.");
         }).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
-                color(red);
-                print("This is MURDER! The guards will have your head for this!");
+                this.game.color(red);
+                this.game.print("This is MURDER! The guards will have your head for this!");
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
@@ -3701,8 +3780,25 @@ const characters = {
             agility: 2,
             armor: { blunt: 4 },
         }).dialog(async function (player: Character) {
-            print("BOW WOW WOW!");
-        }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse'] }))
+            this.game.print("BOW WOW WOW!");
+        }).onTurn(
+            actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse'] })
+        ).interaction('get dog', async function (player) {
+            const meat = player.item('chicken leg') || player.item('side of meat');
+            if (!meat) {
+                this.game.print("you don't have any meat.")
+            } else {
+                if (player instanceof Player) {
+                    await player.addPet(this);
+                    this.actionQueue = []; // cancel wander
+                    this.game.print(`Give the dog your ${meat.name}? [y/n]`);
+                    if (await this.game.getKey(['y', 'n']) == 'y') {
+                        await player.removeItem(meat.name);
+                        this.game.print("The dogs is yours now!")
+                    }
+                }
+            }
+        })
     },
 
     peasant_child(game: GameState) {
@@ -3714,10 +3810,10 @@ const characters = {
             console.log(this.name, 'onAttack')
             if (character.isPlayer) {
                 const player = character as Player
-                print("YOU DUMB CRAP!")
-                print("You want to kill a poor helpless little KID?")
-                if (await getKey(['y', 'n']) == "n") {
-                    print("The devilish side of you regrets that decision.")
+                this.game.print("YOU DUMB CRAP!")
+                this.game.print("You want to kill a poor helpless little KID?")
+                if (await this.game.getKey(['y', 'n']) == "n") {
+                    this.game.print("The devilish side of you regrets that decision.")
                     const evil_you = new A2dCharacter({
                         name: `evil ${player.name}`,
                         pronouns: { subject: 'you', object: 'yourself', possessive: 'your' },
@@ -3750,8 +3846,8 @@ const characters = {
                         player.pronouns.object = 'yourself'
                         console.log('player currently goes by: ', player.name, player.pronouns)
                         if (this.hp < this.max_hp / 2) {
-                            color(magenta)
-                            print(`${caps(this.name)} heals yourself!`)
+                            this.game.color(magenta)
+                            this.game.print(`${caps(this.name)} heals yourself!`)
                             this.hp += player.healing;
                         } else if (player.class_name == 'spellcaster') {
                             const spell = randomChoice([
@@ -3760,11 +3856,11 @@ const characters = {
                                 player.abilities['fire'] ? 'fire' : '',
                                 player.abilities['blades'] ? 'blades' : ''
                             ].filter(spell => spell))
-                            color(brightred)
-                            print(`${caps(this.name)} casts ${spell}!`)
+                            this.game.color(brightred)
+                            this.game.print(`${caps(this.name)} casts ${spell}!`)
                             spells[spell].bind(this)(player)
                         } else {
-                            print(`${caps(this.name)} attacks with your other hand!`)
+                            this.game.print(`${caps(this.name)} attacks with your other hand!`)
                             this.attack(player, this.flags['left hand']?.name, this.flags['left hand']?.damage)
                         }
                     }).onTurn(async function () {
@@ -3777,14 +3873,14 @@ const characters = {
                     await player.fight(null)
                     await player.fight(evil_you)
                 } else {
-                    print("Now you will be punished!")
-                    print()
-                    print()
-                    print("ULTIMATE POWERMAXOUT SWEEPS FORTH FROM THE FURIOUS FINGERS OF LARS!")
-                    print("YOU WRITHE IN AGONY AS IT DRAINS THE LIFE COMPLETELY FROM YOU.")
-                    print("YOU SMELL DEFEAT FULLY AND TERRIBLY AS YOU GO LIMPLY UNCONSIOUS")
-                    print()
-                    print(" LET THIS BE A LESSON TO YOU!!!!!!!!!")
+                    this.game.print("Now you will be punished!")
+                    this.game.print()
+                    this.game.print()
+                    this.game.print("ULTIMATE POWERMAXOUT SWEEPS FORTH FROM THE FURIOUS FINGERS OF LARS!")
+                    this.game.print("YOU WRITHE IN AGONY AS IT DRAINS THE LIFE COMPLETELY FROM YOU.")
+                    this.game.print("YOU SMELL DEFEAT FULLY AND TERRIBLY AS YOU GO LIMPLY UNCONSIOUS")
+                    this.game.print()
+                    this.game.print(" LET THIS BE A LESSON TO YOU!!!!!!!!!")
                     await player.die('Lars')
                 }
             }
@@ -3806,16 +3902,23 @@ const characters = {
             armor: { blunt: 10 },
             aliases: ['peasant', 'worker'],
             alignment: 'ierdale',
-            flags: { enemy_of_orcs: true },
+            flags: { enemy_of_orcs: true, dialog: 0 },
         }).dialog(async function (player: Character) {
-            print("*grumble* darn this town *grumble* *grumble*");
-            print("Oh Hi there!  Rings?  Dont know, heard something about the path of Nod.");
+            this.flags.dialog += 1;
+            if (this.flags.dialog == 1) {
+                this.game.print("*grumble* darn this town *grumble* *grumble*");
+                this.game.print("Oh Hi there!  Rings?  Dont know, heard something about the path of Nod.");
+            } else if (this.flags.dialog == 2) {
+                this.game.print("Yeah, might have been a meadow? Or a cave? Something like that.");
+            } else {
+                this.game.print("I am busy, go away.");
+            }
         }).onTurn(
             actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] })
         ).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
-                color(red);
-                print("This is MURDER! The guards will have your head for this!");
+                this.game.color(red);
+                this.game.print("This is MURDER! The guards will have your head for this!");
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
@@ -3840,12 +3943,12 @@ const characters = {
             magic_level: 20,
             respawns: false,
         }).dialog(async function (player: Character) {
-            print("I am the most renound fighter in all the Land.");
-            print("Have you heard about thoes rings, thats a PITY!");
-            print("**Ieadon grins**");
+            this.game.print("I am the most renound fighter in all the Land.");
+            this.game.print("Have you heard about thoes rings, thats a PITY!");
+            this.game.print("**Ieadon grins**");
         }).fightMove(async function () {
             if (Math.random() < 1 / 4) {
-                // print('TODO: ring ultimate power')
+                // this.game.print('TODO: ring ultimate power')
             }
         }).interaction('train strength', actions.train({
             skillName: 'strength',
@@ -3856,7 +3959,7 @@ const characters = {
             classDiscount: { 'fighter': 50, 'thief': 25 },
             result: (player: Character) => {
                 player.base_stats.strength += 1;
-                if (player.isPlayer) print(`Your raw fighting POWER increased.  Congradulations, your Attack is now: ${player.base_stats.strength}`);
+                if (player.isPlayer) player.game.print(`Your raw fighting POWER increased.  Congradulations, your Attack is now: ${player.base_stats.strength}`);
             }
         })).interaction('train stamina', actions.train({
             skillName: 'stamina',
@@ -3867,7 +3970,7 @@ const characters = {
             classDiscount: { 'fighter': 25, 'cleric': 25 },
             result: (player: Character) => {
                 player.base_stats.max_sp += 5;
-                if (player.isPlayer) print(`Your Stamina improved.  Congradulations, it is now: ${player.base_stats.max_sp}`);
+                if (player.isPlayer) player.game.print(`Your Stamina improved.  Congradulations, it is now: ${player.base_stats.max_sp}`);
             }
         })).interaction('train toughness', actions.train({
             skillName: 'toughness',
@@ -3878,7 +3981,7 @@ const characters = {
             classDiscount: { 'fighter': 25 },
             result: (player: Character) => {
                 player.base_stats.max_hp += 5;
-                if (player.isPlayer) print(`Your toughness increased.  Congradulations your Hit Points are now: ${player.base_stats.max_hp}`);
+                if (player.isPlayer) player.game.print(`Your toughness increased.  Congradulations your Hit Points are now: ${player.base_stats.max_hp}`);
             }
         })).onDeath(async function (player) {
             // win
@@ -3886,21 +3989,21 @@ const characters = {
                 // they can save again
                 player.enableCommands(['save'])
                 // and then we should probably say something about how well they did
-                print("Ieadon is defeated, and the new holder of the ultimate ring is... you!")
+                this.game.print("Ieadon is defeated, and the new holder of the ultimate ring is... you!")
             } else {
                 // very unexpectedly, Ieadon died but the player didn't do it
             }
         }).interaction('list', async function () {
-            color(black);
-            print("At the domain of Ieadon we teach the following:");
-            print(" train toughness   | increaces HP");
-            print(" train strength    | increases attack damage");
-            print(" train stamina     | increases SP");
-            print(" To train any of these, please type 'train' then");
-            print(" type what to train.");
+            this.game.color(black);
+            this.game.print("At the domain of Ieadon we teach the following:");
+            this.game.print(" train toughness   | increaces HP");
+            this.game.print(" train strength    | increases attack damage");
+            this.game.print(" train stamina     | increases SP");
+            this.game.print(" To train any of these, please type 'train' then");
+            this.game.print(" type what to train.");
         }).interaction('train', async function (player) {
-            color(black)
-            print('That class is not taught here.')
+            this.game.color(black)
+            this.game.print('That class is not taught here.')
         })
     },
 
@@ -3924,21 +4027,21 @@ const characters = {
             magic_level: 50,
         }).dialog(async function (player: Character) {
             if (!this.flags.gave_directions) {
-                print("Since you have been able to get here, I will tell you directions");
-                print("on how to get here again...");
-                print("When you first enter this forest, go west until you come to a large rock.");
-                print("then go south twice to reach me.  So these would be the exact directions:");
-                print("Enter forest, west, west, west, west, south (there is an evil forester");
-                print("here, I keep telling him he disturbs business but he doesn't listen), south.");
-                print();
-                print("The directions out are the exact oposite (n,n,e,e,e,e). Then you will be at");
-                print("the entrance to the forest.  (Area #112)Go south once more to exit.");
+                this.game.print("Since you have been able to get here, I will tell you directions");
+                this.game.print("on how to get here again...");
+                this.game.print("When you first enter this forest, go west until you come to a large rock.");
+                this.game.print("then go south twice to reach me.  So these would be the exact directions:");
+                this.game.print("Enter forest, west, west, west, west, south (there is an evil forester");
+                this.game.print("here, I keep telling him he disturbs business but he doesn't listen), south.");
+                this.game.print();
+                this.game.print("The directions out are the exact oposite (n,n,e,e,e,e). Then you will be at");
+                this.game.print("the entrance to the forest.  (Area #112)Go south once more to exit.");
             } else if (this.game.flags.biadon && !this.flags.met_biadon) {
-                print("I have no idea who this guy is. He just showed up out of the bushes, and");
-                print("he can't stop laughing.")
+                this.game.print("I have no idea who this guy is. He just showed up out of the bushes, and");
+                this.game.print("he can't stop laughing.")
                 this.flags.met_biadon = true
             } else {
-                print("Hello, have you come to learn? Type \"list\" to see what I can teach you.");
+                this.game.print("Hello, have you come to learn? Type \"list\" to see what I can teach you.");
             }
         }).interaction('train coordination', actions.train({
             skillName: 'coordination',
@@ -3949,7 +4052,7 @@ const characters = {
             classDiscount: { 'thief': 25, 'fighter': 25 },
             result: (player) => {
                 player.base_stats.coordination += 1;
-                if (player.isPlayer) print(`Your coordination increased.  Congradulations, it is now: ${player.base_stats.coordination}`);
+                if (player.isPlayer) player.game.print(`Your coordination increased.  Congradulations, it is now: ${player.base_stats.coordination}`);
             }
         })).interaction('train agility', actions.train({
             skillName: 'agility',
@@ -3960,14 +4063,14 @@ const characters = {
             classDiscount: { 'thief': 50 }, // thief specialty
             result: (player) => {
                 player.base_stats.agility += 1;
-                if (player.isPlayer) print(`Your agility increased.  Congradulations, it is now: ${player.base_stats.agility}`);
+                if (player.isPlayer) player.game.print(`Your agility increased.  Congradulations, it is now: ${player.base_stats.agility}`);
             }
         })).interaction('train offhand', actions.train({
             skillName: 'offhand',
             requirements: (player) => {
                 const ambidextrous = player.base_stats.offhand >= 1;
                 if (ambidextrous && player.isPlayer) {
-                    print("You are already fully ambidextrous.");
+                    player.game.print("You are already fully ambidextrous.");
                 }
                 return {
                     xp: 300 + 200 * (1 - player.base_stats.offhand),
@@ -3978,19 +4081,19 @@ const characters = {
             classDiscount: { 'thief': 25, 'fighter': 25 },
             result: (player) => {
                 player.base_stats.offhand += Math.min(Math.floor(((1 - player.base_stats.offhand) / 4) * 100 + 1.5) / 100, 1);
-                if (player.isPlayer) print(`Your left-handed capabilities increased.  Congradulations, offhand is now: ${Math.floor(player.base_stats.offhand * 100)}%`);
+                if (player.isPlayer) player.game.print(`Your left-handed capabilities increased.  Congradulations, offhand is now: ${Math.floor(player.base_stats.offhand * 100)}%`);
             }
         })).interaction('train', async function (player) {
-            color(black)
-            print('That class is not taught here.')
+            this.game.color(black)
+            this.game.print('That class is not taught here.')
         }).interaction('list', async function () {
-            color(black)
-            print("At the domain of Mythin we teach the following:");
-            print(" train coordination | increaces to-hit");
-            print(" train agility      | decreases enemy to-hit");
-            print(" train offhand      | increases left-hand weapon power");
-            print(" To train any of these, please type 'train' then");
-            print(" type what to train.");
+            this.game.color(black)
+            this.game.print("At the domain of Mythin we teach the following:");
+            this.game.print(" train coordination | increaces to-hit");
+            this.game.print(" train agility      | decreases enemy to-hit");
+            this.game.print(" train offhand      | increases left-hand weapon power");
+            this.game.print(" To train any of these, please type 'train' then");
+            this.game.print(" type what to train.");
         }).fightMove(actions.heal);
     },
 
@@ -4013,37 +4116,37 @@ const characters = {
             powers: { 'powermaxout': 7 },
             respawns: false,
         }).dialog(async function (player: Character) {
-            print("Hello, nice to have company!!!")
+            this.game.print("Hello, nice to have company!!!")
             if (player.has("clear liquid") && this.has("maple leaf")) {
-                print();
-                await pause(1);
-                print("Whats that in your hand?");
-                print("May I see it?");
-                print("SHOW Eldin your clear liquid? [y/n]");
-                if (await getKey(['y', 'n']) == "y") {
-                    print("Hmmm...");
-                    pause(3);
-                    print("Suspicions confirmed, here you are.");
-                    print("Oh, I collect maple leaves, are not they beautiful. Have one.");
+                this.game.print();
+                await this.game.pause(1);
+                this.game.print("Whats that in your hand?");
+                this.game.print("May I see it?");
+                this.game.print("SHOW Eldin your clear liquid? [y/n]");
+                if (await this.game.getKey(['y', 'n']) == "y") {
+                    this.game.print("Hmmm...");
+                    this.game.pause(3);
+                    this.game.print("Suspicions confirmed, here you are.");
+                    this.game.print("Oh, I collect maple leaves, are not they beautiful. Have one.");
                     this.transferItem('maple leaf', player);
-                    color(blue);
-                    print("<recieved maple leaf>");
+                    this.game.color(blue);
+                    this.game.print("<recieved maple leaf>");
                 }
             } else {
-                print("Please, I am slighty busy, please read");
-                print("the sign, then come back to me!");
-                print();
+                this.game.print("Please, I am slighty busy, please read");
+                this.game.print("the sign, then come back to me!");
+                this.game.print();
             }
         }).fightMove(async function () {
             if (this.attackTarget) spells['powermaxout'].bind(this)(this.attackTarget)
         }).interaction('list', async function () {
-            color(black)
-            print("At the domain of Eldin we teach the following:")
-            print(" train mindfulness | increaces BP")
-            print(" train healing     | increases healing power")
-            print(" train archery     | increases archery skills")
-            print(" To train any of these, please type 'train' then")
-            print(" type what to train.")
+            this.game.color(black)
+            this.game.print("At the domain of Eldin we teach the following:")
+            this.game.print(" train mindfulness | increaces BP")
+            this.game.print(" train healing     | increases healing power")
+            this.game.print(" train archery     | increases archery skills")
+            this.game.print(" To train any of these, please type 'train' then")
+            this.game.print(" type what to train.")
         }).interaction('train magic', actions.train({
             skillName: 'magic',
             requirements: (player) => ({
@@ -4053,7 +4156,7 @@ const characters = {
             classDiscount: { 'spellcaster': 50 },
             result: (player) => {
                 player.base_stats.magic_level += 1;
-                if (player.isPlayer) print(`Your magical abilities increased. Congradulations, your magic level is now: ${player.base_stats.magic_level}`);
+                if (player.isPlayer) player.game.print(`Your magical abilities increased. Congradulations, your magic level is now: ${player.base_stats.magic_level}`);
             }
         })).interaction('train newbie', actions.train({
             skillName: 'newbie',
@@ -4063,7 +4166,7 @@ const characters = {
                     gold: 10 + 5 * (player.abilities['newbie'] || 0),
                 }
                 if (player.abilities['newbie'] >= 7) {
-                    if (player.isPlayer) print("You have already mastered that spell.");
+                    if (player.isPlayer) player.game.print("You have already mastered that spell.");
                     Object.assign(reqs, { other: false });
                 }
                 return reqs;
@@ -4071,7 +4174,7 @@ const characters = {
             classDiscount: { 'spellcaster': 30 },
             result: (player) => {
                 player.abilities['newbie'] = player.abilities['newbie'] ? player.abilities['newbie'] + 1 : 1;
-                if (player.isPlayer) print(`Learned Newbie.  Congradulations, your skill is now: ${abilityLevels[player.abilities['newbie']]}`);
+                if (player.isPlayer) player.game.print(`Learned Newbie.  Congradulations, your skill is now: ${abilityLevels[player.abilities['newbie']]}`);
             }
         })).interaction('train bolt', actions.train({
             skillName: 'bolt',
@@ -4082,7 +4185,7 @@ const characters = {
                     magic_level: 3 + (player.abilities['bolt'] || 0)
                 }
                 if (player.abilities['bolt'] >= 7) {
-                    if (player.isPlayer) print("You have already mastered that spell.");
+                    if (player.isPlayer) player.game.print("You have already mastered that spell.");
                     Object.assign(reqs, { other: false });
                 }
                 return reqs;
@@ -4090,7 +4193,7 @@ const characters = {
             classDiscount: { 'spellcaster': 30 },
             result: (player) => {
                 player.abilities['bolt'] = player.abilities['bolt'] ? player.abilities['bolt'] + 1 : 1;
-                if (player.isPlayer) print(`Learned Bolt.  Congradulations, your skill is now: ${abilityLevels[player.abilities['bolt']]}`);
+                if (player.isPlayer) player.game.print(`Learned Bolt.  Congradulations, your skill is now: ${abilityLevels[player.abilities['bolt']]}`);
             }
         })).interaction('train fire', actions.train({
             skillName: 'fire',
@@ -4101,7 +4204,7 @@ const characters = {
                     magic_level: 6 + 2 * (player.abilities['fire'] || 0)
                 }
                 if (player.abilities['fire'] >= 7) {
-                    if (player.isPlayer) print("You have already mastered that spell.");
+                    if (player.isPlayer) player.game.print("You have already mastered that spell.");
                     Object.assign(reqs, { other: false });
                 }
                 return reqs;
@@ -4109,7 +4212,7 @@ const characters = {
             classDiscount: { 'spellcaster': 30 },
             result: (player) => {
                 player.abilities['fire'] = player.abilities['fire'] ? player.abilities['fire'] + 1 : 1;
-                if (player.isPlayer) print(`Learned Fire.  Congradulations, your skill is now: ${abilityLevels[player.abilities['fire']]}`);
+                if (player.isPlayer) player.game.print(`Learned Fire.  Congradulations, your skill is now: ${abilityLevels[player.abilities['fire']]}`);
             }
         })).interaction('train blades', actions.train({
             skillName: 'blades',
@@ -4120,7 +4223,7 @@ const characters = {
                     magic_level: 10 + 3 * (player.abilities['blades'] || 0)
                 }
                 if (player.abilities['blades'] >= 7) {
-                    if (player.isPlayer) print("You have already mastered that spell.");
+                    if (player.isPlayer) player.game.print("You have already mastered that spell.");
                     Object.assign(reqs, { other: false });
                 }
                 return reqs;
@@ -4128,7 +4231,7 @@ const characters = {
             classDiscount: { 'spellcaster': 30 },
             result: (player) => {
                 player.abilities['blades'] = player.abilities['blades'] ? player.abilities['blades'] + 1 : 1;
-                if (player.isPlayer) print(`Learned Blades.  Congradulations, your skill is now: ${abilityLevels[player.abilities['blades']]}`);
+                if (player.isPlayer) player.game.print(`Learned Blades.  Congradulations, your skill is now: ${abilityLevels[player.abilities['blades']]}`);
             }
         })).interaction('train powermaxout', actions.train({
             skillName: 'powermaxout',
@@ -4139,7 +4242,7 @@ const characters = {
                     magic_level: 20 + 4 * (player.abilities['powermaxout'] || 0)
                 }
                 if (player.abilities['powermaxout'] >= 7) {
-                    if (player.isPlayer) print("You have already mastered that spell.");
+                    if (player.isPlayer) player.game.print("You have already mastered that spell.");
                     Object.assign(reqs, { other: false });
                 }
                 return reqs;
@@ -4147,7 +4250,7 @@ const characters = {
             classDiscount: { 'spellcaster': 30 },
             result: (player) => {
                 player.abilities['powermaxout'] = player.abilities['powermaxout'] ? player.abilities['powermaxout'] + 1 : 1;
-                if (player.isPlayer) print(`Learned Powermaxout.  Congradulations, your skill is now: ${abilityLevels[player.abilities['powermaxout']]}`);
+                if (player.isPlayer) player.game.print(`Learned Powermaxout.  Congradulations, your skill is now: ${abilityLevels[player.abilities['powermaxout']]}`);
             }
         })).interaction('train shield', actions.train({
             skillName: 'shield',
@@ -4157,7 +4260,7 @@ const characters = {
                     gold: 50 + 20 * (player.abilities['shield'] || 0),
                 }
                 if (player.abilities['shield'] >= 7) {
-                    if (player.isPlayer) print("You have already mastered that spell.");
+                    if (player.isPlayer) player.game.print("You have already mastered that spell.");
                     Object.assign(reqs, { other: false });
                 }
                 return reqs;
@@ -4165,7 +4268,7 @@ const characters = {
             classDiscount: { 'spellcaster': 30 },
             result: (player) => {
                 player.abilities['shield'] = player.abilities['shield'] ? player.abilities['shield'] + 1 : 1;
-                if (player.isPlayer) print(`Learned Shield.  Congradulations, your skill is now: ${abilityLevels[player.abilities['shield']]}`);
+                if (player.isPlayer) player.game.print(`Learned Shield.  Congradulations, your skill is now: ${abilityLevels[player.abilities['shield']]}`);
             }
         })).interaction('train bloodlust', actions.train({
             skillName: 'bloodlust',
@@ -4175,7 +4278,7 @@ const characters = {
                     gold: 50 + 20 * (player.abilities['bloodlust'] || 0),
                 }
                 if (player.abilities['bloodlust'] >= 7) {
-                    if (player.isPlayer) print("You have already mastered that spell.");
+                    if (player.isPlayer) player.game.print("You have already mastered that spell.");
                     Object.assign(reqs, { other: false });
                 }
                 return reqs;
@@ -4183,33 +4286,33 @@ const characters = {
             classDiscount: { 'spellcaster': 30, 'fighter': 25 },
             result: (player) => {
                 player.abilities['bloodlust'] = player.abilities['bloodlust'] ? player.abilities['bloodlust'] + 1 : 1;
-                if (player.isPlayer) print(`Learned Bloodlust.  Congradulations, your skill is now: ${abilityLevels[player.abilities['bloodlust']]}`);
+                if (player.isPlayer) player.game.print(`Learned Bloodlust.  Congradulations, your skill is now: ${abilityLevels[player.abilities['bloodlust']]}`);
             }
         })).interaction('list', async function () {
-            print("At the Cottage of Eldin we teach the following:");
-            print(" train newbie        | basic attack spell, low requirements");
-            print(" train bolt          | heat-seeking lightning bolt");
-            print(" train bloodlust     | increase strength for a short time");
-            print(" train shield        | a temporary shield protects you from attacks");
-            print(" train trance        | teaches trance spell (todo)");
-            print(" train flex          | teaches flex spell (todo)");
-            print(" train fire          | a blast of magical flame roasts your enemies");
-            print(" train blades        | cut your enemies to pieces with magical knives");
-            print(" train vanish        | become invisible! (todo)");
-            color(yellow)
-            print(" train powermaxout   | put all your magic into a single overwhelming blast");
-            color(blue)
-            print(" train conjure       | pull useful items out of thin air (todo)");
-            color(black)
-            print(" train magic         | increases magical power, enhances all spells");
-            print(" To see info on a spell type 'info [spellname]'");
+            this.game.print("At the Cottage of Eldin we teach the following:");
+            this.game.print(" train newbie        | basic attack spell, low requirements");
+            this.game.print(" train bolt          | heat-seeking lightning bolt");
+            this.game.print(" train bloodlust     | increase strength for a short time");
+            this.game.print(" train shield        | a temporary shield protects you from attacks");
+            this.game.print(" train trance        | teaches trance spell (todo)");
+            this.game.print(" train flex          | teaches flex spell (todo)");
+            this.game.print(" train fire          | a blast of magical flame roasts your enemies");
+            this.game.print(" train blades        | cut your enemies to pieces with magical knives");
+            this.game.print(" train vanish        | become invisible! (todo)");
+            this.game.color(yellow)
+            this.game.print(" train powermaxout   | put all your magic into a single overwhelming blast");
+            this.game.color(blue)
+            this.game.print(" train conjure       | pull useful items out of thin air (todo)");
+            this.game.color(black)
+            this.game.print(" train magic         | increases magical power, enhances all spells");
+            this.game.print(" To see info on a spell type 'info [spellname]'");
         }).interaction('transport', async function (player) {
-            print("Goodbye!")
-            await pause(1)
+            this.game.print("Goodbye!")
+            await this.game.pause(1)
             player.relocate(this.game.find_location("Eldin's house"))
         }).interaction('train', async function (player) {
-            color(black)
-            print('That class is not taught here.')
+            this.game.color(black)
+            this.game.print('That class is not taught here.')
         })
     },
 
@@ -4230,30 +4333,30 @@ const characters = {
             respawns: false,
             spellChance: () => Math.random() < 3 / 5,
         }).dialog(async function (player: Character) {
-            print("Ahh... nice to see you, please make yourself at home.  IF you would like to ");
-            print("be instructed in a class, please visit my fantasic facitlitys to the south...");
-            print("please keep your voice down though!  Or if you are interested in merchadise");
-            print("please scoot up to my clerics store to the North.  Once again Welcome! ");
-            print();
-            print("If you like, I can heal all that ails you.");
-            print("It is absolutley free and restores you to maximum HP: type 'healme'");
+            this.game.print("Ahh... nice to see you, please make yourself at home.  IF you would like to ");
+            this.game.print("be instructed in a class, please visit my fantasic facitlitys to the south...");
+            this.game.print("please keep your voice down though!  Or if you are interested in merchadise");
+            this.game.print("please scoot up to my clerics store to the North.  Once again Welcome! ");
+            this.game.print();
+            this.game.print("If you like, I can heal all that ails you.");
+            this.game.print("It is absolutley free and restores you to maximum HP: type 'healme'");
         }).fightMove(
             actions.heal
         ).interaction('list', async function (player) {
-            print("There are no classes offered here.")
+            this.game.print("There are no classes offered here.")
             if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- Go south, that's where the classes are.");
+                this.game.color(magenta)
+                this.game.print("Assistant -- Go south, that's where the classes are.");
             }
         }).interaction('train', async function (player) {
-            print("There are no classes offered here.")
+            this.game.print("There are no classes offered here.")
             if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- Go south, that's where the classes are.");
+                this.game.color(magenta)
+                this.game.print("Assistant -- Go south, that's where the classes are.");
             }
         }).interaction('healme', async function (player) {
-            print("Eldfarl lifts his hands and a remakably calm feeling floats over your body.")
-            print(`Eldfarl healed you ${Math.floor(player.max_hp - player.hp)} HP.`)
+            this.game.print("Eldfarl lifts his hands and a remakably calm feeling floats over your body.")
+            this.game.print(`Eldfarl healed you ${Math.floor(player.max_hp - player.hp)} HP.`)
             player.hp = player.max_hp
         })
     },
@@ -4276,24 +4379,24 @@ const characters = {
             respawns: false,
             exp: 1000
         }).onDeath(async function () {
-            color(green);
-            print("Defeated, the beast Turlin falls from the platform, crashing into the forest");
-            print("canopy far below.");
-            pause(2)
-            print("He leaves behind just one small item...");
-            await pause(3);
+            this.game.color(green);
+            this.game.print("Defeated, the beast Turlin falls from the platform, crashing into the forest");
+            this.game.print("canopy far below.");
+            this.game.pause(2)
+            this.game.print("He leaves behind just one small item...");
+            await this.game.pause(3);
         }).interaction('climb down', async function (player: Character) {
-            print("As you grasp for the upper rungs of the ladder, you see something from the")
-            print("corner of your eye.")
-            await pause(2)
-            print("It's Turlin, lunging at you with a roar!")
-            print("You try to put up your hands to defend yourself, only to realize - you were")
-            print("holding the ladder with those.")
-            await pause(5)
-            print("You fall down...")
+            this.game.print("As you grasp for the upper rungs of the ladder, you see something from the")
+            this.game.print("corner of your eye.")
+            await this.game.pause(2)
+            this.game.print("It's Turlin, lunging at you with a roar!")
+            this.game.print("You try to put up your hands to defend yourself, only to realize - you were")
+            this.game.print("holding the ladder with those.")
+            await this.game.pause(5)
+            this.game.print("You fall down...")
             for (let i = 0; i < 3; i++) {
-                await pause(1)
-                print("and down...")
+                await this.game.pause(1)
+                this.game.print("and down...")
             }
             player.hurt(200, 'the fall');
             if (player.isPlayer && !player.dead) (player as Player).checkHP();
@@ -4321,16 +4424,16 @@ const characters = {
             exp: 2000,
         }).onEncounter(async function (player: Character) {
             if (player.isPlayer) {
-                color(black)
-                print("You stand before Henge, the king of the ogres.  20 feet tall, he looks down");
-                print("on you like a snack left on his doorstep.  You feel your stomach drop.");
-                await pause(5);
-                print("His voice rumbles. \"Good,\" he says. \"I need bones to grind my teeth on.\"");
-                print("He looks at you with opal eyes.  His teeth are small boulders of quartz.");
-                await pause(5);
-                print("Behind you, the canyon wall closes.");
+                this.game.color(black)
+                this.game.print("You stand before Henge, the king of the ogres.  20 feet tall, he looks down");
+                this.game.print("on you like a snack left on his doorstep.  You feel your stomach drop.");
+                await this.game.pause(5);
+                this.game.print("His voice rumbles. \"Good,\" he says. \"I need bones to grind my teeth on.\"");
+                this.game.print("He looks at you with opal eyes.  His teeth are small boulders of quartz.");
+                await this.game.pause(5);
+                this.game.print("Behind you, the canyon wall closes.");
                 this.location?.adjacent?.clear();
-                await pause(2);
+                await this.game.pause(2);
             }
         }).onDeath(async function () {
             this.game.flags.henge = true;
@@ -4365,22 +4468,22 @@ const characters = {
             exp: 5000,
         }).onDeath(async function () {
             this.game.flags.ziatos = true;
-            await pause(5)
-            color(black, black)
-            clear()
-            await pause(2)
-            color(black, white)
-            print("You have defeated the holder of the 4th ring.")
-            print()
-            print("** Suddenly out of nowhere a fairy sprite apears**")
+            await this.game.pause(5)
+            this.game.color(black, black)
+            this.game.clear()
+            await this.game.pause(2)
+            this.game.color(black, white)
+            this.game.print("You have defeated the holder of the 4th ring.")
+            this.game.print()
+            this.game.print("** Suddenly out of nowhere a fairy sprite apears**")
             // Play "o4fdadc"
-            await pause(2)
-            print("FAIRY SPRITE: Congradulations, I can give you one small hint as to the")
-            print("location of the 5th and final ring, the ring of ultimate power.")
-            print()
-            print("     The ring is located in the Forest of Thieves.")
-            print()
-            print("I must go now.")
+            await this.game.pause(2)
+            this.game.print("FAIRY SPRITE: Congradulations, I can give you one small hint as to the")
+            this.game.print("location of the 5th and final ring, the ring of ultimate power.")
+            this.game.print()
+            this.game.print("     The ring is located in the Forest of Thieves.")
+            this.game.print()
+            this.game.print("I must go now.")
             // ierdale will give them another chance
             this.game.player.flags.enemy_of_ierdale = false;
             for (let char of this.game.characters.filter(c => c.alignment == 'ierdale')) {
@@ -4389,12 +4492,12 @@ const characters = {
             this.game.addCharacter({ name: 'biadon', location: 78 })
             this.game.find_character('ieadon')?.relocate(this.game.find_location('the void'))
             this.game.find_character('doo dad man')?.giveItem('hang_glider')
-            await pause(15)
-            color(black, black)
-            clear()
-            await pause(2)
-            color(black, darkwhite)
-            clear()
+            await this.game.pause(15)
+            this.game.color(black, black)
+            this.game.clear()
+            await this.game.pause(2)
+            this.game.color(black, darkwhite)
+            this.game.clear()
         });
     },
 
@@ -4415,39 +4518,39 @@ const characters = {
             alignment: 'orcs',
             spellChance: () => true,
         }).dialog(async function (player: Character) {
-            print("Grrr...");
-            print("Will ye have a pass?");
+            this.game.print("Grrr...");
+            this.game.print("Will ye have a pass?");
             if (player.flags.assistant) {
-                color(magenta);
-                print("Assistant -- Type \"pass\" if you want one.");
+                this.game.color(magenta);
+                this.game.print("Assistant -- Type \"pass\" if you want one.");
             }
         }).fightMove(
             actions.heal
         ).interaction('pass', async function (player: Character) {
             if (!player.has('gold', 1000)) {
-                color(gray); print("You cannot afford a pass here.");
+                this.game.color(gray); this.game.print("You cannot afford a pass here.");
                 return;
             } else if (player.flags.enemy_of_orcs) {
-                print('You burned that bridge, buddy. Get lost.')
+                this.game.print('You burned that bridge, buddy. Get lost.')
             }
-            color(blue);
-            print("You purchase a pass to Grobin");
-            color(black);
-            print("You will no longer get attacked...");
-            print();
-            if (player.flags.orc_pass) print("I don't know why you wanted to go through this again but OK...");
-            await pause(3);
-            print("The official takes out a hot poker and ", 1);
-            color(red);
-            print("JAMS A FLAMING", 1);
-            color(black);
-            print(" rod into your shoulder.");
-            await pause(5);
-            print("You wince and scream, pain is shooting all over your body and you smell");
-            print("burned flesh.");
-            await pause(5);
-            color(red);
-            print("Ow...", 1); color(black); print(" Thats gota hurt");
+            this.game.color(blue);
+            this.game.print("You purchase a pass to Grobin");
+            this.game.color(black);
+            this.game.print("You will no longer get attacked...");
+            this.game.print();
+            if (player.flags.orc_pass) this.game.print("I don't know why you wanted to go through this again but OK...");
+            await this.game.pause(3);
+            this.game.print("The official takes out a hot poker and ", 1);
+            this.game.color(red);
+            this.game.print("JAMS A FLAMING", 1);
+            this.game.color(black);
+            this.game.print(" rod into your shoulder.");
+            await this.game.pause(5);
+            this.game.print("You wince and scream, pain is shooting all over your body and you smell");
+            this.game.print("burned flesh.");
+            await this.game.pause(5);
+            this.game.color(red);
+            this.game.print("Ow...", 1); this.game.color(black); this.game.print(" Thats gota hurt");
             player.flags.orc_pass = true;
             player.flags.enemy_of_orcs = false;
             player.removeItem('gold', 1000);
@@ -4489,12 +4592,12 @@ const characters = {
             armor: { blunt: 32000 },
             respawns: false,
         }).dialog(async function (player: Character) {
-            print("Hehehehehe.");
-            print("Me, holding The Ring of Ultimate Power???  Kahahaha.");
-            print("You poor fool, my BROTHER holds the ring!!!");
-            pause((5));
-            print("Can you figure out who he is?");
-            print("KAKAKAKAKAKAKAKA");
+            this.game.print("Hehehehehe.");
+            this.game.print("Me, holding The Ring of Ultimate Power???  Kahahaha.");
+            this.game.print("You poor fool, my BROTHER holds the ring!!!");
+            this.game.pause((5));
+            this.game.print("Can you figure out who he is?");
+            this.game.print("KAKAKAKAKAKAKAKA");
             this.game.flags.biadon = true;
             const blobin = this.game.find_character('Blobin')
             const grogren = this.game.find_character('Grogren')
@@ -4566,8 +4669,8 @@ const characters = {
             alignment: 'evil',
             respawns: false,
         }).onDeath(async function () {
-            color(green);
-            print("  --  towering cyclops dropped uprooted tree.");
+            this.game.color(green);
+            this.game.print("  --  towering cyclops dropped uprooted tree.");
             // I1(501) = 7
             // B_n$(211) = "X"
             // End If
@@ -4593,9 +4696,9 @@ const characters = {
             respawns: false,
         }).fightMove(async function () {
             if (Math.random() < 1 / 2) {
-                color(yellow)
+                this.game.color(yellow)
                 if (this.location?.playerPresent) {
-                    print(`A wave of fire erupts from ${this.name}, heading toward ${this.attackTarget?.name}!`)
+                    this.game.print(`A wave of fire erupts from ${this.name}, heading toward ${this.attackTarget?.name}!`)
                     let dam = highRandom(this.magic_level)
                     dam = this.attackTarget!.modify_damage(dam, 'fire')
                     this.describeAttack(this.attackTarget!, 'scorching breath', 'fire', dam)
@@ -4641,9 +4744,9 @@ const characters = {
         }).fightMove(async function () {
             if (Math.random() < 1 / 3) {
                 if (this.attackTarget?.isPlayer) {
-                    print("Mutant hedgehog shoots its poisoned spikes at you!")
+                    this.game.print("Mutant hedgehog shoots its poisoned spikes at you!")
                 } else if (this.location?.playerPresent) {
-                    print("Mutant hedgehog shoots its poisoned spikes at " + this.attackTarget?.name + "!")
+                    this.game.print("Mutant hedgehog shoots its poisoned spikes at " + this.attackTarget?.name + "!")
                 }
                 let dam = highRandom(50)
                 dam = this.attackTarget?.modify_damage(dam, 'sharp') || 0
@@ -4722,7 +4825,7 @@ const characters = {
             aliases: ['bear'],
             alignment: 'areaw',
         }).dialog(async function (player: Character) {
-            print("Striped bear sniffs at you curiously.");
+            this.game.print("Striped bear sniffs at you curiously.");
         }).fightMove(actions.growl);
     },
 
@@ -4761,8 +4864,8 @@ const characters = {
             armor: { blunt: 0 },
             spellChance: () => Math.random() < 1 / 2,
         }).dialog(async function (player: Character) {
-            print("grrrr...");
-        }).fightMove(actions.howl);
+            this.game.print("grrrr...");
+        }).fightMove(actions.growl);
     },
 
     rabid_wolf(game: GameState) {
@@ -4866,8 +4969,8 @@ const characters = {
             game: game,
             name: 'grogren',
             pronouns: pronouns.male,
-            max_hp: 500,
-            damage: { blunt: 0, sharp: 100 },
+            max_hp: 1500,
+            damage: { blunt: 0, sharp: 150 },
             weaponName: 'spear',
             attackVerb: 'stab',
             items: ['spear'],
@@ -4878,10 +4981,10 @@ const characters = {
             flags: { enemy_of_ierdale: true },
         }).dialog(async function (player: Character) {
             if (!this.game.flags.biadon) {
-                print("Hi, nice day.  The tention between us and Ierdale is very high right now.");
+                this.game.print("Hi, nice day.  The tention between us and Ierdale is very high right now.");
             } else {
-                print("HELP!  We are in desperate need of a General to lead an attack on Ierdale.");
-                print("You look reasonably strong... Talk to my brother Blobin if you are interested.");
+                this.game.print("HELP!  We are in desperate need of a General to lead an attack on Ierdale.");
+                this.game.print("You look reasonably strong... Talk to my brother Blobin if you are interested.");
             }
         }).onEncounter(
             actions.defend_tribe
@@ -4901,12 +5004,12 @@ const characters = {
             pronouns: pronouns.male,
             aliases: ['employee'],
         }).dialog(async function (player: Character) {
-            print("Welcome, please seek the true location of Mythin's shop deep in the Forest of");
-            print("Thieves.  Mythin is a good thief, yet a thief at that.  If he were to have an");
-            print("office in town, the kings men would surely capture him.  I can't give you the");
-            print("wareabouts as to where the place is located in the least... sorry.");
-            print();
-            print("To fool the guards, in town we ONLY refer to Mythin as a \"forester\"");
+            this.game.print("Welcome, please seek the true location of Mythin's shop deep in the Forest of");
+            this.game.print("Thieves.  Mythin is a good thief, yet a thief at that.  If he were to have an");
+            this.game.print("office in town, the kings men would surely capture him.  I can't give you the");
+            this.game.print("wareabouts as to where the place is located in the least... sorry.");
+            this.game.print();
+            this.game.print("To fool the guards, in town we ONLY refer to Mythin as a \"forester\"");
         });
     },
 } as const;
