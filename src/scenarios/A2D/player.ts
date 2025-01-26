@@ -200,6 +200,7 @@ class Player extends A2dCharacter {
         this.addAction('pets', 0, this.checkPets);
         this.addAction('drop', 10, this.drop);
         this.addAction('get', 10, this.get);
+        this.addAction('get all', 10, this.getAll);
         this.addAction('hp', 0, async () => { this.checkHP(); this.checkHunger(); this.checkXP() });
         this.addAction('stats', 0, this.checkStats);
         this.addAction('equipment', 0, this.checkEquipment);
@@ -223,9 +224,10 @@ class Player extends A2dCharacter {
         this.onAttack(async (attacker) => {
             this.game.color(red)
             this.game.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
-            if (!this.fighting) {
-                if (this.equipment['bow']) { await this.bow_attack(attacker); }
-                else (await this.fight(attacker));
+            await this.fight(attacker);
+            if (this.activeEquipment['bow'] && this.equipment['bow'] && this.has('arrow')) {
+                await this.bow_attack(attacker);
+                this.useWeapon('right hand')
             }
         })
     }
@@ -424,6 +426,7 @@ class Player extends A2dCharacter {
         this.activeEquipment['right hand'] = weapon == 'right hand';
         this.activeEquipment['left hand'] = weapon == 'left hand';
         this.activeEquipment['bow'] = weapon == 'bow';
+        console.log(`player using: ${weapon}`)
     }
 
     async right_attack(targetName?: string) {
@@ -489,7 +492,7 @@ class Player extends A2dCharacter {
             } else if (hitted >= 35) {
                 does += " is almost perfect, as it strikes with a hiss."
             } else if (hitted >= 10) {
-                does += " is a decent one, and " + enemy.pronouns.object + " winces."
+                does += " is a decent one, and " + enemy.pronouns.subject + " winces."
             } else if (hitted >= 4) {
                 does += " scrapes " + enemy.pronouns.object + "."
             } else {
@@ -497,7 +500,7 @@ class Player extends A2dCharacter {
             }
             dam = Math.min(1.5, hitted / 33.3)
             this.game.print(lineBreak(does))
-            await this.game.pause(1)
+            await this.game.pause(0.5)
             const actual_coordination = this.base_stats.coordination
             this.base_stats.coordination = Infinity  // we already did the coordination check
             await this.attack(enemy, this.equipment['bow'], this.weaponDamage('bow', dam));
@@ -1117,6 +1120,13 @@ class Player extends A2dCharacter {
         }
     }
 
+    async getAll() {
+        for (let item of this.location?.items ?? []) {
+            this.get(item.name);
+        }
+        this.game.print("Got everything.")
+    }
+
     has = (item_name: string, quantity: number = 1) => {
         // count both inventory and equipment
         return this.itemCount(item_name) + equipmentSlots.filter(slot => this.equipment[slot]?.name == item_name).length >= quantity;
@@ -1370,6 +1380,10 @@ class Player extends A2dCharacter {
                 this.hp -= 1;
                 this.sp = 0;
             }
+        } else {
+            // ready bow when not fighting
+            this.useWeapon('bow');
+            this.fight(null);
         }
     }
 
@@ -1630,6 +1644,7 @@ class Player extends A2dCharacter {
             equipment: Object.fromEntries(
                 Object.entries(this.equipment).map(([key, item]) => [key, item?.save() ?? null])
             ),
+            activeEquipment: this.activeEquipment,
             buffs: Object.fromEntries(
                 Object.entries(this.buffs).map(([key, buff]) => [key, buff.save()])
             ),
@@ -1672,6 +1687,7 @@ class Player extends A2dCharacter {
             sp: character._sp || character.sp,
             mp: character._mp || character.mp,
         })
+        if (character.activeEquipment) { this.activeEquipment = character.activeEquipment }
         // load items properly
         this.clearInventory()
         character.items.forEach((itemData: any) => {
