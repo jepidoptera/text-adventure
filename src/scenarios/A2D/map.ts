@@ -1,4 +1,6 @@
 import { GameState } from "../../game/game.js"
+import { characters } from "./characters.js"
+import { landmarks } from "./landmarks.js"
 
 const scenario = {
     locations: {
@@ -1567,7 +1569,8 @@ const scenario = {
         },
         256: {
             name: "Dark Forest",
-            adjacent: { 'north': 262, 'east': 263, 'west': 257 }
+            adjacent: { 'north': 262, 'east': 263, 'west': 257 },
+            characters: [{ name: 'silver fox' }]
         },
         257: {
             name: "Dark Forest",
@@ -1594,7 +1597,8 @@ const scenario = {
         },
         262: {
             name: "Dark Forest",
-            adjacent: { 'north': 250, 'east': 268, 'south': 256, 'west': 251 }
+            adjacent: { 'north': 250, 'east': 268, 'south': 256, 'west': 251 },
+            characters: [{ name: 'goblin_hero' }]
         },
         263: {
             name: "Dark Forest",
@@ -1615,7 +1619,13 @@ const scenario = {
         },
         267: {
             name: "Dark Forest",
-            adjacent: { 'north': 259, 'east': 265, 'south': 270, 'west': 271 }
+            adjacent: { 'north': 259, 'east': 265, 'south': 270, 'west': 271 },
+            landmarks: [{ name: 'silver tree', contents: ['magic acorn'] }]
+        },
+        267.1: {
+            name: "Fairy Nest",
+            adjacent: { 'down': 267 },
+            characters: [{ name: 'effelin' }]
         },
         268: {
             name: "Dark Forest",
@@ -2492,7 +2502,8 @@ const scenario = {
     },
     flags: {
         orc_battle: false,
-        cradel: false
+        cradel: false,
+        ziatos: false,
     }
 }
 
