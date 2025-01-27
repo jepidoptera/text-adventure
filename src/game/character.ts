@@ -23,7 +23,7 @@ type BaseStats =
     'agility' | 'magic_level' | 'healing' | 'archery' | 'hp_recharge' |
     'mp_recharge' | 'sp_recharge' | 'offhand';
 
-const damageTypesList = ['blunt', 'sharp', 'magic', 'fire', 'electric', 'cold', 'sonic', 'poison'] as const;
+const damageTypesList = ['blunt', 'sharp', 'magic', 'fire', 'electric', 'cold', 'sonic', 'poison', 'acid'] as const;
 type DamageTypes = typeof damageTypesList[number];
 
 type DamageModifiers = Partial<Record<DamageTypes, number>>;
@@ -183,7 +183,7 @@ class Character {
     weaponName: string = "";
     attackVerb: WeaponTypes = 'club';
     armor: { [key: string]: Item } = {};
-    base_damage: { [key in DamageTypes]: number } = { blunt: 0, sharp: 0, magic: 0, fire: 0, electric: 0, cold: 0, sonic: 0, poison: 0 };
+    base_damage: { [key in DamageTypes]: number } = { blunt: 0, sharp: 0, magic: 0, fire: 0, electric: 0, cold: 0, sonic: 0, poison: 0, acid: 0 };
     readonly buffs: { [key: string]: Buff } = {};
     location: Location | null = null;
     backDirection: string = '';
@@ -415,31 +415,42 @@ class Character {
     //     return this.location?.characters.some(character => this.enemies.includes(character.name)) || false;
     // }
 
-    async fight(character: Character | null = null) {
+    async fight(enemy: Character | null = null) {
         if (this.dead) return;
-        console.log(`${this.name} fights ${character?.name || 'nobody'} at ${this.location?.key}.`)
-        if (character === null) {
+        console.log(`${this.name} fights ${enemy?.name || 'nobody'} at ${this.location?.key}.`)
+        if (enemy === null) {
             this.enemies = [];
             this._attackTarget = null;
             this.fighting = false;
             console.log(`${this.name} is at peace (fight(null)).`)
-        } else if (character != this.attackTarget) {
-            if (character.location == this.location) {
-                this._attackTarget = character;
+            return;
+        } else if (enemy != this.attackTarget) {
+            if (enemy.location == this.location) {
+                this._attackTarget = enemy;
                 this.fighting = true;
-                if (!this.enemies.includes(character.name)) {
-                    this.enemies.push(character.name);
+                if (!this.enemies.includes(enemy.name)) {
+                    this.enemies.push(enemy.name);
                 }
-                if (!character.enemies.includes(this.name)) {
-                    character.enemies.push(this.name);
+                if (!enemy.enemies.includes(this.name)) {
+                    enemy.enemies.push(this.name);
                 }
                 this.push_action('attack');
-                await character._onAttack?.(this);
-                character.onTimer({ command: `repel ${this.name}`, time: 0 });
-            } else if (!this.enemies.includes(character.name)) {
-                this.enemies.push(character.name);
+                await enemy._onAttack?.(this);
+                enemy.onTimer({ command: `repel ${this.name}`, time: 0 });
+            } else if (!this.enemies.includes(enemy.name)) {
+                this.enemies.push(enemy.name);
+            }
+            for (let char of this.location?.characters ?? []) {
+                if (char != enemy && char.alignment === enemy.alignment) {
+                    console.log(`${char.name} defends ${enemy.name}!`)
+                    if (!char.enemies.includes(this.name)) char.enemies.push(this.name);
+                }
             }
         }
+    }
+
+    clearEnemies() {
+        this.enemies = [];
     }
 
     get attackTarget(): Character | null {
@@ -980,12 +991,6 @@ class Character {
             console.log(`${this.name} fights back against ${attacker.name}!`)
             await this.fight(attacker);
         } // else { console.log(`${this.name} is already fighting`, this.enemies) }
-        for (let character of this.location?.characters ?? []) {
-            if (character != this && character.alignment && character.alignment === this.alignment) {
-                console.log(`${character.name} defends ${this.name}!`)
-                if (!character.enemies.includes(attacker.name)) character.enemies.push(attacker.name);
-            }
-        }
         // if (this._onAttack) {
         //     await this._onAttack(attacker);
         // }
