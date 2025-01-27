@@ -2,7 +2,7 @@ import { Item, ItemParams } from "../../game/item.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js";
 import { Character, Buff } from "../../game/character.js";
 import { getBuff } from "./buffs.js";
-import { play, musicc$ } from "./utils.js";
+import { musicc$ } from "./utils.js";
 import { lineBreak } from "../../game/utils.js";
 import { GameState } from "../../game/game.js";
 
@@ -215,6 +215,25 @@ const items = {
             game: game
         }).on_eat(async function (player) {
             player.hunger -= 5
+        })
+    },
+    "magic acorn"(game: GameState) {
+        return new Item({
+            name: 'magic acorn',
+            size: 0.1,
+            value: 0,
+            game: game
+        }).on_eat(async function (player) {
+            player.recoverStats({ mp: player.max_hp, sp: player.max_sp, hp: player.max_mp })
+            player.hunger = Math.min(player.hunger, 0)
+        })
+    },
+    "serpent horn"(game: GameState) {
+        return new Item({
+            name: 'serpent horn',
+            size: 1,
+            value: 155,
+            game: game
         })
     },
     bug_repellent(game: GameState) {
@@ -1226,7 +1245,7 @@ const items = {
             this.game.color(blue)
             this.game.print("You lift the beautiful lute to your lips, and unleash a tune...")
             if (player.attackTarget?.name.toLowerCase() == 'sift') {
-                play(musicc$(10))
+                this.game.print(musicc$(10))
                 this.game.print()
                 this.game.color(magenta)
                 this.game.print("Sift falters, entranced by the music.")
