@@ -1462,6 +1462,7 @@ class Player extends A2dCharacter {
             'cold': this.buff_damage_additive('cold') * multiplier,
             'electric': this.buff_damage_additive('electric') * multiplier,
             'sonic': this.buff_damage_additive('sonic') * multiplier,
+            'acid': this.buff_damage_additive('acid') * multiplier,
         }
         console.log(`weapon damage: ${JSON.stringify(dam)}`)
         return dam;
