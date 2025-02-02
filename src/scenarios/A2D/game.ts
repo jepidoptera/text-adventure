@@ -81,9 +81,11 @@ class A2D extends GameState {
             await this.loadScenario(scenario);
             this.player = await this.newPlayer();
             this.player.location?.addCharacter(this.player);
+            this.saveName = this.player.name;
         } else if (opt === 1) {
             this.player = new Player('', '', this);
             await this.player.loadGame();
+            this.saveName = this.player.name;
         } else {
             // glitch on client side
             return;
@@ -107,7 +109,7 @@ class A2D extends GameState {
     async main() {
         let command = '';
         console.log('starting main loop');
-        while (!(['exit', 'quit'].includes(command)) && !this.player.dead) {
+        while (!this.player.dead) {
             // await this.player.turn();
             let characters = this.characters;
             if (!characters.includes(this.player)) {
@@ -147,7 +149,7 @@ class A2D extends GameState {
                         }
                         if (!character.dead) await character.turn();
                     }
-                    character.time -= 1 / character.action_speed;
+                    character.time -= 1;
                 }
                 activeCharacters = this.characters.filter(char => !char.dead && char.time >= 1)
             }
