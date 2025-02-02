@@ -113,7 +113,8 @@ interface CharacterParams {
     name: string;
     game: GameState;
     class_name?: string;
-    description?: string;
+    fight_description?: string;
+    display_name?: string;
     aliases?: string[];
     alignment?: string;
     pronouns?: { subject: string, object: string, possessive: string };
@@ -162,7 +163,8 @@ class Character {
     unique_id: string = '';
     class_name: string = "";
     game: GameState;
-    description: string;
+    fight_description: string;
+    display_name: string;
     aliases: string[] = [];
     alignment: string = "";
     pronouns: { subject: string, object: string, possessive: string } = { subject: "they", object: "them", possessive: "their" };
@@ -193,6 +195,7 @@ class Character {
     flags: { [key: string]: any } = {};
     private _attackTarget: Character | null = null;
     private _onEncounter: ((character: Character) => Promise<void>) | undefined;
+    private _onDeparture: ((character: Character, direction: string) => Promise<void>) | undefined;
     private _allowDeparture: ((character: Character, direction: string) => Promise<boolean>) | undefined;
     private _onEnter: Action | undefined;
     private _onLeave: Action | undefined;
@@ -218,10 +221,19 @@ class Character {
     reactionQueue: { command: string, time: number, repeat?: number }[] = [];
     fighting: boolean = false;
 
+    color: Function;
+    print: Function;
+    input: Function;
+    clear: Function;
+    locate: Function;
+    pause: Function;
+    getKey: Function;
+
     constructor({
         name,
         game,
-        description = "",
+        fight_description = name,
+        display_name = name,
         aliases = [],
         alignment = "",
         pronouns = { subject: "they", object: "them", possessive: "their" },
@@ -262,7 +274,8 @@ class Character {
         this.name = name;
         this.game = game;
         // console.log(`Creating ${this.name}`)
-        this.description = description || name;
+        this.fight_description = fight_description;
+        this.display_name = display_name;
         this.aliases = aliases;
         this.alignment = alignment;
         this.pronouns = pronouns;
@@ -315,10 +328,14 @@ class Character {
         if (buff) { this.addBuff(new Buff({ name: 'innate', plus: { defense: armor }, ...buff })); }
         this.size = size;
         this.actionTiming = Object.keys(timeCost).reduce((acc, key) => { acc[key] = 0; return acc }, {} as Record<string, number>);
-    }
 
-    initialize(game: GameState) {
-        this.game = game;
+        this.color = this.game.color.bind(this.game);
+        this.print = this.game.print.bind(this.game);;
+        this.input = this.game.input.bind(this.game);;
+        this.clear = this.game.clear.bind(this.game);;
+        this.locate = this.game.locate.bind(this.game);;
+        this.pause = this.game.pause.bind(this.game);;
+        this.getKey = this.game.getKey.bind(this.game);;
     }
 
     async addBuff(buff: Buff) {
@@ -367,17 +384,27 @@ class Character {
     }
 
     buff_damage_multiplier(type: DamageTypes): number {
-        return Object.values(this.buffs).reduce((total, buff) => {
-            const damageMultiplier = buff.times.damage?.[type] || 0;
-            return total + damageMultiplier;
-        }, 1);
+        // return Object.values(this.buffs).reduce((total, buff) => {
+        //     const damageMultiplier = buff.times.damage?.[type] || 0;
+        //     return total + damageMultiplier;
+        // }, 1);
+        let dam = 1
+        for (let buff of Object.values(this.buffs)) {
+            dam += (buff.times?.damage?.[type] ?? 1) - 1;
+        }
+        return dam
     }
 
     buff_defense_multiplier(type: DamageTypes): number {
-        return Object.values(this.buffs).reduce((total, buff) => {
-            const defenseMultiplier = buff.times.defense?.[type] || 0;
-            return total + defenseMultiplier;
-        }, 1);
+        let def = 1
+        // return Object.values(this.buffs).reduce((total, buff) => {
+        //     const defenseMultiplier = buff.times.defense?.[type] || 0;
+        //     return total + defenseMultiplier;
+        // }, 1);
+        for (let buff of Object.values(this.buffs)) {
+            def += (buff.times?.defense?.[type] ?? 1) - 1;
+        }
+        return def
     }
 
     get defenseBuffs(): { plus: DefenseModifiers, times: DefenseModifiers } {
@@ -415,6 +442,14 @@ class Character {
     //     return this.location?.characters.some(character => this.enemies.includes(character.name)) || false;
     // }
 
+    findEnemy() {
+        return this.location?.characters.find(character => this.hasEnemy(character)) || null;
+    }
+
+    hasEnemy(character: Character): boolean {
+        return this.enemies.includes(character.name) || this.enemies.includes(character.unique_id);
+    }
+
     async fight(enemy: Character | null = null) {
         if (this.dead) return;
         console.log(`${this.name} fights ${enemy?.name || 'nobody'} at ${this.location?.key}.`)
@@ -422,6 +457,7 @@ class Character {
             this.enemies = [];
             this._attackTarget = null;
             this.fighting = false;
+            this.offTimer('repel')
             console.log(`${this.name} is at peace (fight(null)).`)
             return;
         } else if (enemy != this.attackTarget) {
@@ -435,8 +471,8 @@ class Character {
                     enemy.enemies.push(this.name);
                 }
                 this.push_action('attack');
-                await enemy._onAttack?.(this);
                 enemy.onTimer({ command: `repel ${this.name}`, time: 0 });
+                await enemy._onAttack?.(this);
             } else if (!this.enemies.includes(enemy.name)) {
                 this.enemies.push(enemy.name);
             }
@@ -762,6 +798,11 @@ class Character {
         return this;
     }
 
+    onDeparture(action: (this: Character, character: Character, direction: string) => Promise<void>) {
+        this._onDeparture = action.bind(this);
+        return this;
+    }
+
     allowDeparture(action: (this: Character, character: Character, direction: string) => Promise<boolean>) {
         this._allowDeparture = action.bind(this);
         return this;
@@ -812,6 +853,7 @@ class Character {
     }
 
     async encounter(character: Character) {
+        if (this.dead) return;
         await this._onEncounter?.(character);
         if (!this.fighting) {
             if (this.enemies.includes(character.name)) {
@@ -824,7 +866,7 @@ class Character {
         }
     }
 
-    async allowDepart(character: Character, direction: string): Promise<boolean> {
+    private async allowDepart(character: Character, direction: string): Promise<boolean> {
         const allow = this._allowDeparture ? await this._allowDeparture?.(character, direction) : true;
         if (allow && this.attackTarget == character && this.chase) {
             // give chase
@@ -838,6 +880,7 @@ class Character {
     }
 
     async depart(character: Character, direction: string) {
+        await this._onDeparture?.(character, direction);
     }
 
     async enter(location: Location) {
@@ -849,11 +892,11 @@ class Character {
     }
 
     get evasion() {
-        return this.agility * this.speed * Math.random();
+        return this.agility * Math.random();
     }
 
     get accuracy() {
-        return this.coordination * this.speed * Math.random()
+        return this.coordination * Math.random()
     }
 
     action(command: string, time: number = 10) {
@@ -878,7 +921,7 @@ class Character {
 
     offTimer(command?: string) {
         if (command) {
-            this.reactionQueue = this.reactionQueue.filter(reaction => reaction.command != command);
+            this.reactionQueue = this.reactionQueue.filter(reaction => !reaction.command.startsWith(command));
         } else {
             this.reactionQueue = [];
         }
@@ -897,13 +940,13 @@ class Character {
                 this.push_action(verb);
             }
         } else if (verb == 'attack') {
-            if (!this.attackTarget) {
-                const enemiesPresent = this.location?.characters.filter(character => this.enemies.includes(character.name)) || [];
-                await this.fight(randomChoice(enemiesPresent));
-                if (this.attackTarget) {
-                    await this.attack(this.attackTarget, this.weaponName, this.base_damage);
-                }
+            // if (!this.attackTarget) {
+            //     const enemiesPresent = this.location?.characters.filter(character => this.enemies.includes(character.name)) || [];
+            //     await this.fight(randomChoice(enemiesPresent));
+            if (this.attackTarget && this.attackTarget.location === this.location) {
+                await this.attack(this.attackTarget, this.weaponName, this.base_damage);
             }
+            // }
         } else if (verb == 'repel') {
             console.log(`${this.name} repels ${args}`)
             const attacker = args ? this.game.find_character(args) : this.attackTarget;
@@ -1044,6 +1087,7 @@ class Character {
             respawnLocation: this.respawnLocation,
             attackPlayer: this.attackPlayer,
             backDirection: this.backDirection,
+            alignment: this.alignment,
         }
         if (this.time != 0) {
             saveObject['time'] = this.time;
