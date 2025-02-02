@@ -22,7 +22,7 @@ abstract class GameState {
     player!: Character;
     playerData: any = {};
     private currentSessionID: string | null = null;
-    private saveName: string = '';
+    saveName: string = '';
 
     constructor(
         wss: WebSocket,
@@ -425,7 +425,8 @@ abstract class GameState {
             persist,
             items,
             buffs,
-            flags
+            flags,
+            alignment
         }: {
             name: K,
             unique_id?: string,
@@ -442,7 +443,8 @@ abstract class GameState {
             persist?: boolean,
             buffs?: { name: string, power: number, duration: number }[],
             items?: { name?: string, key?: string, quantity: number }[],
-            flags?: { [key: string]: any }
+            flags?: { [key: string]: any },
+            alignment?: string
         }
     ) {
 
@@ -461,6 +463,7 @@ abstract class GameState {
         if (timeCounter) { passedAttributes['timeCounter'] = timeCounter }
         if (persist) { passedAttributes['persist'] = persist }
         if (leader) { passedAttributes['leader'] = leader }
+        if (alignment) { passedAttributes['alignment'] = alignment }
         if (!unique_id) {
             const clones = this.characters.filter(char => char.name == name)
             unique_id = `${name.toString()}_` + Array(clones.length + 1)
@@ -468,6 +471,7 @@ abstract class GameState {
                 .find(i => !clones.some(char => char.unique_id == `${name.toString()}_${i.toString()}`))!
                 .toString();
         }
+        passedAttributes['unique_id'] = unique_id;
         Object.assign(newCharacter, passedAttributes);
         if (respawns !== undefined) newCharacter.respawns = respawns;
         newCharacter.key = name.toString();
