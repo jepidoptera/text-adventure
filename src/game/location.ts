@@ -139,8 +139,6 @@ class Location extends Container {
         const char = (
             charlist.find(character => character.unique_id.toLowerCase() === name)
             || charlist.find(character => character.name.toLowerCase() === name)
-            || charlist.find(character => character.description === name)
-            || charlist.find(character => character.description.toLowerCase() === name)
             || charlist.find(character => character.aliases.includes(name))
         )
         // console.log(`found ${char?.name}`)
