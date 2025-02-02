@@ -99,7 +99,7 @@ const items = {
             player.recoverStats({ sp: 8 })
         })
     },
-    side_of_meat(game: GameState) {
+    "side of meat"(game: GameState) {
         return new Item({
             name: 'side of meat',
             description: 'a side of meat',
@@ -226,6 +226,7 @@ const items = {
         }).on_eat(async function (player) {
             player.recoverStats({ mp: player.max_hp, sp: player.max_sp, hp: player.max_mp })
             player.hunger = Math.min(player.hunger, 0)
+            player.removeBuff('poison')
         })
     },
     "serpent horn"(game: GameState) {
@@ -1432,9 +1433,9 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             game: game,
-            buff: { plus: { hp_recharge: 0.10, sp_recharge: 0.10, mp_recharge: 0.10 }, times: { max_hp: 1.5 } }
-        }).addAction('use ring', async function (player) {
-            this.game.print('TODO: use ring of nature')
+            buff: { plus: { hp_recharge: 0.10, sp_recharge: 0.10, mp_recharge: 0.10 }, times: { max_hp: 1.5, max_sp: 1.5, healing: 1.5 } }
+        }).on_remove(async function (player) {
+            player.hp = Math.min(player.hp, player.max_hp)
         })
     },
     ring_of_stone(game: GameState) {
@@ -1454,7 +1455,7 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             game: game,
-            buff: { times: { speed: 2 } }
+            buff: { times: { speed: 2, coordination: 1.5, agility: 1.5 } }
         }).on_equip(async function (player) {
             if (player.isPlayer) {
                 let totalTime = 4.0
