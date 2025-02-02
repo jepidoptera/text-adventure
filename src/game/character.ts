@@ -110,11 +110,11 @@ class Buff {
 }
 
 interface CharacterParams {
-    name: string;
+    key: string;
     game: GameState;
     class_name?: string;
     fight_description?: string;
-    display_name?: string;
+    name?: string;
     aliases?: string[];
     alignment?: string;
     pronouns?: { subject: string, object: string, possessive: string };
@@ -158,13 +158,12 @@ interface CharacterParams {
 }
 
 class Character {
-    key: string = '';
-    name: string;
+    key: string;
     unique_id: string = '';
     class_name: string = "";
     game: GameState;
     fight_description: string;
-    display_name: string;
+    name: string;
     aliases: string[] = [];
     alignment: string = "";
     pronouns: { subject: string, object: string, possessive: string } = { subject: "they", object: "them", possessive: "their" };
@@ -230,10 +229,10 @@ class Character {
     getKey: Function;
 
     constructor({
-        name,
+        key,
         game,
-        fight_description = name,
-        display_name = name,
+        fight_description = key,
+        name = key,
         aliases = [],
         alignment = "",
         pronouns = { subject: "they", object: "them", possessive: "their" },
@@ -271,11 +270,11 @@ class Character {
         buff,
         size = 1,
     }: CharacterParams) {
-        this.name = name;
+        this.key = key;
         this.game = game;
         // console.log(`Creating ${this.name}`)
         this.fight_description = fight_description;
-        this.display_name = display_name;
+        this.name = name;
         this.aliases = aliases;
         this.alignment = alignment;
         this.pronouns = pronouns;
@@ -454,32 +453,30 @@ class Character {
         if (this.dead) return;
         console.log(`${this.name} fights ${enemy?.name || 'nobody'} at ${this.location?.key}.`)
         if (enemy === null) {
-            this.enemies = [];
+            this.clearEnemies();
             this._attackTarget = null;
             this.fighting = false;
             this.offTimer('repel')
             console.log(`${this.name} is at peace (fight(null)).`)
             return;
         } else if (enemy != this.attackTarget) {
+            if (!this.hasEnemy(enemy)) {
+                this.enemies.push(enemy.name);
+            }
             if (enemy.location == this.location) {
                 this._attackTarget = enemy;
                 this.fighting = true;
-                if (!this.enemies.includes(enemy.name)) {
-                    this.enemies.push(enemy.name);
-                }
-                if (!enemy.enemies.includes(this.name)) {
+                if (!enemy.hasEnemy(this)) {
                     enemy.enemies.push(this.name);
                 }
                 this.push_action('attack');
                 enemy.onTimer({ command: `repel ${this.name}`, time: 0 });
                 await enemy._onAttack?.(this);
-            } else if (!this.enemies.includes(enemy.name)) {
-                this.enemies.push(enemy.name);
             }
             for (let char of this.location?.characters ?? []) {
                 if (char != enemy && char.alignment === enemy.alignment) {
                     console.log(`${char.name} defends ${enemy.name}!`)
-                    if (!char.enemies.includes(this.name)) char.enemies.push(this.name);
+                    if (!char.hasEnemy(this)) char.enemies.push(this.name);
                 }
             }
         }
@@ -575,7 +572,7 @@ class Character {
             this.game.print(`${this.name} slays ${character instanceof Array ? character.map(char => char.name).join(', ') : character.name}!`)
         }
         await this._onSlay?.(character);
-        const enemiesLeft = this.location?.characters.filter(character => this.enemies.includes(this.name)) || [];
+        const enemiesLeft = this.location?.characters.filter(character => this.hasEnemy(character)) || [];
         if (enemiesLeft.length > 0) {
             await this.fight(randomChoice(enemiesLeft));
         } else {
@@ -856,7 +853,7 @@ class Character {
         if (this.dead) return;
         await this._onEncounter?.(character);
         if (!this.fighting) {
-            if (this.enemies.includes(character.name)) {
+            if (this.hasEnemy(character)) {
                 await this.fight(character);
             } else if (this.attackPlayer && character.isPlayer) {
                 await this.fight(character);
@@ -1063,7 +1060,7 @@ class Character {
                 }
             }
         }
-        this.fighting = this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false
+        this.fighting = this.location?.characters.some(character => character.hasEnemy(this) || this.hasEnemy(character)) || false
         if (this.attackTarget?.location === this.location) {
             // console.log(`${this.name} attacks ${this.attackTarget.name}!`)
             await this.attack(this.attackTarget, this.weaponName, this.base_damage);
@@ -1088,6 +1085,9 @@ class Character {
             attackPlayer: this.attackPlayer,
             backDirection: this.backDirection,
             alignment: this.alignment,
+        }
+        if (this.name !== this.key) {
+            saveObject['name'] = this.name;
         }
         if (this.time != 0) {
             saveObject['time'] = this.time;

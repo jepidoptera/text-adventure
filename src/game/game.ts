@@ -345,16 +345,15 @@ abstract class GameState {
             }
             for (let character of temp.characters || []) {
                 if (!character.isPlayer) {
-                    if (character.key) character.name = character.key;
                     // console.log(character);
                     const newCharacter = this.addCharacter({
                         location: location,
-                        name: character.name || 'who?',
+                        key: (character.key || character.name!),
                         ...character
                     });
                     if (newCharacter && character.enemies) {
                         newCharacter.enemies = character.enemies;
-                        console.log(`${newCharacter.name} has enemies ${newCharacter.enemies}`);
+                        console.log(`${newCharacter.key} has enemies ${newCharacter.enemies}`);
                     }
                 } else {
                     console.log(`found player at ${location.name}`);
@@ -389,7 +388,7 @@ abstract class GameState {
 
     find_character(name: string) {
         name = name.toLowerCase();
-        const character = this.characters.find(character => character.name.toLowerCase() === name);
+        const character = this.characters.find(character => character.key.toLowerCase() === name);
         if (!character) {
             console.log(`could not find character ${name}`);
         }
@@ -403,13 +402,14 @@ abstract class GameState {
         const chars = [] as Character[];
         for (let name of key) {
             name = name.toLowerCase();
-            chars.push(...this.characters.filter(character => character.name.toLowerCase() === name || character.key == name));
+            chars.push(...this.characters.filter(character => character.key.toLowerCase() === name || character.key == name));
         }
         return chars;
     }
 
     addCharacter<K extends keyof this['characterTemplates']>(
         {
+            key,
             name,
             unique_id,
             location,
@@ -428,7 +428,8 @@ abstract class GameState {
             flags,
             alignment
         }: {
-            name: K,
+            key: K,
+            name?: string,
             unique_id?: string,
             location: string | number | Location,
             respawns?: boolean,
@@ -448,7 +449,7 @@ abstract class GameState {
         }
     ) {
 
-        if (!Object.keys(this.characterTemplates).includes(name.toString())) {
+        if (!Object.keys(this.characterTemplates).includes(key.toString())) {
             console.log('invalid character name', name);
             return;
         }
@@ -465,16 +466,16 @@ abstract class GameState {
         if (leader) { passedAttributes['leader'] = leader }
         if (alignment) { passedAttributes['alignment'] = alignment }
         if (!unique_id) {
-            const clones = this.characters.filter(char => char.name == name)
-            unique_id = `${name.toString()}_` + Array(clones.length + 1)
+            const clones = this.characters.filter(char => char.key == name)
+            unique_id = `${key.toString()}_` + Array(clones.length + 1)
                 .fill(0).map((_, i) => i)
-                .find(i => !clones.some(char => char.unique_id == `${name.toString()}_${i.toString()}`))!
+                .find(i => !clones.some(char => char.unique_id == `${key.toString()}_${i.toString()}`))!
                 .toString();
         }
         passedAttributes['unique_id'] = unique_id;
         Object.assign(newCharacter, passedAttributes);
         if (respawns !== undefined) newCharacter.respawns = respawns;
-        newCharacter.key = name.toString();
+        newCharacter.key = key.toString();
         const newLocation = location instanceof Location ? location : this.find_location(location?.toString());
         newLocation?.addCharacter(newCharacter);
         newCharacter.location = newLocation;
@@ -495,7 +496,7 @@ abstract class GameState {
         if (newCharacter?.respawns && newLocation && !respawnLocation) {
             newCharacter.respawnLocation = newLocation.key
         }
-        console.log(`Created ${newCharacter.name} at ${newLocation?.name}`)
+        console.log(`Created ${newCharacter.key} at ${newLocation?.name}`)
         return newCharacter;
     }
 

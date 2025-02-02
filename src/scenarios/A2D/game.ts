@@ -252,13 +252,13 @@ class A2D extends GameState {
         await this.find_character('Ieadon')?.relocate(endPoint)
 
         // add some monsters and random objects
-        this.addCharacter({ name: 'voidfish', location: void_map[12] })
-        this.addCharacter({ name: 'voidfish', location: void_map[13] })
-        this.addCharacter({ name: 'wraith', location: void_map[14] })
-        this.addCharacter({ name: 'wraith', location: void_map[15] })
-        this.addCharacter({ name: 'voidrat', location: void_map[16] })
-        this.addCharacter({ name: 'voidrat', location: void_map[17] })
-        this.addCharacter({ name: 'voidrat', location: void_map[18] })
+        this.addCharacter({ key: 'voidfish', location: void_map[12] })
+        this.addCharacter({ key: 'voidfish', location: void_map[13] })
+        this.addCharacter({ key: 'wraith', location: void_map[14] })
+        this.addCharacter({ key: 'wraith', location: void_map[15] })
+        this.addCharacter({ key: 'voidrat', location: void_map[16] })
+        this.addCharacter({ key: 'voidrat', location: void_map[17] })
+        this.addCharacter({ key: 'voidrat', location: void_map[18] })
 
         this.addItem({ name: 'cranberries_cd', container: void_map[6], quantity: 100 })
         this.addItem({ name: 'mighty_warfork', container: void_map[0] })
