@@ -51,8 +51,8 @@ class A2D extends GameState {
 
     intro() {
         // test out the color parser first thing
-        color(orange, darkwhite);
-        clear();
+        this.color(orange, darkwhite);
+        this.clear();
         let introStr = "\n\n                         Redstaff Software Presents... \n\n"
         for (let color of Object.keys(colorDict)) {
             if (color === 'darkwhite') {
@@ -63,12 +63,12 @@ class A2D extends GameState {
         }
         introStr += `\n                                     <black>DELUX\n`
         introStr += `                               <gray>>Special Edition<`
-        print(introStr)
+        this.print(introStr)
     }
 
     async start() {
         this.intro();
-        await getKey();
+        await this.getKey();
         this.clear();
         const opt = await this.optionBox({
             title: 'Adventure 2 Setup',
@@ -81,9 +81,11 @@ class A2D extends GameState {
             await this.loadScenario(scenario);
             this.player = await this.newPlayer();
             this.player.location?.addCharacter(this.player);
+            this.saveName = this.player.name;
         } else if (opt === 1) {
             this.player = new Player('', '', this);
             await this.player.loadGame();
+            this.saveName = this.player.name;
         } else {
             // glitch on client side
             return;
@@ -107,7 +109,7 @@ class A2D extends GameState {
     async main() {
         let command = '';
         console.log('starting main loop');
-        while (!(['exit', 'quit'].includes(command)) && !this.player.dead) {
+        while (!this.player.dead) {
             // await this.player.turn();
             let characters = this.characters;
             if (!characters.includes(this.player)) {
@@ -115,14 +117,28 @@ class A2D extends GameState {
             }
             for (let character of characters) {
                 if (!character.dead) {
-                    character.timeCounter += character.speed;
+                    character.time += character.speed;
                 } else if (character.respawnCountdown < 0) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
             }
-            console.log(`player turncounter: ${this.player.timeCounter}`)
-            let activeCharacters = characters.filter(char => char.timeCounter >= 1 && !char.dead);
+            console.log(`player turncounter: ${this.player.time}`)
+            let activeCharacters = characters.filter(char => !char.dead);
+            for (let character of activeCharacters) {
+                for (let reaction of character.reactionQueue) {
+                    reaction.time -= character.speed;
+                    if (reaction.time <= 0) {
+                        console.log(character.name, 'executing reaction', reaction.command)
+                        await character.execute(reaction.command);
+                        if (reaction.repeat) {
+                            reaction.time += reaction.repeat;
+                        } else {
+                            character.reactionQueue = character.reactionQueue.filter(r => r !== reaction);
+                        }
+                    }
+                }
+            }
             while (activeCharacters.length > 0) {
                 for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
                     if (!character.dead) {
@@ -133,13 +149,13 @@ class A2D extends GameState {
                         }
                         if (!character.dead) await character.turn();
                     }
-                    character.timeCounter -= 1 / character.action_speed;
+                    character.time -= 1;
                 }
-                activeCharacters = this.characters.filter(char => !char.dead && char.timeCounter >= 1)
+                activeCharacters = this.characters.filter(char => !char.dead && char.time >= 1)
             }
         }
-        print('Press any key to continue.')
-        await getKey();
+        this.print('Press any key to continue.')
+        await this.getKey();
         // start over on quit
         this.start();
     }
@@ -148,7 +164,7 @@ class A2D extends GameState {
         return new Promise(async (resolve, reject) => {
             const classes = ['Thief', 'Fighter', 'Spellcaster', 'Cleric']
             const new_player = new Player(
-                await input('\n\nType a name for yourself:'),
+                await this.input('\n\nType a name for yourself:'),
                 classes[await this.optionBox({
                     title: "     Choose One          ",
                     options: classes,
@@ -157,26 +173,26 @@ class A2D extends GameState {
                 this
             )
             new_player.location = this.find_location('Cottage of the Young');
-            clear();
-            color(yellow)
-            print("-- ", 1)
-            color(red)
-            print("You have declared ", 1)
-            color(blue)
-            print(new_player.class_name, 1)
-            color(red)
-            print(" Status ", 1)
-            color(yellow)
-            print("--")
-            color(black)
+            this.clear();
+            this.color(yellow)
+            this.print("-- ", 1)
+            this.color(red)
+            this.print("You have declared ", 1)
+            this.color(blue)
+            this.print(new_player.class_name, 1)
+            this.color(red)
+            this.print(" Status ", 1)
+            this.color(yellow)
+            this.print("--")
+            this.color(black)
             // show stats
             new_player.checkStats();
 
-            await getKey();
+            await this.getKey();
             this.clear();
-            print("During-game assistant (recommended)? y/n")
-            new_player.flags.assistant = await getKey(['y', 'n']) === 'y';
-            print("Type \"assistant off\" or \"assistant on\" to toggle assistant during game.")
+            this.print("During-game assistant (recommended)? y/n")
+            new_player.flags.assistant = await this.getKey(['y', 'n']) === 'y';
+            this.print("Type \"assistant off\" or \"assistant on\" to toggle assistant during game.")
 
             resolve(new_player);
         })
@@ -184,7 +200,7 @@ class A2D extends GameState {
 
     center(text: string) {
         const x = Math.floor((80 - text.length) / 2);
-        print(' '.repeat(x) + text);
+        this.print(' '.repeat(x) + text);
     }
 
     shutdown() {
@@ -195,13 +211,12 @@ class A2D extends GameState {
     async load(saveName: string): Promise<boolean> {
         const gamestate = await this._load(saveName) as any;
         if (gamestate === null) {
-            print(`Character ${saveName} not found.`)
+            this.print(`Character ${saveName} not found.`)
             return false;
         }
         await this.loadScenario(gamestate)
         console.log('loaded scenario')
-        this.player = new Player('', '', this).load(this.playerData);
-        this.player.relocate(this.playerData.location);
+        this.player = await new Player('', '', this).load(this.playerData);
         return true;
     }
 

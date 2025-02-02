@@ -17,12 +17,6 @@ class Hint {
         this.condition = condition;
         if (repeats) this.repeats = repeats;
     }
-    async print() {
-        color(magenta);
-        for (let line of this.text) {
-            print('Assistant --', line);
-        }
-    }
 }
 
 const hintParams: hintParameters[] = [
@@ -116,7 +110,8 @@ const hintParams: hintParameters[] = [
     }, {
         name: 'eat',
         text: [
-            'you are hungry - your max SP will be lowered until you eat some food.'
+            'you are hungry.',
+            'your max SP will be lowered until you eat some food.'
         ],
         condition: (player: Player) => {
             if (player.hungerPenalty > 0) {
@@ -184,9 +179,9 @@ function assistant(player: Player) {
         hint => hint.condition(player)
     );
     if (hint) {
-        color(magenta);
+        player.game.color(magenta);
         for (let line of hint.text) {
-            print(`Assistant -- ${line}`);
+            player.game.print(`Assistant -- ${line}`);
         }
         if (!player.assistantHintsUsed[hint.name])
             player.assistantHintsUsed[hint.name] = 1;

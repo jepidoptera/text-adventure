@@ -1,4 +1,6 @@
 import { GameState } from "../../game/game.js"
+import { characters } from "./characters.js"
+import { landmarks } from "./landmarks.js"
 
 const scenario = {
     locations: {
@@ -19,7 +21,7 @@ const scenario = {
                     "| This is a text-based game where you type |",
                     "| commands to have your character perform  |",
                     "| an action.  To learn about actions you   |",
-                    "| can do, type ",
+                    "| can do, type \"help\".                     |",
                     "|------------------------------------------|"
                 ]
             }]
@@ -307,7 +309,7 @@ const scenario = {
             name: "Meat Market",
             adjacent: { 'west': 88 },
             characters: [{ name: 'butcher' }],
-            items: [{ name: 'side_of_meat' }, { name: 'giraffe_gizzard' }]
+            items: [{ name: 'side of meat' }, { name: 'giraffe_gizzard' }]
         },
         26: {
             name: "North Road",
@@ -1567,7 +1569,8 @@ const scenario = {
         },
         256: {
             name: "Dark Forest",
-            adjacent: { 'north': 262, 'east': 263, 'west': 257 }
+            adjacent: { 'north': 262, 'east': 263, 'west': 257 },
+            characters: [{ name: 'silver fox' }]
         },
         257: {
             name: "Dark Forest",
@@ -1594,7 +1597,8 @@ const scenario = {
         },
         262: {
             name: "Dark Forest",
-            adjacent: { 'north': 250, 'east': 268, 'south': 256, 'west': 251 }
+            adjacent: { 'north': 250, 'east': 268, 'south': 256, 'west': 251 },
+            characters: [{ name: 'goblin_hero' }]
         },
         263: {
             name: "Dark Forest",
@@ -1615,7 +1619,13 @@ const scenario = {
         },
         267: {
             name: "Dark Forest",
-            adjacent: { 'north': 259, 'east': 265, 'south': 270, 'west': 271 }
+            adjacent: { 'north': 259, 'east': 265, 'south': 270, 'west': 271 },
+            landmarks: [{ name: 'silver tree', contents: ['magic acorn'] }]
+        },
+        267.1: {
+            name: "Fairy Nest",
+            adjacent: { 'down': 267 },
+            characters: [{ name: 'effelin' }]
         },
         268: {
             name: "Dark Forest",
@@ -2491,8 +2501,19 @@ const scenario = {
         },
     },
     flags: {
+        cleric: false,
+        ieadon: false,
+        colonel_arach: false,
+        biadon: false,
+        ziatos: false,
+        turlin: false,
+        henge: false,
+        cradel: false,
+        orc_mission: false,
         orc_battle: false,
-        cradel: false
+        ierdale_mission: '',
+        sift: false,
+        soldier_dialogue: []
     }
 }
 

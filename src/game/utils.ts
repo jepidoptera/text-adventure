@@ -44,18 +44,15 @@ function singular(str: string): string {
         if (l1 == 'x' || l1 == 's' || l2 == 'ch' || l2 == 'sh') {
             str = str.slice(0, -2);
         }
-    } else if (str.slice(-3) == "ies") {
+    }
+    if (str.slice(-3) == "ies") {
         str = str.slice(0, -3) + "y";
     } else if (str.slice(-3) == "ves") {
-        // Common words that end in 'f' -> 'ves'
         const fToVes = ['leaf', 'wolf', 'half', 'self', 'shelf', 'elf', 'loaf', 'thief', 'life', 'knife', 'wife', 'calf', 'hoof', 'dwarf'];
         const stem = str.slice(0, -3);
-
-        // Check if adding 'f' makes a known word
         if (fToVes.some(word => word.startsWith(stem))) {
             str = stem + "f";
         } else {
-            // Otherwise assume it's a natural 've' word
             str = str.slice(0, -1);
         }
     } else {
@@ -64,9 +61,42 @@ function singular(str: string): string {
     return str;
 }
 
-function randomChoice<T>(arr: T[]): T {
-    if (arr.length <= 1) return arr[0];
-    return arr[Math.floor(Math.random() * arr.length)];
+function randomChoice<T>(arr: T[], weights: { [K in keyof T & string]: number } = {} as any): T {
+    if (arr.length <= 1) {
+        return arr[0];
+    }
+
+    if (Object.keys(weights).length === 0) {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    let totalWeight = 0;
+    for (const item of arr) {
+        const key = String(item) as keyof T & string;
+        if (!(key in weights)) {
+            weights[key] = 1;
+        } else if (weights[key] < 0) {
+            weights[key] = 0;
+        }
+        totalWeight += weights[key];
+    }
+
+    if (totalWeight === 0) {
+        console.log("randomChoice warning: total weight should be greater than 0.\n", arr, weights);
+    }
+
+    const random = Math.random() * totalWeight;
+    let cumulativeWeight = 0;
+
+    for (const item of arr) {
+        const key = String(item) as keyof T & string;
+        cumulativeWeight += weights[key];
+        if (random <= cumulativeWeight) {
+            return item;
+        }
+    }
+
+    return arr[arr.length - 1];
 }
 
 function highRandom(times = 1): number {
@@ -91,8 +121,8 @@ function lineBreak(text: string) {
 
 function printCharacters({
     characters,
-    basecolor = black,
-    charcolor = red,
+    basecolor = 'black',
+    charcolor = 'red',
     capitalize = false
 }: { characters: Character[], basecolor?: string, charcolor?: string, capitalize?: boolean }) {
     const enemy_numbers = characters?.reduce((acc, char) => {
@@ -102,15 +132,41 @@ function printCharacters({
     }, {} as { [key: string]: number });
     const enemy_names = Object.keys(enemy_numbers).sort((a, b) => enemy_numbers[a] - enemy_numbers[b]);
     const enemy_list = enemy_names.map(name => enemy_numbers[name] > 1 ? plural(name) : name)
-    color(basecolor)
+    let return_val = `<${basecolor}>`
     for (let i = 0; i < enemy_list.length; i++) {
-        if (enemy_numbers[enemy_names[i]] > 1) print(`${enemy_numbers[enemy_names[i]]} `, 1)
-        color(charcolor)
-        print(i == 0 && capitalize ? caps(enemy_list[i]) : enemy_list[i], 1)
-        color(basecolor)
-        if (i < enemy_list.length - 2) print(', ', 1)
-        else if (i < enemy_list.length - 1) print(' and ', 1)
+        if (enemy_numbers[enemy_names[i]] > 1) return_val += `${enemy_numbers[enemy_names[i]]} `
+        return_val += `<${charcolor}>`
+        return_val += (i == 0 && capitalize ? caps(enemy_list[i]) : enemy_list[i])
+        return_val += `<${basecolor}>`
+        if (i < enemy_list.length - 2) return_val += ', '
+        else if (i < enemy_list.length - 1) return_val += ' and '
     }
+    return return_val;
+}
+
+function listify({
+    items,
+    basecolor = 'black',
+    charcolor = 'red',
+    capitalize = false
+}: { items: string[], basecolor?: string, charcolor?: string, capitalize?: boolean }) {
+    const enemy_numbers = items?.reduce((acc, name) => {
+        if (acc[name]) acc[name]++;
+        else acc[name] = 1;
+        return acc;
+    }, {} as { [key: string]: number });
+    const names = Object.keys(enemy_numbers).sort((a, b) => enemy_numbers[a] - enemy_numbers[b]);
+    const enemy_list = names.map(name => enemy_numbers[name] > 1 ? plural(name) : name)
+    let return_val = `<${basecolor}>`
+    for (let i = 0; i < enemy_list.length; i++) {
+        if (enemy_numbers[names[i]] > 1) return_val += `${enemy_numbers[names[i]]} `
+        return_val += `<${charcolor}>`
+        return_val += (i == 0 && capitalize ? caps(enemy_list[i]) : enemy_list[i])
+        return_val += `<${basecolor}>`
+        if (i < enemy_list.length - 2) return_val += ', '
+        else if (i < enemy_list.length - 1) return_val += ' and '
+    }
+    return return_val;
 }
 
 const validColors = Object.keys(colorDict);

@@ -2,7 +2,7 @@ import { Item, ItemParams } from "../../game/item.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js";
 import { Character, Buff } from "../../game/character.js";
 import { getBuff } from "./buffs.js";
-import { play, musicc$ } from "./utils.js";
+import { musicc$ } from "./utils.js";
 import { lineBreak } from "../../game/utils.js";
 import { GameState } from "../../game/game.js";
 
@@ -16,7 +16,7 @@ const items = {
         }).displayName(function () {
             return `${this.quantity} gold`
         }).on_acquire(async function (player) {
-            color(yellow)
+            this.game.color(yellow)
         })
     },
     pile_of_gold(game: GameState) {
@@ -28,8 +28,8 @@ const items = {
         }).on_acquire(async function (player) {
             player.giveItem('gold', this.quantity ?? 1)
             player.removeItem(this, player.itemCount(this.name))
-            color(yellow)
-            print(`Got ${this.quantity ?? 0} GP`)
+            this.game.color(yellow)
+            this.game.print(`Got ${this.quantity ?? 0} GP`)
             this.displayName(function () { return '' })
         }).displayName(function () {
             return this.name;
@@ -99,7 +99,7 @@ const items = {
             player.recoverStats({ sp: 8 })
         })
     },
-    side_of_meat(game: GameState) {
+    "side of meat"(game: GameState) {
         return new Item({
             name: 'side of meat',
             description: 'a side of meat',
@@ -184,15 +184,15 @@ const items = {
             value: 0,
             game: game
         }).addAction('eat giraffe gizzard', async function (player) {
-            print('You gobble down the disgusting, slimy organ.  It tastes like a mix of')
-            print('rotten fish and charcoal, but something compels you to eat it, and')
-            print('eat it all.  You feel a little sick.')
-            await pause(5)
-            print("Too late, you realize: GIRAFFES DON'T HAVE GIZZARDS!")
-            print("What did you just eat??")
-            await pause(3)
-            print("Whatever it was, it was poisonous.")
-            await pause(2)
+            this.game.print('You gobble down the disgusting, slimy organ.  It tastes like a mix of')
+            this.game.print('rotten fish and charcoal, but something compels you to eat it, and')
+            this.game.print('eat it all.  You feel a little sick.')
+            await this.game.pause(5)
+            this.game.print("Too late, you realize: GIRAFFES DON'T HAVE GIZZARDS!")
+            this.game.print("What did you just eat??")
+            await this.game.pause(3)
+            this.game.print("Whatever it was, it was poisonous.")
+            await this.game.pause(2)
             player.die('giraffe gizzard')
         })
     },
@@ -217,6 +217,26 @@ const items = {
             player.hunger -= 5
         })
     },
+    "magic acorn"(game: GameState) {
+        return new Item({
+            name: 'magic acorn',
+            size: 0.1,
+            value: 0,
+            game: game
+        }).on_eat(async function (player) {
+            player.recoverStats({ mp: player.max_hp, sp: player.max_sp, hp: player.max_mp })
+            player.hunger = Math.min(player.hunger, 0)
+            player.removeBuff('poison')
+        })
+    },
+    "serpent horn"(game: GameState) {
+        return new Item({
+            name: 'serpent horn',
+            size: 1,
+            value: 155,
+            game: game
+        })
+    },
     bug_repellent(game: GameState) {
         return new Item({
             name: 'bug repellent',
@@ -224,28 +244,18 @@ const items = {
             value: 0,
             game: game
         }).on_drink(async function (player) {
-            print("hmmm... that bug repellent tasted surprisingly good.")
-            await pause(2)
-            print("suddenly you feel an itching in you chest.")
-            await pause(1.5)
-            print("Now it has become a bubbling.")
-            await pause(1.5)
-            print("Oh no it is...")
-            await pause(1.5)
-            color('red')
-            print("THE DREADED LUNG BOIL DISEASE!!!")
-            await pause(2)
+            this.game.print("hmmm... that bug repellent tasted surprisingly good.")
+            await this.game.pause(2)
+            this.game.print("suddenly you feel an itching in you chest.")
+            await this.game.pause(1.5)
+            this.game.print("Now it has become a bubbling.")
+            await this.game.pause(1.5)
+            this.game.print("Oh no it is...")
+            await this.game.pause(1.5)
+            this.game.color('red')
+            this.game.print("THE DREADED LUNG BOIL DISEASE!!!")
+            await this.game.pause(2)
             player.die('bug repellent')
-        })
-    },
-    full_healing_potion(game: GameState) {
-        return new Item({
-            name: 'full healing potion',
-            size: 0.4,
-            value: 30,
-            game: game
-        }).on_drink(async function (player) {
-            player.hp = player.max_hp;
         })
     },
     flask_of_wine(game: GameState) {
@@ -287,7 +297,7 @@ const items = {
             player.mp += 100;
         })
     },
-    mostly_healing_potion(game: GameState) {
+    "mostly healing potion"(game: GameState) {
         return new Item({
             name: 'mostly healing potion',
             size: 0.4,
@@ -297,7 +307,7 @@ const items = {
             player.hp += player.max_hp / 2;
         })
     },
-    partial_healing_potion(game: GameState) {
+    "partial healing potion"(game: GameState) {
         return new Item({
             name: 'partial healing potion',
             size: 0.4,
@@ -307,6 +317,16 @@ const items = {
             player.hp += player.max_hp / 4;
         })
     },
+    "full healing potion"(game: GameState) {
+        return new Item({
+            name: 'full healing potion',
+            size: 0.4,
+            value: 30,
+            game: game
+        }).on_drink(async function (player) {
+            player.hp = player.max_hp;
+        })
+    },
     poison(game: GameState) {
         return new Item({
             name: 'poison',
@@ -314,7 +334,7 @@ const items = {
             value: 0,
             game: game
         }).on_drink(async function (player) {
-            print('You die.')
+            this.game.print('You die.')
             player.die('poison')
         })
     },
@@ -987,13 +1007,13 @@ const items = {
             game: game
         }).on_use(async function (player) {
             if (player.location && player.location.landmarks?.map(landmark => landmark.key).includes('slash_in_the_earth')) {
-                print("You drop the potion into the crevice.")
-                await pause(2)
-                print("The earth shakes beneath you as the crevice seals itself shut.")
+                this.game.print("You drop the potion into the crevice.")
+                await this.game.pause(2)
+                this.game.print("The earth shakes beneath you as the crevice seals itself shut.")
                 player.location.removeLandmark('slash_in_the_earth')
                 player.removeItem(this, 1)
             } else {
-                print("You aren't supposed to use that here.")
+                this.game.print("You aren't supposed to use that here.")
             }
         })
     },
@@ -1162,21 +1182,21 @@ const items = {
             value: 0,
             game: game
         }).on_read(async function (player) {
-            print("This apears to be torn from a book.")
-            print("In scrawled handwriting the list reads:")
-            print()
-            print(" The mixing of these ingredients will")
-            print(" create a potion ledgend holds as one")
-            print(" capable of healing the very earth on ")
-            print(" which we stand:")
-            print()
-            print(" 1 - maple leaf")
-            print(" 1 - spritzer hair")
-            print(" 1 - ochre stone from Forest of Theives")
-            print(" 1 - music box")
-            print(" - some clear liquid")
-            print()
-            print("Find a pot and, 'mix potion'")
+            this.game.print("This apears to be torn from a book.")
+            this.game.print("In scrawled handwriting the list reads:")
+            this.game.print()
+            this.game.print(" The mixing of these ingredients will")
+            this.game.print(" create a potion ledgend holds as one")
+            this.game.print(" capable of healing the very earth on ")
+            this.game.print(" which we stand:")
+            this.game.print()
+            this.game.print(" 1 - maple leaf")
+            this.game.print(" 1 - spritzer hair")
+            this.game.print(" 1 - ochre stone from Forest of Theives")
+            this.game.print(" 1 - music box")
+            this.game.print(" - some clear liquid")
+            this.game.print()
+            this.game.print("Find a pot and, 'mix potion'")
         })
     },
     map(game: GameState) {
@@ -1186,7 +1206,7 @@ const items = {
             value: 0,
             game: game
         }).on_read(async function (player) {
-            print([
+            this.game.print([
                 ' !----------------------------------------------------------------------------!',
                 ' !                               <green, black>▓▓&▓▓▓▓▓▓▓▓▓<black, darkwhite>                                 !',
                 ' !                           <green, black>▓▓▓▓▓▓▓▓▓▓▓▓▓&▓▓▓▓▓<black, darkwhite>                              !',
@@ -1213,7 +1233,7 @@ const items = {
                 ' !                                                               ?            !',
                 ' !----------------------------------------------------------------------------!',
             ].join('\n'))
-            await getKey()
+            await this.game.getKey()
         })
     },
     lute_de_lumonate(game: GameState) {
@@ -1223,24 +1243,24 @@ const items = {
             value: 0,
             game: game
         }).addAction('play lute', async function (player: Character) {
-            color(blue)
-            print("You lift the beautiful lute to your lips, and unleash a tune...")
+            this.game.color(blue)
+            this.game.print("You lift the beautiful lute to your lips, and unleash a tune...")
             if (player.attackTarget?.name.toLowerCase() == 'sift') {
-                play(musicc$(10))
-                print()
-                color(magenta)
-                print("Sift falters, entranced by the music.")
-                await pause(1)
-                print("His attack fell!")
-                await pause(1)
+                this.game.print(musicc$(10))
+                this.game.print()
+                this.game.color(magenta)
+                this.game.print("Sift falters, entranced by the music.")
+                await this.game.pause(1)
+                this.game.print("His attack fell!")
+                await this.game.pause(1)
                 player.attackTarget.addBuff(
                     new Buff({
                         name: 'power drain',
                         duration: Math.floor(Math.random() * 5) + 1,
                         plus: { damage: { blunt: -10, sharp: -50 }, agility: -10 }
                     }).onExpire(async function () {
-                        color(magenta)
-                        print("Sift shakes off the trance of the lute.")
+                        this.game.color(magenta)
+                        this.game.print("Sift shakes off the trance of the lute.")
                     })
                 )
             }
@@ -1360,35 +1380,35 @@ const items = {
             game: game
         }).on_acquire(async function (player) {
             if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- You should read that. (type \"read recipe\")")
+                this.game.color(magenta)
+                this.game.print("Assistant -- You should read that. (type \"read recipe\")")
             }
         }).on_read(async function (player) {
-            color(black, white)
-            color(black, white); print("____________________________", 1); color(black, darkwhite); print()
-            color(black, white); print("|   GRANDMAS BUG FORMULA   |", 1); color(black, darkwhite); print()
-            color(black, white); print("|      X-Tra bonus         |", 1); color(black, darkwhite); print()
-            color(black, white); print("|                          |", 1); color(black, darkwhite); print()
-            color(black, white); print("|\"hope it kills the bugs   |", 1); color(black, darkwhite); print()
-            color(black, white); print("| before it kills you\"     |", 1); color(black, darkwhite); print()
-            color(black, white); print("|             - Grandma    |", 1); color(black, darkwhite); print()
-            color(black, white); print("|INGREDIENTS:              |", 1); color(black, darkwhite); print()
-            color(black, white); print("| - 1 giraffe gizzard      |", 1); color(black, darkwhite); print()
-            color(black, white); print("| - 1 spritzer hair        |", 1); color(black, darkwhite); print()
-            color(black, white); print("| - some blue liquid       |", 1); color(black, darkwhite); print()
-            color(black, white); print("|                          |", 1); color(black, darkwhite); print()
-            color(black, white); print("|When you have everything, |", 1); color(black, darkwhite); print()
-            color(black, white); print("|find a mixing pot and type|", 1); color(black, darkwhite); print()
-            color(black, white); print("|      'mix potion'        |", 1); color(black, darkwhite); print()
-            color(black, white); print("|         ENJOY!           |", 1); color(black, darkwhite); print()
-            color(black, white); print("|__________________________|", 1); color(black, darkwhite); print()
-            color(black, white); print("|SURGEON GENERALS WARNING: |", 1); color(black, darkwhite); print()
-            color(black, white); print("|Do not eat for fear of the|", 1); color(black, darkwhite); print()
-            color(black, white); print("|lung-boil disease.        |", 1); color(black, darkwhite); print()
-            color(black, white); print(" \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/ ", 1); color(black, darkwhite); print()
+            this.game.color(black, white)
+            this.game.color(black, white); this.game.print("____________________________", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|   GRANDMAS BUG FORMULA   |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|      X-Tra bonus         |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|                          |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|\"hope it kills the bugs   |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("| before it kills you\"     |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|             - Grandma    |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|INGREDIENTS:              |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("| - 1 giraffe gizzard      |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("| - 1 spritzer hair        |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("| - some blue liquid       |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|                          |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|When you have everything, |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|find a mixing pot and type|", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|      'mix potion'        |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|         ENJOY!           |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|__________________________|", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|SURGEON GENERALS WARNING: |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|Do not eat for fear of the|", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print("|lung-boil disease.        |", 1); this.game.color(black, darkwhite); this.game.print()
+            this.game.color(black, white); this.game.print(" \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/ ", 1); this.game.color(black, darkwhite); this.game.print()
             if (player?.flags.assistant) {
-                color(magenta);
-                print("   --ASSISTANT: The ingredients for this are scattered around town.");
+                this.game.color(magenta);
+                this.game.print("   --ASSISTANT: The ingredients for this are scattered around town.");
             }
         })
     },
@@ -1413,9 +1433,9 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             game: game,
-            buff: { plus: { hp_recharge: 0.10, sp_recharge: 0.10, mp_recharge: 0.10 }, times: { max_hp: 1.5 } }
-        }).addAction('use ring', async function (player) {
-            print('TODO: use ring of nature')
+            buff: { plus: { hp_recharge: 0.10, sp_recharge: 0.10, mp_recharge: 0.10 }, times: { max_hp: 1.5, max_sp: 1.5, healing: 1.5 } }
+        }).on_remove(async function (player) {
+            player.hp = Math.min(player.hp, player.max_hp)
         })
     },
     ring_of_stone(game: GameState) {
@@ -1435,7 +1455,7 @@ const items = {
             value: 0,
             equipment_slot: 'ring',
             game: game,
-            buff: { times: { speed: 2 } }
+            buff: { times: { speed: 2, coordination: 1.5, agility: 1.5 } }
         }).on_equip(async function (player) {
             if (player.isPlayer) {
                 let totalTime = 4.0
@@ -1455,15 +1475,15 @@ const items = {
                     return length
                 }).reverse()
                 for (let i in chars) {
-                    color(colors[i])
-                    print(chars[i], 1)
-                    await pause(pauseLength[i])
+                    this.game.color(colors[i])
+                    this.game.print(chars[i], 1)
+                    await this.game.pause(pauseLength[i])
                 }
-                print()
+                this.game.print()
             }
         }).on_remove(async function (player) {
             if (player.isPlayer) {
-                print("Time returns to normal.")
+                this.game.print("Time returns to normal.")
             }
         })
     },
@@ -1650,21 +1670,21 @@ const items = {
             value: 1,
             game: game
         }).addAction('play cranberries cd', async function (player) {
-            print("You pop the CD into your walkman and hit play.")
-            await pause(2)
-            print(lineBreak("Far above, the clouded sky opens up with a furious rumble. A lone beam of light shines down, directly on - you."))
-            await pause(2)
-            print(lineBreak("Suddenly a burst of lightning arcs down from the heavens, striking the CD in your hand. Bolt after bolt follows until nothing remains of you or the CD but a smoking hole in the ground."))
-            print("Lars hates the cranberries!")
+            this.game.print("You pop the CD into your walkman and hit play.")
+            await this.game.pause(2)
+            this.game.print(lineBreak("Far above, the clouded sky opens up with a furious rumble. A lone beam of light shines down, directly on - you."))
+            await this.game.pause(2)
+            this.game.print(lineBreak("Suddenly a burst of lightning arcs down from the heavens, striking the CD in your hand. Bolt after bolt follows until nothing remains of you or the CD but a smoking hole in the ground."))
+            this.game.print("Lars hates the cranberries!")
             player.die('Wrath of God')
             if (player.flags.assistant) {
-                color(magenta, darkwhite)
-                print("Assistant -- what did I tell you?!.")
+                this.game.color(magenta, darkwhite)
+                this.game.print("Assistant -- what did I tell you?!.")
             }
         }).on_acquire(async function (player) {
             if (player.flags.assistant) {
-                color(magenta)
-                print("Assistant -- don't type \"play cranberries cd\".")
+                this.game.color(magenta)
+                this.game.print("Assistant -- don't type \"play cranberries cd\".")
             }
         })
     },
@@ -1685,10 +1705,10 @@ const items = {
         }).displayName(function () {
             return `${this.quantity} gold`
         }).on_acquire(async function (player) {
-            color(brightmagenta)
+            this.game.color(brightmagenta)
             player.removeItem('gold', this.quantity)
             player.removeItem(this, this.quantity)
-            print(`Got negative ${this.quantity} GP`)
+            this.game.print(`Got negative ${this.quantity} GP`)
         })
     },
 }

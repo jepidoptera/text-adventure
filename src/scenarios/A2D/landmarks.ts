@@ -17,8 +17,8 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             description: 'A Sign',
             text: text
         }).action('read sign', async function () {
-            color(gray)
-            print(text)
+            this.game.color(gray)
+            this.game.print(text)
         })
     },
     towering_tree(game: GameState): Landmark {
@@ -27,87 +27,87 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             name: 'tree',
             description: 'A Monstrous, Sky-Touching Tree',
         }).action('climb tree', async function (player) {
-            color(black)
+            this.game.color(black)
             if (player.game.flags.turlin) {
-                print("Putting one hand above the other, you begin the familiar ascent.")
-                print("You climb... ")
+                this.game.print("Putting one hand above the other, you begin the familiar ascent.")
+                this.game.print("You climb... ")
                 for (let a = 1; a <= 3; a++) {
-                    await pause(1)
-                    print("and climb...")
+                    await this.game.pause(1)
+                    this.game.print("and climb...")
                 }
-                pause(2)
-                print("You reach the top and look out. The world spreads before you.")
+                this.game.pause(2)
+                this.game.print("You reach the top and look out. The world spreads before you.")
                 player.relocate(player.game.find_location("the top of the tree"))
             }
-            print("You begin climbing the tree.")
-            await pause(1.8)
-            print("You reach the middle of the tree, the climbing gets harder.")
-            await pause(3)
-            print("You climb...")
-            await pause(1)
+            this.game.print("You begin climbing the tree.")
+            await this.game.pause(1.8)
+            this.game.print("You reach the middle of the tree, the climbing gets harder.")
+            await this.game.pause(3)
+            this.game.print("You climb...")
+            await this.game.pause(1)
             for (let a = 1; a <= 3; a++) {
-                print("And climb...")
-                await pause(1)
+                this.game.print("And climb...")
+                await this.game.pause(1)
             }
-            print()
-            print("You are now almost at the crown.  Some sort of platform like a tree house seems")
-            print("to have been build at the top.  You must be hundreds of feet in the air.  You")
-            print("get a sickening stomach-wrenching feeling looking downwards.")
-            print()
-            await pause(3)
-            print("Continue to climb? [y/n]")
-            if (await getKey(['y', 'n']) === 'y') {
-                print("Using your strength and agility you climb higher, maxing your physical")
-                print("abilities.")
-                await pause(2)
+            this.game.print()
+            this.game.print("You are now almost at the crown.  Some sort of platform like a tree house seems")
+            this.game.print("to have been build at the top.  You must be hundreds of feet in the air.  You")
+            this.game.print("get a sickening stomach-wrenching feeling looking downwards.")
+            this.game.print()
+            await this.game.pause(3)
+            this.game.print("Continue to climb? [y/n]")
+            if (await this.game.getKey(['y', 'n']) === 'y') {
+                this.game.print("Using your strength and agility you climb higher, maxing your physical")
+                this.game.print("abilities.")
+                await this.game.pause(2)
                 if (player.max_sp / 10 + player.strength + player.agility * 2 > 30) {
                     // Made it
-                    print("You pull yourself at last onto the hard surface of the platorm")
-                    print("You lay breathing hard with only one though in your head:")
-                    print("''I am glad to be up here.'', a thought, until now, your mind new to be foreign.")
-                    await pause(10)
-                    print("You breathe heavily and sigh raising your head...")
-                    await pause(4)
-                    print("Your intestines feel as if they jumped into your throat and were strangling")
-                    print("you from within.  Standing before you is...")
-                    await pause(4)
+                    this.game.print("You pull yourself at last onto the hard surface of the platorm")
+                    this.game.print("You lay breathing hard with only one though in your head:")
+                    this.game.print("''I am glad to be up here.'', a thought, until now, your mind new to be foreign.")
+                    await this.game.pause(10)
+                    this.game.print("You breathe heavily and sigh raising your head...")
+                    await this.game.pause(4)
+                    this.game.print("Your intestines feel as if they jumped into your throat and were strangling")
+                    this.game.print("you from within.  Standing before you is...")
+                    await this.game.pause(4)
                     player.relocate(player.game.find_location("the top of the tree"))
                 } else {
                     // Crash Caboom
-                    print("You are almost there...  You gasp")
-                    await pause(2)
-                    print("As you reach to grip the last branch, you feel")
-                    print("your other hand begin to slide off the branch it was holding.")
-                    print("Horified you realize that you are no longer on the tree... but in the air")
-                    print("and the ground is rushing up ever nearer.")
-                    await pause(6)
-                    print("You fall...")
+                    this.game.print("You are almost there...  You gasp")
+                    await this.game.pause(2)
+                    this.game.print("As you reach to grip the last branch, you feel")
+                    this.game.print("your other hand begin to slide off the branch it was holding.")
+                    this.game.print("Horified you realize that you are no longer on the tree... but in the air")
+                    this.game.print("and the ground is rushing up ever nearer.")
+                    await this.game.pause(6)
+                    this.game.print("You fall...")
                     for (let a = 1; a <= 3; a++) {
-                        await pause(0.5)
-                        print("and fall...")
+                        await this.game.pause(0.5)
+                        this.game.print("and fall...")
                     }
-                    await pause(1)
-                    print("With a sickening jolt your world fades out...")
-                    await pause(2)
-                    color(black, black)
-                    clear()
-                    await pause(1.6)
-                    color(black, darkwhite)
-                    clear()
-                    print("You come to with a stinging sensation all over your body.  You are lucky to")
-                    print("be alive.")
+                    await this.game.pause(1)
+                    this.game.print("With a sickening jolt your world fades out...")
+                    await this.game.pause(2)
+                    this.game.color(black, black)
+                    this.game.clear()
+                    await this.game.pause(1.6)
+                    this.game.color(black, darkwhite)
+                    this.game.clear()
+                    this.game.print("You come to with a stinging sensation all over your body.  You are lucky to")
+                    this.game.print("be alive.")
                     player.hp = 1
                     player.sp = 1
                     if (player.flags.assistant) {
-                        color(magenta)
-                        print("Assistant -- ouch.")
-                        print("Assistant -- You need to train agility, strength and stamina.")
+                        this.game.color(magenta)
+                        this.game.print("Assistant -- ouch.")
+                        this.game.print("Assistant -- You need to train agility, strength and stamina.")
                     }
                 }
             } else {
-                print("You decide that you have gone far enough and begin the descent.")
-                await pause(2)
-                print("You reach the ground safely.")
+                this.game.print("You decide that you have gone far enough and begin the descent.")
+                await this.game.pause(2)
+                this.game.print("You reach the ground safely.")
             }
         })
     },
@@ -117,12 +117,12 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             name: 'treehouse platform',
             description: 'A Treehouse Platform',
         }).action('climb down', async function (player: Character) {
-            color(black)
-            print("You begin your descent...")
-            await pause(2)
-            print("You continue to climb downwards...")
-            await pause(3)
-            print("After an exhausting climb you feel grateful to be on the ground again!")
+            this.game.color(black)
+            this.game.print("You begin your descent...")
+            await this.game.pause(2)
+            this.game.print("You continue to climb downwards...")
+            await this.game.pause(3)
+            this.game.print("After an exhausting climb you feel grateful to be on the ground again!")
             player.relocate(player.game.find_location(64) || null)
         })
     },
@@ -132,36 +132,36 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             name: 'mixing pot',
             description: 'A Mixing Pot',
         }).action('look mixing pot', async function (player) {
-            color(gray)
-            print("  * A Mixing Pot")
-            print()
-            color(black)
+            this.game.color(gray)
+            this.game.print("  * A Mixing Pot")
+            this.game.print()
+            this.game.color(black)
             this.contents?.items.forEach(item => {
-                print(`    ${item.name}`)
+                this.game.print(`    ${item.name}`)
             })
             if (player.flags.assistant) {
-                color(magenta)
-                print(`Assistant -- type \"add\" + an ingredient to add that to the pot.`)
+                this.game.color(magenta)
+                this.game.print(`Assistant -- type \"add\" + an ingredient to add that to the pot.`)
             }
         }).action('add', async function (player, item: string) {
-            color(black)
+            this.game.color(black)
             const itemObj = player.inventory.item(item)
             if (itemObj) {
                 player.inventory.transfer(itemObj, this.contents)
-                print(`Added ${itemObj.name} to mixing pot.`)
+                this.game.print(`Added ${itemObj.name} to mixing pot.`)
                 if (player.flags.assistant) {
-                    color(magenta)
-                    print(`Assistant -- type \"mix potion\" to stir the ingredients together.`)
+                    this.game.color(magenta)
+                    this.game.print(`Assistant -- type \"mix potion\" to stir the ingredients together.`)
                 }
             } else {
-                print(`You don't have that.`)
+                this.game.print(`You don't have that.`)
             }
         }).action('mix potion', async function (player) {
-            color(green)
-            print("Mixing Potion", 1);
-            await pause(1); print(".", 1);
-            await pause(1); print(".", 1);
-            await pause(1); print(".");
+            this.game.color(green)
+            this.game.print("Mixing Potion", 1);
+            await this.game.pause(1); this.game.print(".", 1);
+            await this.game.pause(1); this.game.print(".", 1);
+            await this.game.pause(1); this.game.print(".");
             // sort and join ingredients
             const contents = this.contents.items.map(i => i.name).sort().join(', ')
             console.log('mixing', contents)
@@ -172,12 +172,12 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
                 const potion = this.game.addItem({ name: potionName });
                 console.log(`created: ${potionName}`)
                 player.inventory.add(potion);
-                print(`You remove the potion from the pot and wala! it is now: `, 1)
-                color(black)
-                print(`${potion?.name}.`)
+                this.game.print(`You remove the potion from the pot and wala! it is now: `, 1)
+                this.game.color(black)
+                this.game.print(`${potion?.name}.`)
             } else {
-                color(black)
-                print("The potion refuses to coalesce.  All ingredients returned.")
+                this.game.color(black)
+                this.game.print("The potion refuses to coalesce.  All ingredients returned.")
                 this.contents.transferAll(player.inventory)
             }
         })
@@ -209,11 +209,11 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             name: 'slash',
             description: 'A Jagged, Oozing Slash in the Earth'
         }).action('e', async function (player) {
-            color(black)
-            print("You can't go that way. The slash is impassable.")
+            this.game.color(black)
+            this.game.print("You can't go that way. The slash is impassable.")
         }).action('go east', async function (player) {
-            color(black)
-            print("You can't go that way. The slash is impassable.")
+            this.game.color(black)
+            this.game.print("You can't go that way. The slash is impassable.")
         })
     },
     dead_cleric(game: GameState): Landmark {
@@ -243,18 +243,18 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
             name: 'portal stone',
             description: "Eldin's Portal Stone"
         }).action('transport', async function (player) {
-            color(blue)
-            print("You touch the portal stone...")
-            await pause(1)
+            this.game.color(blue)
+            this.game.print("You touch the portal stone...")
+            await this.game.pause(1)
             player.relocate(player.game.find_location("Eldin's Mountain Cottage"))
         })
     },
     slot_canyon(game: GameState): Landmark {
         async function go_down(this: Landmark, player: Character) {
             if (player.isPlayer) {
-                color(black)
-                print("You climb carefully down the steep canyon, picking your way among the rocks.")
-                await pause(2)
+                this.game.color(black)
+                this.game.print("You climb carefully down the steep canyon, picking your way among the rocks.")
+                await this.game.pause(2)
                 player.relocate(this.location?.adjacent?.get('down') || null)
             }
         }
@@ -269,6 +269,27 @@ const landmarks: { [key: string]: (...args: any[]) => Landmark } = {
         ).action(
             'down', go_down
         )
+    },
+    "silver tree"(game: GameState): Landmark {
+        return new Landmark({
+            game: game,
+            name: 'silver tree',
+            description: "A Silver Tree as Tall as the Sky"
+        }).action('climb tree', async function (player) {
+            this.game.print("You put your hand on the tree and feel the thrill of barely-contained magic.")
+            this.game.print("Not knowing where this may lead, you forge heedlessly up and up.")
+            await this.game.pause(5)
+            this.game.print()
+            this.game.print("As you climb, you realize that you are leaving the mortal world behind, at a")
+            this.game.print("distance beyond measure.")
+            this.game.print("The ground falls away below you and vanishes into the fog.")
+            await this.game.pause(6)
+            this.game.print()
+            this.game.print("You continue upwards, losing all sense of time or space. Passing through a")
+            this.game.print("final layer of clouds, you find yourself in...")
+            await this.game.pause(5)
+            await player.relocate(this.game.find_location("fairy nest"))
+        })
     },
     unknown(game: GameState, n?: number): Landmark {
         return new Landmark({

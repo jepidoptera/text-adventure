@@ -145,7 +145,10 @@ function scheduleCleanup(token: string): NodeJS.Timeout {
     return setTimeout(() => {
         if (activeGames.has(token)) {
             // save before shutting down
-            activeGames.get(token)!.gameState.save();
+            const game = activeGames.get(token)!.gameState;
+            if (!game.player.dead) {
+                game.save();
+            }
             activeGames.get(token)!.gameState.shutdown();
             activeGames.delete(token);
             console.log(`Game with token ${token} removed due to inactivity.`);

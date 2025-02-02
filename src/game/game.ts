@@ -22,7 +22,7 @@ abstract class GameState {
     player!: Character;
     playerData: any = {};
     private currentSessionID: string | null = null;
-    private saveName: string = '';
+    saveName: string = '';
 
     constructor(
         wss: WebSocket,
@@ -35,21 +35,21 @@ abstract class GameState {
             this.saveName = saveName;
             return await load(saveName);
         }
-        (global as any).print = this.quote.bind(this);
-        (global as any).input = this.query.bind(this);
-        (global as any).getKey = this.getKey.bind(this);
-        (global as any).pause = this.pause.bind(this);
-        (global as any).color = this.color.bind(this);
-        (global as any).locate = this.locate.bind(this);
-        (global as any).optionBox = this.optionBox.bind(this);
-        (global as any).clear = this.clear.bind(this);
+        // (global as any).print = this.quote.bind(this);
+        // (global as any).input = this.query.bind(this);
+        // (global as any).getKey = this.getKey.bind(this);
+        // (global as any).pause = this.pause.bind(this);
+        // (global as any).color = this.color.bind(this);
+        // (global as any).locate = this.locate.bind(this);
+        // (global as any).optionBox = this.optionBox.bind(this);
+        // (global as any).clear = this.clear.bind(this);
     }
 
     send(output: Object) {
         this.wss.send(JSON.stringify(output));
     }
 
-    quote(text?: string, extend?: any) {
+    print(text?: string, extend?: any) {
         const textLines = parseColoredText(text || '');
         if (textLines.length == 0) {
             this.batchCommands.push({ command: 'print', text: text, extend });
@@ -111,7 +111,7 @@ abstract class GameState {
         });
     }
 
-    query(prompt: string): Promise<string> {
+    input(prompt: string = ''): Promise<string> {
         this.send(this.batchCommands);
         this.batchCommands = [];
         this.currentSessionID = generateSessionID();
@@ -411,6 +411,7 @@ abstract class GameState {
     addCharacter<K extends keyof this['characterTemplates']>(
         {
             name,
+            unique_id,
             location,
             respawns,
             respawnLocation = null,
@@ -418,14 +419,17 @@ abstract class GameState {
             attackPlayer,
             chase,
             following = '',
+            leader = '',
             actionQueue = [],
             timeCounter = 0,
             persist,
             items,
             buffs,
-            flags
+            flags,
+            alignment
         }: {
             name: K,
+            unique_id?: string,
             location: string | number | Location,
             respawns?: boolean,
             respawnLocation?: string | number | null,
@@ -433,12 +437,14 @@ abstract class GameState {
             attackPlayer?: boolean,
             chase?: boolean,
             following?: string,
+            leader?: string,
             actionQueue?: string[],
             timeCounter?: number,
             persist?: boolean,
             buffs?: { name: string, power: number, duration: number }[],
             items?: { name?: string, key?: string, quantity: number }[],
-            flags?: { [key: string]: any }
+            flags?: { [key: string]: any },
+            alignment?: string
         }
     ) {
 
@@ -456,10 +462,20 @@ abstract class GameState {
         if (actionQueue) { passedAttributes['actionQueue'] = actionQueue }
         if (timeCounter) { passedAttributes['timeCounter'] = timeCounter }
         if (persist) { passedAttributes['persist'] = persist }
+        if (leader) { passedAttributes['leader'] = leader }
+        if (alignment) { passedAttributes['alignment'] = alignment }
+        if (!unique_id) {
+            const clones = this.characters.filter(char => char.name == name)
+            unique_id = `${name.toString()}_` + Array(clones.length + 1)
+                .fill(0).map((_, i) => i)
+                .find(i => !clones.some(char => char.unique_id == `${name.toString()}_${i.toString()}`))!
+                .toString();
+        }
+        passedAttributes['unique_id'] = unique_id;
         Object.assign(newCharacter, passedAttributes);
         if (respawns !== undefined) newCharacter.respawns = respawns;
         newCharacter.key = name.toString();
-        const newLocation = location instanceof Location ? location : this.find_location(location.toString());
+        const newLocation = location instanceof Location ? location : this.find_location(location?.toString());
         newLocation?.addCharacter(newCharacter);
         newCharacter.location = newLocation;
         if (items) {
@@ -502,6 +518,7 @@ abstract class GameState {
     }
 
     find_location(name: string | number) {
+        if (!name) return null;
         name = name.toString().toLowerCase();
         const location = Array.from(this.locations.values()).find(location => location.name.toLowerCase() === name || location.key == name) || null;
         if (!location) {

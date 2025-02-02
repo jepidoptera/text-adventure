@@ -1,13 +1,12 @@
 import { Location } from "../../game/location.js"
 import { Item } from "../../game/item.js"
-import { Character, BaseStats, Buff, DamageTypes } from "../../game/character.js"
+import { Character, BaseStats, Buff, DamageTypes, damageTypesList } from "../../game/character.js"
 import { A2dCharacter } from "./characters.js"
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
 import { GameState } from "../../game/game.js";
-import { caps, plural, printCharacters, randomChoice, splitFirst } from "../../game/utils.js";
+import { caps, plural, printCharacters, randomChoice, singular, splitFirst, lineBreak, highRandom } from "../../game/utils.js";
 import { spells, abilityLevels } from "./spells.js";
 import { getBuff } from "./buffs.js"
-import { landmarks } from "./landmarks.js"
 import { scenario } from "./map.js"
 import { assistant } from "./assistant.js"
 import { isValidItemKey } from "./items.js"
@@ -19,7 +18,6 @@ type StatKey = BaseStats | `${DamageTypes}_damage` | `${DamageTypes}_defense`;
 class Player extends A2dCharacter {
     actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
     class_name: string = '';
-    max_pets: number = 0;
     healed: boolean = false;
     isPlayer: boolean = true;
     cheatMode: boolean = false;
@@ -37,6 +35,8 @@ class Player extends A2dCharacter {
             'armor': null,
             'ring': null,
         }
+    pets: Character[] = [];
+    max_pets: number = 4;
     flags: {
         assistant: boolean,
         enemy_of_ierdale: boolean,
@@ -66,7 +66,7 @@ class Player extends A2dCharacter {
         super({ name: characterName, game: game });
         this.size = -5;
         this.game.addItem({ name: "banana", container: this.inventory })
-        this.game.addItem({ name: "side_of_meat", container: this.inventory })
+        this.game.addItem({ name: "side of meat", container: this.inventory })
         this.game.addItem({ name: "club", container: this.inventory })
         this.class_name = className.toLowerCase();
         switch (this.class_name) {
@@ -175,18 +175,18 @@ class Player extends A2dCharacter {
         this.addAction('save', 0, this.saveGame);
         this.addAction('load', 0, this.loadGame);
         this.addAction('', 10, async () => { if (this.flags.path?.length ?? 0 > 0) this.go('') });
-        this.addAction('n', 10, async () => await this.go('north'));
-        this.addAction('s', 10, async () => await this.go('south'));
-        this.addAction('e', 10, async () => await this.go('east'));
-        this.addAction('w', 10, async () => await this.go('west'));
-        this.addAction('ne', 10, async () => await this.go('northeast'));
-        this.addAction('se', 10, async () => await this.go('southeast'));
-        this.addAction('sw', 10, async () => await this.go('southwest'));
-        this.addAction('nw', 10, async () => await this.go('northwest'));
+        this.addAction(['n', 'north'], 10, async () => await this.go('north'));
+        this.addAction(['s', 'south'], 10, async () => await this.go('south'));
+        this.addAction(['e', 'east'], 10, async () => await this.go('east'));
+        this.addAction(['w', 'west'], 10, async () => await this.go('west'));
+        this.addAction(['ne', 'northeast'], 10, async () => await this.go('northeast'));
+        this.addAction(['se', 'southeast'], 10, async () => await this.go('southeast'));
+        this.addAction(['sw', 'soutwest'], 10, async () => await this.go('southwest'));
+        this.addAction(['nw', 'northwest'], 10, async () => await this.go('northwest'));
         this.addAction('down', 10, async () => await this.go('down'));
         this.addAction('up', 10, async () => await this.go('up'));
         this.addAction('go', 10, this.go);
-        this.addAction('flee', 10, async () => { if (this.backDirection) await this.go(this.backDirection); else { color(black); print('you are cornered!') } });
+        this.addAction('flee', 10, async () => { if (this.backDirection) await this.go(this.backDirection); else { this.color(black); this.print('you are cornered!') } });
         this.addAction('i', 0, async () => this.checkInventory());
         this.addAction('look', 5, this.look);
         this.addAction('read', 20, this.read);
@@ -194,37 +194,51 @@ class Player extends A2dCharacter {
         this.addAction('drink', 20, this.drink);
         this.addAction('use', 10, this.use);
         this.addAction('wield', 10, async (weapon: string) => await this.equip(weapon, 'right hand'));
-        this.addAction('wield2', 10, async (weapon: string) => await this.equip(weapon, 'left hand'));
+        this.addAction(['wield2', 'left wield'], 10, async (weapon: string) => await this.equip(weapon, 'left hand'));
         this.addAction('wear', 30, async (item: string) => await this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
         this.addAction('ready', 10, async (weapon: string) => await this.equip(weapon, 'bow'));
-
+        this.addAction('pets', 0, this.checkPets);
         this.addAction('drop', 10, this.drop);
         this.addAction('get', 10, this.get);
+        this.addAction('get all', 10, this.getAll);
         this.addAction('hp', 0, async () => { this.checkHP(); this.checkHunger(); this.checkXP() });
         this.addAction('stats', 0, this.checkStats);
         this.addAction('equipment', 0, this.checkEquipment);
         this.addAction('heal', 10, this.heal);
-        this.addAction('talk', 10, this.talkTo);
+        this.addAction(['talk', 'talk to'], 10, this.talkTo);
         this.addAction('attack', 10, async (name: string) => await this.target(this.location?.character?.(name)));
         this.addAction('\\', 5, async (name: string) => await this.left_attack(name));
         this.addAction('shoot', 0, async (name: string) => await this.bow_attack(name));
         this.addAction('cast', 10, this.spell);
-        this.addAction('cheatmode xfish9', 0, async () => { this.cheatMode = true; color(magenta); print('Cheat mode activated.') });
+        this.addAction('cheatmode xfish9', 0, async () => { this.cheatMode = true; this.color(magenta); this.print('Cheat mode activated.') });
         this.addAction('cheat', 0, this.cheat);
         this.addAction('buffs', 0, this.checkBuffs);
         this.addAction('goto', 0, this.goto);
+        this.addAction(['exit', 'quit'], 0, async () => { this.hp = -1 })
+        this.addAction('help', 0, this.help);
 
         console.log('loaded player actions.')
 
         // start with full health
         this.recoverStats({ hp: 100, sp: 100, mp: 100 });
         this.autoheal();
-        this.onTurn(async () => { this.onSlay(this.checkHP) });
+        this.onAttack(async (attacker) => {
+            this.color(red)
+            this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
+            await this.fight(attacker);
+            if (this.activeEquipment['bow'] && this.equipment['bow'] && this.has('arrow')) {
+                await this.bow_attack(attacker);
+                this.useWeapon('right hand')
+            }
+        })
     }
 
-    addAction(name: string, timeNeeded: number, action: (this: Player, ...args: any[]) => Promise<any>) {
-        this.actions.set(name, action.bind(this));
-        this.actionTiming[name] = timeNeeded;
+    addAction(name: string | string[], timeNeeded: number, action: (this: Player, ...args: any[]) => Promise<any>) {
+        if (!Array.isArray(name)) name = [name];
+        for (let n of name) {
+            this.actions.set(n, action.bind(this));
+            this.actionTiming[n] = timeNeeded;
+        }
         return this;
     }
 
@@ -242,14 +256,14 @@ class Player extends A2dCharacter {
         if (location && this.location) {
             console.log('looking for a path to location', location.key)
             this.flags.path = this.findPath(location);
-            print(this.flags.path.join(', '))
+            this.print(this.flags.path.join(', '))
         }
         return this;
     }
 
-    async getInput() {
+    async getinput() {
         let command = '';
-        color(black, darkwhite)
+        this.color(black, darkwhite)
         // console.log('player input')
         if (this.fighting) {
             console.log(`player is fighting ${this.attackTarget?.name}`)
@@ -257,89 +271,71 @@ class Player extends A2dCharacter {
             this.disableCommands(dirs.map(dir => `go ${dir}`), `${this.attackTarget?.name} blocks your way!`);
             this.disableCommands(dirs.map(dir => dir.slice(0, 1)), `${this.attackTarget?.name} blocks your way!`);
             this.checkHP();
-            this.onSlay(async () => { });
-            color(black)
-            print(")===|[>>>>>>>>>>>>>>>>>>")
-            command = await input()
+            this.color(black)
+            this.print(")===|[>>>>>>>>>>>>>>>>>>")
+            command = await this.input()
         } else {
             const dirs = ['north', 'south', 'east', 'west']
             this.enableCommands(dirs.map(dir => `go ${dir}`));
             this.enableCommands(dirs.map(dir => dir.slice(0, 1)));
-            color(blue)
-            print(this.name, 1)
-            color(black)
-            command = await input('>')
+            this.color(blue)
+            this.print(this.name, 1)
+            this.color(black)
+            command = await this.input('>')
             if (!this.healed) {
                 this.autoheal();
-                color(brightblue)
-                print("<A@+-/~2~\-+@D>")
+                this.color(brightblue)
+                this.print("<A@+-/~2~\-+@D>")
             }
         }
-        color(black, darkwhite)
+        this.color(black, darkwhite)
         command = command.toLowerCase().trim();
         this.lastCommand.unshift(command);
         console.log(`player command log: ${this.lastCommand.slice(0, 5)}`)
         // block disabled commands
         if (this.disabledCommands[command]) {
-            color(gray)
-            print(this.disabledCommands[command])
+            this.color(gray)
+            this.print(this.disabledCommands[command])
             return;
         }
-        // first see if the entire command can be executed
-        // the order in which these are checked is important and should not change.
-        if (this.location?.actions.has(command)) {
-            // get location actions first
-            await this.location?.actions.get(command)?.(this);
-        } else {
-            for (let character of this.location?.characters ?? []) {
-                if (character != this && character.interactions.has(command)) {
-                    // get character actions next
-                    await character.interactions.get(command)?.(this);
-                    return
-                }
-            }
-            for (let item of this.items) {
-                // then item actions
-                if (item.actions.has(command)) {
-                    await item.getAction(command)?.(this);
-                    return
-                }
-            }
-            if (this.actions.has(command)) {
-                // player's own actions last, which means they can be overridden by locations, characters, or items
-                console.log(`player action ${command}`)
-                await this.useAction(command);
-                return
-            }
+        // check for actions
+        let verb = Array.from(this.location?.actions.keys() || []).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command;
 
-            // if not, try to parse the command
-            const [verb, args] = splitFirst(command);
-            if (this.location?.actions.has(verb)) {
-                await this.location?.actions.get(verb)?.(this, args);
-            } else {
-                // see if any characters in the room can handle the command
-                for (let character of this.location?.characters ?? []) {
-                    if (character != this && character.interactions.has(verb)) {
-                        await character.interactions.get(verb)?.(this, args);
-                        return
-                    }
+        if (this.location?.actions.has(verb)) {
+            let args = command.slice(verb.length).trim();
+            await this.location?.actions.get(verb)?.(this, args);
+        } else {
+            // see if any characters in the room can handle the command
+            for (let character of this.location?.characters ?? []) {
+                verb = Array.from(character.interactions.keys() || []).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command;
+                if (character != this && character.interactions.has(verb)) {
+                    let args = command.slice(verb.length).trim();
+                    await character.interactions.get(verb)?.(this, args);
+                    return
                 }
-                // see if any items can handle the command
-                for (let item of this.items) {
-                    if (item.actions.has(verb)) {
-                        await item.getAction(verb)?.(this, args);
-                        return
-                    }
-                }
-                if (this.actions.has(verb)) {
-                    console.log(`player action ${verb} ${args}`)
-                    await this.actions.get(verb)?.(args);
-                    return;
-                }
-                color(gray)
-                print('What?');
             }
+            // see if any items can handle the command
+            verb = Array.from(this.items.map(item => Array.from(item.actions.keys())).flat() || []).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command;
+            for (let item of this.items) {
+                // verb = Array.from(item.actions.keys() || []).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command;
+                if (item.actions.has(verb)) {
+                    let args = command.slice(verb.length).trim();
+                    await item.getAction(verb)?.(this, args);
+                    return
+                }
+            }
+            // see if the player can handle the command
+            verb = Array.from(this.actions.keys() || []).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command;
+            if (this.actions.has(verb)) {
+                let args = command.slice(verb.length).trim();
+                console.log(`player action ${verb} ${args}`)
+                await this.actions.get(verb)?.(args);
+                return;
+            }
+            this.color(gray)
+            this.print('What?');
         }
+        // }
     }
 
     disableCommands(commands: string[], message: string) {
@@ -380,14 +376,14 @@ class Player extends A2dCharacter {
         const diff = - prevstats.hp + this.hp - prevstats.sp + this.sp - prevstats.mp + this.mp + this.strength;
         console.log(`healed ${diff} points`)
         this.hunger = Math.max(this.hunger + diff / 10, -this.max_sp / 4)
-        color(magenta)
+        this.color(magenta)
         if (this.hungerPenalty >= 1) {
             this.hurt(this.hunger - this.base_stats.max_sp, 'hunger')
-            print('You are starving!')
+            this.print('You are starving!')
         } else if (this.hungerPenalty && this.flags.hungry) {
-            print('You are hungry.')
+            this.print('You are hungry.')
         } else if (this.hungerPenalty * this.max_sp > 1 && !this.flags.hungry) {
-            print('Your stomach begins to grumble.')
+            this.print('Your stomach begins to grumble.')
             this.flags.hungry = true;
         } else {
             this.flags.hungry = false;
@@ -400,14 +396,14 @@ class Player extends A2dCharacter {
     }
 
     async depart(character: Character, direction: string) {
-        color(green);
-        print(`${caps(character.name)} leaves ${direction}.`);
+        this.color(green);
+        this.print(`${caps(character.name)} leaves ${direction}.`);
     }
 
     async target(target?: Character) {
         console.log(`player targets ${target?.name}`)
         if (!target) {
-            print('They are not here.')
+            this.print('They are not here.')
         }
         await this.fight(target || this.attackTarget);
     }
@@ -416,14 +412,33 @@ class Player extends A2dCharacter {
         this.activeEquipment['right hand'] = weapon == 'right hand';
         this.activeEquipment['left hand'] = weapon == 'left hand';
         this.activeEquipment['bow'] = weapon == 'bow';
+        console.log(`player using: ${weapon}`)
+    }
+
+    async right_attack(targetName?: string) {
+        const target = this.location?.character(targetName) || this.attackTarget;
+        if (target != this.attackTarget) {
+            await this.fight(target);
+        }
+        this.useWeapon('right hand');
+        await this.attack(
+            this.attackTarget,
+            this.equipment['right hand'],
+            this.weaponDamage('right hand')
+        );
     }
 
     async left_attack(targetName: string) {
-        if (targetName) {
-            await this.fight(this.location?.character?.(targetName) || this.attackTarget);
+        const target = this.location?.character(targetName) || this.attackTarget;
+        if (target != this.attackTarget) {
+            await this.fight(target);
         }
         this.useWeapon('left hand');
-        await this.attack(this.attackTarget, this.equipment['left hand'], this.weaponDamage('left hand'));
+        await this.attack(
+            this.attackTarget,
+            this.equipment['left hand'],
+            this.weaponDamage('left hand')
+        );
     }
 
     async bow_attack(enemy: Character | string) {
@@ -433,29 +448,59 @@ class Player extends A2dCharacter {
                 // broaden the search to characters who have just left the room
                 target = this.game.find_all_characters(enemy).filter(character => character.lastLocation == this.location)[0];
                 if (!target) {
-                    print("They're not here.");
+                    this.print("They're not here.");
                     return;
                 }
             }
             enemy = target;
         }
         if (this.equipment['bow'] && this.has('arrow')) {
+            await this.fight(enemy);
+            if (this.attackTarget != enemy) { return; }
             this.removeItem('arrow', 1);
             this.useWeapon('bow');
-            await this.fight(enemy);
-            await this.attack(enemy, this.equipment['bow'], this.weaponDamage('bow'));
+            let hitted = 0;
+            for (let a = 0; a < 50; a++) {
+                if (highRandom() * this.archery <= enemy.evasion) {
+                    break;
+                }
+                hitted += 1
+            }
+            let dam = 0;
+            let does = "Your shot";
+            if (hitted == 0) {
+                this.print("Your shot misses " + enemy.pronouns.object + ".")
+                return;
+            } else if (hitted >= 50) {
+                does += " is perfectly sighted and imbeds its deadly shaft in " + enemy.name + "."
+            } else if (hitted >= 35) {
+                does += " is almost perfect, as it strikes with a hiss."
+            } else if (hitted >= 10) {
+                does += " is a decent one, and " + enemy.pronouns.subject + " winces."
+            } else if (hitted >= 4) {
+                does += " scrapes " + enemy.pronouns.object + "."
+            } else {
+                does += " grazes " + enemy.pronouns.object + "."
+            }
+            dam = Math.min(1.5, hitted / 33.3)
+            this.print(lineBreak(does))
+            await this.game.pause(0.5)
+            const actual_coordination = this.base_stats.coordination
+            this.base_stats.coordination = Infinity  // we already did the coordination check
+            await this.attack(enemy, this.equipment['bow'], this.weaponDamage('bow', dam));
+            this.base_stats.coordination = actual_coordination
         } else if (this.equipment['bow'] && !this.has('arrow')) {
-            print("You're out of arrows.")
+            this.print("You're out of arrows.")
         } else {
-            print("You don't have a bow.")
+            this.print("You don't have a bow.")
         }
     }
 
     async repel(attacker: Character) {
-        color(red)
-        print(`<red>${this.name}<black> takes the initiative to attack you!`);
-        if (!this.fighting && this.equipment['bow']) await this.bow_attack(attacker);
-        // await super.repel(attacker);
+        if (this.attackTarget?.location !== this.location) {
+            // if (this.equipment['bow']) { await this.bow_attack(attacker); }
+            await this.fight(attacker);
+        }
     }
 
     async relocate(newLocation: Location | null, direction?: string) {
@@ -471,82 +516,86 @@ class Player extends A2dCharacter {
                 await character.encounter(this);
             }
         }
+        for (let pet of this.pets) {
+            pet.relocate(newLocation);
+        }
         this.justMoved = false;
     }
 
     async encounter(character: Character) {
-        if (!this.justMoved) {
-            console.log(`player encountered "${character.name}", "${character.description}"`)
-            color(green);
-            print(`${caps(character.name)} enters from ${character.backDirection ? `the ${character.backDirection}` : 'nowhere'}.`);
+        if (!this.justMoved && !this.pets.includes(character)) {
+            console.log(`player encountered "${character.name}", "${character.fight_description}"`)
+            this.color(green);
+            this.print(`${caps(character.name)} enters from ${character.backDirection ? `the ${character.backDirection}` : 'nowhere'}.`);
         }
     }
 
     async look(target?: string) {
-        color(black)
-        print()
-        print(this.location?.name)
+        this.color(black)
+        this.print()
+        this.print(this.location?.name)
         if (this.location?.description) {
             console.log('location description', this.location?.description)
-            color(magenta)
+            this.color(magenta)
             let lineLength = 0;
             let words = this.location?.description.split(' ')
             let lastWord = words[words.length - 1]
             for (let word of words) {
                 if (lineLength + word.length + 1 > 80) {
-                    if (word != lastWord) print()
+                    if (word != lastWord) this.print()
                     lineLength = 0;
                 } else if (lineLength > 0) {
-                    print(' ', 1)
+                    this.print(' ', 1)
                     lineLength += 1;
                 }
-                print(word, 1)
+                this.print(word, 1)
                 lineLength += word.length;
             }
-            print()
+            this.print()
         }
-        color(gray)
+        this.color(gray)
         this.location?.landmarks.forEach(item => {
-            print('    *' + item.description)
+            this.print('    *' + item.description)
         })
-        color(red)
+        this.color(red)
         this.location?.characters.forEach(character => {
-            if (character != this) {
-                print('    ' + (character.name))
+            if (character != this && !this.pets.includes(character)) {
+                this.print('    ' + (character.name))
             }
         })
-        color(gray)
+        this.color(gray)
         this.location?.items.forEach(item => {
-            print('    ' + item.display)
+            this.print('    ' + item.display)
         })
-        color(black)
-        print()
-        print('You can go: ', 1)
-        print(Array.from(this.location?.adjacent?.keys() ?? []).join(', '))
+        this.color(black)
+        this.print()
+        this.print('You can go: ', 1)
+        this.print(Array.from(this.location?.adjacent?.keys() ?? []).join(', '))
     }
 
     async heal() {
-        color(black)
+        this.color(black)
         const healed = Math.min(this.healing, this.max_hp - this.hp, this.sp);
         if (healed == 0) {
-            if (this.sp == 0) print("You are too weak!");
-            else print("You are already at full health.");
+            if (this.sp == 0) this.print("You are too weak!");
+            else this.print("You are already at full health.");
             return;
         }
         this.recoverStats({ hp: healed, sp: -healed });
-        print("You pull yourself together and heal some!");
+        this.print("You pull yourself together and heal some!");
+        if (!this.fighting) this.checkHP();
     }
 
     async go(direction: string) {
         console.log('go!', direction)
-        color(black)
+        this.color(black)
         if (!this.location?.adjacent.has(direction)) {
-            print('You can\'t go that way.')
+            this.print('You can\'t go that way.')
             return;
         } else if (!await this.can_go(direction)) {
             return;
         } else if (this.sp <= 0) {
-            print("You are too weak!");
+            this.print("You are too weak!");
         } else {
             const prevLocation = this.location?.key;
             await super.go(direction)
@@ -563,13 +612,13 @@ class Player extends A2dCharacter {
     async read(itemName: string) {
         const item = this.location?.item(itemName) || this.item(itemName);
         if (!item) {
-            print("You don't have that.")
+            this.print("You don't have that.")
         }
         else if (item.read) {
             await item.read();
         }
         else {
-            print("You can't read that.")
+            this.print("You can't read that.")
         }
     }
 
@@ -578,10 +627,10 @@ class Player extends A2dCharacter {
     }
 
     async checkBuffs() {
-        color(black)
+        this.color(black)
         for (let buff of Object.values(this.buffs)) {
             const buffKeys = Array.from(new Set(Object.keys(buff.times).concat(Object.keys(buff.plus))))
-            print(
+            this.print(
                 `${buff.name}: ${buffKeys.reduce(
                     (prev, curr) => (
                         prev + `\n  ${curr}: ${curr !== 'defense' && curr !== 'damage' ? (
@@ -602,152 +651,219 @@ class Player extends A2dCharacter {
         }
     }
 
-    async checkInventory() {
-        let lines = 3;
-        async function nextLine() {
-            lines += 1;
-            if (lines > 23) {
-                color(black)
-                print('more, press a key...')
-                await getKey();
-                lines = 0;
-                locate(0, 24);
+    async addPet(pet?: Character) {
+        if (!pet) {
+            console.log('fake pet??')
+            return
+        } else if (this.pets.length >= this.max_pets) {
+            this.color(gray)
+            this.print('You have too many pets.')
+            return;
+        } else {
+            this.pets.push(pet);
+            pet.leader = this;
+            pet.onTurn(async function () {
+                this.leader = this.leader instanceof Character ? this.leader : this.location?.character(this.leader) || this;
+                console.log('pet turn', this.name, this.leader.name)
+                if (this.leader.fighting) {
+                    this.fight(this.leader.attackTarget);
+                } else {
+                    this.fight(null)
+                }
+            }).onDeath(async () => {
+                this.pets = this.pets.filter(p => p !== pet);
+                this.print(`<red>${pet.name} was slaughtered--`)
+            }).onSlay(async (victim) => {
+                // player gets credit for pet's kills
+                await this.slay(victim);
+            })
+            pet.persist = false; // pets don't save
+        }
+    }
+
+    async checkPets() {
+        for (let pet of this.pets) {
+            this.color(green)
+            this.print(`${caps(pet.name)}:`)
+            this.print(`  HP: ${pet.hp}/${pet.max_hp}`)
+            this.print(`  agility: ${pet.agility}`)
+            this.print(`  coordination: ${pet.coordination}`)
+            for (let dam of damageTypesList) {
+                if (pet.base_damage[dam]) {
+                    this.print(`  ${dam} damage: ${pet.base_damage[dam]}`)
+                }
             }
         }
-        color(green, black)
-        print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
-        color(black, darkwhite)
-        print()
-        print(`         The Exquisite Inventory of ${this.name}, ${this.class_name}`)
-        color(green, white)
-        print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
-        color(black, darkwhite)
-        print()
+    }
+
+    async checkInventory() {
+        let lines = 3;
+        const nextLine = async () => {
+            lines += 1;
+            if (lines > 23) {
+                this.color(black)
+                this.print('more, press a key...')
+                await this.getKey();
+                lines = 0;
+                this.game.locate(0, 24);
+            }
+        }
+        this.color(green, black)
+        this.print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
+        this.color(black, darkwhite)
+        this.print()
+        this.print(`         The Exquisite Inventory of ${this.name}, ${this.class_name}`)
+        this.color(green, white)
+        this.print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
+        this.color(black, darkwhite)
+        this.print()
         const listItems = this.items.sort((a, b) => (a.name < b.name ? -1 : 1)).filter(item => !(['gold', 'arrows'].includes(item.name)))
         let i = 0
         for (let item of listItems) {
             if (i % 2 == 0) {
-                print('    ' + item.display, 1)
+                this.print('    ' + item.display, 1)
             } else {
-                locate(40)
-                print(item.display)
+                this.game.locate(40)
+                this.print(item.display)
                 await nextLine();
             }
             i++;
         }
         if (listItems.length % 2 == 1) {
-            print();
+            this.print();
             await nextLine();
         }
-        color(gray)
-        print(`Total Object Weight: ${this.inventoryWeight}/${this.max_carry}`)
+        this.color(gray)
+        this.print(`Total Object Weight: ${this.inventoryWeight}/${this.max_carry}`)
         await nextLine();
-        color(green, white)
-        print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
-        color(black, darkwhite)
-        print()
+        this.color(green, white)
+        this.print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
+        this.color(black, darkwhite)
+        this.print()
         await nextLine();
-        color(black)
-        print("Wielded:         ", 1)
-        color(gray)
-        print(this.equipment['right hand']?.name ?? 'fist')
+        this.color(black)
+        this.print("Wielded:         ", 1)
+        this.color(gray)
+        this.print(this.equipment['right hand']?.name ?? 'fist')
         await nextLine();
-        color(black)
-        print("Left Wielded:    ", 1)
-        color(gray)
-        print(this.equipment['left hand']?.name ?? 'fist')
+        this.color(black)
+        this.print("Left Wielded:    ", 1)
+        this.color(gray)
+        this.print(this.equipment['left hand']?.name ?? 'fist')
         await nextLine();
         if (this.equipment['bow']) {
-            color(blue)
-            print("Bow:             " + this.equipment['bow'].name)
+            this.color(blue)
+            this.print("Bow:             " + this.equipment['bow'].name)
             await nextLine();
         }
-        color(black)
-        print("Armor:           ", 1)
-        color(gray)
-        print((this.equipment['armor'] ? this.equipment['armor'].name : 'none'))
+        this.color(black)
+        this.print("Armor:           ", 1)
+        this.color(gray)
+        this.print((this.equipment['armor'] ? this.equipment['armor'].name : 'none'))
         await nextLine();
         if (this.equipment['ring']) {
-            color(blue)
-            print("Ring:            " + this.equipment['ring'].name)
+            this.color(blue)
+            this.print("Ring:            " + this.equipment['ring'].name)
             await nextLine();
         }
         if (this.item('arrows')?.quantity) {
-            color(orange)
-            print("Arrows:          " + this.item('arrows')?.quantity)
+            this.color(orange)
+            this.print("Arrows:          " + this.item('arrows')?.quantity)
             await nextLine();
         }
-        color(yellow)
-        print(`${this.item('gold')?.quantity ?? 0} GP`)
-        color(green, black)
-        print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
-        color(black, darkwhite)
-        print()
+        this.color(yellow)
+        this.print(`${this.item('gold')?.quantity ?? 0} GP`)
+        this.color(green, black)
+        this.print("<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>", 1)
+        this.color(black, darkwhite)
+        this.print()
         if (this.flags.assistant) {
-            color(magenta)
+            this.color(magenta)
             if (this.item('club') && !this.equipment['right hand']) {
-                print("Assistant -- Type \"wield club\" to set it as your wielded weapon.")
+                this.print("Assistant -- Type \"wield club\" to set it as your wielded weapon.")
             }
             if (this.item('short bow') && !this.equipment['bow']) {
-                print("Assistant -- Type \"ready short bow\" to set it as your wielded bow.")
+                this.print("Assistant -- Type \"ready short bow\" to set it as your wielded bow.")
             }
         }
     }
 
     async eat(itemName: string) {
-        const item = this.item(itemName);
+        let item = this.item(itemName);
+        let howmany = 1;
         if (!item) {
-            color(gray)
-            print("You don't have that.")
+            // see if they included a number
+            howmany = parseInt(itemName.split(' ')[0]);
+            if (howmany) {
+                item = this.item(singular(itemName.split(' ').slice(1).join(' ')));
+                if (!item) { item = this.item(itemName.split(' ').slice(1).join(' ')) }
+            } else {
+                item = this.item(singular(itemName));
+                if (item) {
+                    this.print("How many?")
+                    howmany = parseInt(await this.input())
+                    if (isNaN(+howmany)) {
+                        this.print("That's not a number.")
+                        return;
+                    }
+                }
+            }
         }
-        else if (item.eat) {
-            await item.eat(this);
-            this.removeItem(item, 1);
-            if (this.dead) return;
-            color(orange)
-            print(`${item.name} was consumed.`)
+        if (!item) {
+            this.color(gray)
+            this.print("You don't have that.")
+            return;
+        } else if (item.eat) {
+            for (let i = 0; i < howmany; i++) {
+                if (i > 0) await this.game.pause(0.1);
+                await item.eat(this);
+                this.removeItem(item, 1);
+                if (this.dead) return;
+                this.color(orange)
+                this.print(`${item.name} was consumed.`)
+            }
             this.checkHP();
             this.checkHunger();
         }
         else {
-            color(gray)
-            print("You can't eat that.")
+            this.color(gray)
+            this.print("You can't eat that.")
         }
     }
 
     async drink(itemName: string) {
         const item = this.item(itemName);
         if (!item) {
-            color(gray)
-            print("You don't have that.")
+            this.color(gray)
+            this.print("You don't have that.")
         }
         else if (item.drink) {
             await item.drink(this);
             this.removeItem(item, 1);
             if (this.dead) return;
-            color(orange)
-            print(`${item.name} was consumed.`)
+            this.color(orange)
+            this.print(`${item.name} was consumed.`)
             this.checkHP();
             this.checkHunger();
         }
         else {
-            color(gray)
-            print("You can't drink that.")
+            this.color(gray)
+            this.print("You can't drink that.")
         }
     }
 
     async use(itemName: string) {
         const item = this.item(itemName);
         if (!item) {
-            color(gray)
-            print("You don't have that.")
+            this.color(gray)
+            this.print("You don't have that.")
         }
         else if (item.use) {
             await item.use(this);
         }
         else {
-            color(gray)
-            print("You can't use that.")
+            this.color(gray)
+            this.print("You can't use that.")
         }
     }
 
@@ -760,11 +876,12 @@ class Player extends A2dCharacter {
         const item: Item | undefined = typeof itemName === 'string' ? this.inventory.item(itemName) : itemName;
         if (item) {
             this.inventory.remove(item, quantity);
-        } else {
+        } else if (itemName) {
             for (let slot of equipmentSlots) {
                 if (this.equipment[slot]?.name === itemName) {
-                    this.equipment[slot]?.unequip(this);
+                    const item = this.equipment[slot];
                     this.equipment[slot] = null;
+                    item.unequip(this);
                     return;
                 }
             }
@@ -772,52 +889,52 @@ class Player extends A2dCharacter {
     }
 
     async equip(item: string | Item | undefined, slot: keyof Player['equipment']) {
-        color(black)
+        this.color(black)
         if (item == 'fist') {
             item = slot == 'right hand' ? this.right_fist : this.left_fist;
         } else if (typeof item === 'string') {
             item = this.item(item);
         }
         if (!item) {
-            print("You don't have that.")
+            this.print("You don't have that.")
             return;
         } else if (slot == 'right hand' || slot == 'left hand' || slot == 'bow') {
             if (item.requirements) {
                 for (let key of Object.keys(item.requirements)) {
                     if (item.requirements && this.base_stats[key as BaseStats] < (item.requirements[key as BaseStats] || 0)) {
-                        print(`Your ${key} is too low to use that ${item.requirements[key as BaseStats]} required.`)
+                        this.print(`Your ${key} is too low to use that ${item.requirements[key as BaseStats]} required.`)
                         return;
                     }
                 }
                 if (slot === 'bow') {
                     if (item.equipment_slot === 'bow') {
-                        print(`Successfully readied ${item.name} for shooting.`)
+                        this.print(`Successfully readied ${item.name} for shooting.`)
                     } else {
-                        print("That's not a bow.")
+                        this.print("That's not a bow.")
                         if (this.flags.assistant) {
-                            color(magenta)
-                            print(`Assistant -- Type \"wield ${item.name}\" instead.`)
+                            this.color(magenta)
+                            this.print(`Assistant -- Type \"wield ${item.name}\" instead.`)
                         }
                         return;
                     }
                 } else if (slot === 'right hand' || slot === 'left hand') {
                     if ((item as Item)?.equipment_slot === 'bow') {
-                        print("That's a bow, not a melee weapon.")
+                        this.print("That's a bow, not a melee weapon.")
                         if (this.flags.assistant) {
-                            color(magenta)
-                            print(`Assistant -- Type \"ready ${item.name}\" instead.`)
+                            this.color(magenta)
+                            this.print(`Assistant -- Type \"ready ${item.name}\" instead.`)
                         }
                         return;
                     } else {
-                        print(`${item.name} was successfully ${slot === 'left hand' ? 'left-' : ''}wielded.`)
+                        this.print(`${item.name} was successfully ${slot === 'left hand' ? 'left-' : ''}wielded.`)
                     }
                 }
             } else {
-                print("That object has no militaristic properties.")
+                this.print("That object has no militaristic properties.")
                 return;
             }
         } else {
-            print(`${item.name} equipped.`)
+            this.print(`${item.name} equipped.`)
         }
         if (this.equipment[slot] && this.equipment[slot].name != 'fist') {
             // put their previous weapon in their inventory
@@ -849,14 +966,14 @@ class Player extends A2dCharacter {
             let totalDamage = 0;
             const lines: (() => any)[] = [
                 () => {
-                    color(black, darkwhite)
-                    print(`${slot_titles[slot]}: `, 1)
-                    color(black, white)
-                    print(item?.name ?? 'none', 1)
-                    color(black, darkwhite)
+                    this.color(black, darkwhite)
+                    this.print(`${slot_titles[slot]}: `, 1)
+                    this.color(black, white)
+                    this.print(item?.name ?? 'none', 1)
+                    this.color(black, darkwhite)
                 },
             ];
-            if (!item) return lines.concat(() => print('', 1));
+            if (!item) return lines.concat(() => this.print('', 1));
             const isBaseStat = (key: string): key is BaseStats => {
                 return !['damage', 'defense'].includes(key) &&
                     Object.keys(this.base_stats).includes(key);
@@ -875,32 +992,32 @@ class Player extends A2dCharacter {
                                 )
                                 totalDamage += typeDamage;
                                 lines.push(() => {
-                                    color(black)
-                                    print(`${slot == 'left hand' ? `${Math.ceil(this.offhand * 100)}% of ` : ''}`, 1)
-                                    color(blue)
-                                    print(`${amount}x `, 1)
-                                    color(black)
-                                    print(`${damageType} damage`, 1)
-                                    print(` = `, 1)
-                                    color(red)
-                                    print(`${typeDamage}`, 1)
+                                    this.color(black)
+                                    this.print(`${slot == 'left hand' ? `${Math.ceil(this.offhand * 100)}% of ` : ''}`, 1)
+                                    this.color(blue)
+                                    this.print(`${amount}x `, 1)
+                                    this.color(black)
+                                    this.print(`${damageType} damage`, 1)
+                                    this.print(` = `, 1)
+                                    this.color(red)
+                                    this.print(`${typeDamage}`, 1)
                                 })
                             } else if (buffType == 'plus') {
                                 if (key == 'damage' && item.is_weapon)
                                     totalDamage += amount;
                                 lines.push(() => {
-                                    color(blue)
-                                    print(`+${amount} `, 1)
-                                    color(black)
-                                    print(`${damageType} ${key}`, 1)
+                                    this.color(blue)
+                                    this.print(`+${amount} `, 1)
+                                    this.color(black)
+                                    this.print(`${damageType} ${key}`, 1)
                                 })
                             } else if (key == 'defense') {
                                 amount = (1 - 1 / amount)
                                 lines.push(() => {
-                                    color(blue)
-                                    print(`-${Math.ceil(amount * 100)}% `, 1)
-                                    color(black)
-                                    print(`${damageType} damage`, 1)
+                                    this.color(blue)
+                                    this.print(`-${Math.ceil(amount * 100)}% `, 1)
+                                    this.color(black)
+                                    this.print(`${damageType} damage`, 1)
                                 })
                             }
                         }
@@ -911,13 +1028,13 @@ class Player extends A2dCharacter {
             if (item?.is_weapon && (slot == 'right hand' || slot == 'left hand')) {
 
                 lines.push(() => {
-                    color(black)
-                    print('total: ', 1)
-                    color(red)
-                    print(`${totalDamage}`, 1)
+                    this.color(black)
+                    this.print('total: ', 1)
+                    this.color(red)
+                    this.print(`${totalDamage}`, 1)
                 })
             }
-            lines.push(() => print('', 1))
+            lines.push(() => this.print('', 1))
             return lines
         }
         let leftSide = displayItem('right hand')
@@ -938,56 +1055,63 @@ class Player extends A2dCharacter {
 
         for (let i = 0; i < Math.max(leftSide.length, rightSide.length); i++) {
             if (i < leftSide.length) {
-                print("  ", 1)
+                this.print("  ", 1)
                 leftSide[i]()
-            } else print('', 1)
+            } else this.print('', 1)
             if (i < rightSide.length) {
-                locate(40)
+                this.game.locate(40)
                 rightSide[i]()
             }
-            print()
+            this.print()
         }
     }
 
     async spell(spellName: string) {
-        color(black)
+        this.color(black)
         if (this.abilities[spellName]) {
             await spells[spellName].call(this, this.attackTarget || this);
         } else {
             console.log(`${spellName} failed.`)
             console.log(this.abilities)
-            print("You don't know that spell.")
+            this.print("You don't know that spell.")
         }
     }
 
     async drop(itemName: string) {
-        color(black)
+        this.color(black)
         const item = this.item(itemName);
         if (!item) {
-            print("You don't have that.")
+            this.print("You don't have that.")
         }
         else {
             this.dropItem(item.name);
-            print(`Dropped ${item.name}`)
+            this.print(`Dropped ${item.name}`)
         }
     }
 
     async get(itemName: string) {
         const item = this.location?.item(itemName);
         if (!item) {
-            print("That's not here.")
+            this.print("That's not here.")
         }
         else {
             let displayName = item.display
             this.getItem(itemName);
             if (this.has(itemName)) {
-                print(`Got ${displayName}.`)
+                this.print(`Got ${displayName}.`)
             }
             if (item.equipment_slot && this.flags.assistant) {
-                color(magenta)
-                print(`Assistant -- Type \"wear ${item.name}\" to equip it.`)
+                this.color(magenta)
+                this.print(`Assistant -- Type \"wear ${item.name}\" to equip it.`)
             }
         }
+    }
+
+    async getAll() {
+        for (let item of this.location?.items ?? []) {
+            this.get(item.name);
+        }
+        this.print("Got everything.")
     }
 
     has = (item_name: string, quantity: number = 1) => {
@@ -996,40 +1120,61 @@ class Player extends A2dCharacter {
     }
 
     async checkHP() {
-        color(black);
-        print(`[ HP:  ${Math.ceil(this.hp)}/`, 1);
-        if (this.buff_additive('max_hp') > 0 || this.buff_multiplier('max_hp') > 1) color(blue);
-        else if (this.buff_additive('max_hp') < 0 || this.buff_multiplier('max_hp') < 1) color(brightred);
-        print(`${Math.ceil(this.max_hp)}`, 1);
-        color(black);
-        print("  SP: ", 1);
-        if (this.hungerPenalty * this.max_sp > 1) color(brightred);
-        print(`${Math.ceil(this.sp)}/`, 1);
-        if (this.buff_additive('max_sp') > 0 || this.buff_multiplier('max_sp') > 1) color(blue);
-        else if (this.buff_additive('max_sp') < 0 || this.buff_multiplier('max_sp') < 1) color(brightred);
-        print(`${Math.ceil(this.max_sp)}`, 1);
-        color(black);
-        print(`  BP: ${Math.ceil(this.mp)}/`, 1)
-        if (this.buff_additive('max_mp') > 0 || this.buff_multiplier('max_mp') > 1) color(blue);
-        else if (this.buff_additive('max_mp') < 0 || this.buff_multiplier('max_mp') < 1) color(brightred);
-        print(`${Math.ceil(this.max_mp)} ]`)
-        color(black)
+        this.color(black);
+        this.print(`[ HP:  ${Math.ceil(this.hp)}/`, 1);
+        if (this.buff_additive('max_hp') > 0 || this.buff_multiplier('max_hp') > 1) this.color(blue);
+        else if (this.buff_additive('max_hp') < 0 || this.buff_multiplier('max_hp') < 1) this.color(brightred);
+        this.print(`${Math.ceil(this.max_hp)}`, 1);
+        this.color(black);
+        this.print("  SP: ", 1);
+        if (this.hungerPenalty * this.max_sp > 1) this.color(brightred);
+        this.print(`${Math.ceil(this.sp)}/`, 1);
+        if (this.buff_additive('max_sp') > 0 || this.buff_multiplier('max_sp') > 1) this.color(blue);
+        else if (this.buff_additive('max_sp') < 0 || this.buff_multiplier('max_sp') < 1) this.color(brightred);
+        this.print(`${Math.ceil(this.max_sp)}`, 1);
+        this.color(black);
+        this.print(`  BP: ${Math.ceil(this.mp)}/`, 1)
+        if (this.buff_additive('max_mp') > 0 || this.buff_multiplier('max_mp') > 1) this.color(blue);
+        else if (this.buff_additive('max_mp') < 0 || this.buff_multiplier('max_mp') < 1) this.color(brightred);
+        this.print(`${Math.ceil(this.max_mp)} ]`)
+        this.color(black)
     }
 
     checkHunger() {
-        print(`[ Hunger: `, 1)
-        const barLength = 18 + [this.max_hp, this.hp, this.max_sp, this.sp, this.max_mp, this.mp].reduce(
-            (sum, stat) => sum + Math.max(Math.floor(Math.log10(stat)), 0), 0
+        this.print(`[ Hunger: `, 1)
+        const barLength = 12 + [this.max_hp, this.hp, this.max_sp, this.sp, this.max_mp, this.mp].reduce(
+            (sum, stat) => sum + Math.ceil(stat).toString().length, 0
         );
         const barColor = red; // this.hunger / this.max_sp > 1 / 4 ? (this.hunger > this.max_sp / 2 ? brightred : red) : green
         for (let i = 0; i < barLength; i++) {
-            if (this.hunger / super.max_sp * barLength > i) color(darkwhite, barColor)
-            else color(darkwhite, black)
-            print('▂', 1)
+            if (this.hunger / super.max_sp * barLength > i) this.color(darkwhite, barColor)
+            else this.color(darkwhite, black)
+            this.print('▂', 1)
         }
-        color(black, darkwhite)
-        print(' ]')
-        // print(this.hunger.toString())
+        this.color(black, darkwhite)
+        this.print(' ]')
+        // this.print(this.hunger.toString())
+    }
+
+    async help() {
+        const print = this.print;
+        print("Here are some basic commands used in this game:")
+        print(" n, s, e, w (for north, south, east, west): go in the specified direction.")
+        print(" at times, you may also go northeast (ne), etc.")
+        print(" look: see what's around you.")
+        print(" get [item]: pick up an item.")
+        print(" drop [item]: drop an item.")
+        print(" eat (or drink) [item]: consume an item.")
+        print(" talk [character]: speak to a character.")
+        print(" fight [character]: attack a character.")
+        print(" flee: run away from a fight.")
+        print(" wield [item]: equip an item to fight.")
+        print(" left wield [item]: equip an item in your left hand.")
+        print(" cast [spell]: use a spell.")
+        print(" i (or inventory): check your inventory.")
+        print(" stats: check your stats.")
+        print(" hp: check your health, stamina, magic and hunger levels.")
+        print(" equipment: examine your equipped items.")
     }
 
     statName(key: StatKey): string {
@@ -1077,28 +1222,28 @@ class Player extends A2dCharacter {
     printBuff(statName: BaseStats, buffType: 'plus' | 'times', value: number) {
         const defaultValue = buffType === 'plus' ? 0 : 1;
         if (value == defaultValue) return;
-        color(value > defaultValue ? blue : brightred)
+        this.color(value > defaultValue ? blue : brightred)
         switch (statName) {
             case 'hp_recharge':
             case 'sp_recharge':
             case 'mp_recharge':
             case 'offhand':
-                if (buffType == 'plus') print(`${value > defaultValue ? '+' : ''}${value * 100}% `, 1)
+                if (buffType == 'plus') this.print(`${value > defaultValue ? '+' : ''}${value * 100}% `, 1)
                 break;
             case 'offhand':
-                if (buffType == 'plus') print(`${value > defaultValue ? '+' : ''}${value * 100}% `, 1)
+                if (buffType == 'plus') this.print(`${value > defaultValue ? '+' : ''}${value * 100}% `, 1)
                 break;
             default:
                 if (buffType == 'times') {
-                    if (value > defaultValue) print(`+${Math.ceil(value * 100 - 100)}% `, 1)
-                    else if (value < defaultValue) print(`-${Math.ceil(value * 100 - 100)}% `, 1)
+                    if (value > defaultValue) this.print(`+${Math.ceil(value * 100 - 100)}% `, 1)
+                    else if (value < defaultValue) this.print(`-${Math.ceil(value * 100 - 100)}% `, 1)
                 } else if (buffType == 'plus') {
-                    if (value > defaultValue) print(`+${Math.ceil(value)} `, 1)
-                    else if (value < defaultValue) print(`${Math.ceil(value)} `, 1)
+                    if (value > defaultValue) this.print(`+${Math.ceil(value)} `, 1)
+                    else if (value < defaultValue) this.print(`${Math.ceil(value)} `, 1)
                 }
         }
-        color(black);
-        print(this.statName(statName), 1)
+        this.color(black);
+        this.print(this.statName(statName), 1)
     }
 
     async checkStats() {
@@ -1106,62 +1251,62 @@ class Player extends A2dCharacter {
             const plus = this.buff_additive(statName);
             const times = this.buff_multiplier(statName);
             if (this.base_stats[statName] < this[statName]) {
-                color(blue)
+                this.color(blue)
             } else if (this.base_stats[statName] > this[statName]) {
-                color(brightred)
+                this.color(brightred)
             } else {
-                color(black)
+                this.color(black)
             }
-            print(this.statValue(statName, (this[statName] as number)), 1)
-            if (plus > 0) print(` (+${this.statValue(statName, plus)})`, 1)
-            else if (plus < 0) print(` (${this.statValue(statName, plus)})`, 1)
-            if (times !== 1) print(` (x${this.statValue(statName, times)})`, 1)
-            print()
-            color(black)
+            this.print(this.statValue(statName, (this[statName] as number)), 1)
+            if (plus > 0) this.print(` (+${this.statValue(statName, plus)})`, 1)
+            else if (plus < 0) this.print(` (${this.statValue(statName, plus)})`, 1)
+            if (times !== 1) this.print(` (x${this.statValue(statName, times)})`, 1)
+            this.print()
+            this.color(black)
         }
-        color(black)
-        print(`Class: ${this.class_name}`)
-        print(`Archery: `, 1)
+        this.color(black)
+        this.print(`Class: ${this.class_name}`)
+        this.print(`Archery: `, 1)
         printStat('archery')
-        print(`Coordination: `, 1)
+        this.print(`Coordination: `, 1)
         printStat('coordination')
-        print(`Agility: `, 1)
+        this.print(`Agility: `, 1)
         printStat('agility')
-        print(`Strength: `, 1)
+        this.print(`Strength: `, 1)
         printStat('strength')
-        print(`Max HP: `, 1)
+        this.print(`Max HP: `, 1)
         printStat('max_hp')
-        print(`Max SP: `, 1)
+        this.print(`Max SP: `, 1)
         printStat('max_sp')
-        print(`Max BP: `, 1)
+        this.print(`Max BP: `, 1)
         printStat('max_mp')
-        print(`Healing: `, 1)
+        this.print(`Healing: `, 1)
         printStat('healing')
-        print(`HP recovery: `, 1)
+        this.print(`HP recovery: `, 1)
         printStat('hp_recharge')
-        print(`SP recovery: `, 1)
+        this.print(`SP recovery: `, 1)
         printStat('sp_recharge')
-        print(`BP recovery: `, 1)
+        this.print(`BP recovery: `, 1)
         printStat('mp_recharge')
-        print(`OffHand: `, 1)
+        this.print(`OffHand: `, 1)
         printStat('offhand')
-        print(`Magic Level: `, 1)
+        this.print(`Magic Level: `, 1)
         printStat('magic_level')
         for (let ability in this.abilities) {
-            print(`--${caps(ability)} skill: ${abilityLevels[Math.floor(this.abilities[ability])]}`)
+            this.print(`--${caps(ability)} skill: ${abilityLevels[Math.floor(this.abilities[ability])]}`)
         }
     }
 
     checkXP() {
-        color(black)
-        print(`EXP: ${this.experience}`)
+        this.color(black)
+        this.print(`EXP: ${this.experience}`)
     }
 
     async talkTo(characterName: string) {
         const character = this.location?.character(characterName);
-        color(black)
+        this.color(black)
         if (!character) {
-            print("They're not here.")
+            this.print("They're not here.")
         }
         else {
             await character.talk(this);
@@ -1170,82 +1315,88 @@ class Player extends A2dCharacter {
 
     async die(cause: any) {
         this.hp = Math.min(this.hp, 0);
-        color(brightred, gray)
+        this.color(brightred, gray)
         if (cause instanceof Character) {
-            print(`You go limply unconscious as ${cause.name} stands triumphantly over you.`)
+            this.print(`You go limply unconscious as ${cause.name} stands triumphantly over you.`)
         } else {
-            print(`You have died from ${cause}.`)
+            this.print(`You have died from ${cause}.`)
         }
     }
 
     async slay(character: Character | Character[]) {
+        const enemies_remaining = this.location?.characters.filter(char => char !== this && (char.attackTarget === this || char.enemies.includes(this.name)));
+        if (enemies_remaining) this.checkHP();
+
         if (character instanceof Character) {
             character = [character];
         }
         let exp_gained = 0;
         let gold_gained = 0;
-        print()
-        color(yellow)
-        print(`You defeat `, 1)
-        printCharacters({
+        this.print()
+        this.color(yellow)
+        this.print(`You defeat `, 1)
+        this.print(printCharacters({
             characters: character,
-            basecolor: yellow,
-            charcolor: yellow
-        });
-        print('!')
-        color(black)
+            basecolor: 'yellow',
+            charcolor: 'yellow'
+        }), 1);
+        this.print('!')
+        this.color(black)
         for (let char of character) {
             exp_gained += char.exp_value;
             if (char.has('gold')) {
                 gold_gained += char.itemCount('gold');
             }
             for (let item of char.items) {
-                if (item.name !== 'gold') print(`${char.name} drops ${item.display}`)
+                if (item.name !== 'gold') this.print(`${char.name} drops ${item.display}`)
             }
         }
         // sum up gold and exp all together
-        color(green)
-        if (gold_gained) print(`you gain ${gold_gained} gold.`)
+        this.color(green)
+        if (gold_gained) this.print(`you gain ${gold_gained} gold.`)
         this.getItem('gold', this.location || undefined, gold_gained);
-        color(green)
-        print(`you gain ${exp_gained} exp.`)
+        this.color(green)
+        this.print(`you gain ${exp_gained} exp.`)
         this.experience += exp_gained;
+        console.log(this.name, 'slays', character.map(char => char.name).join(', '), 'for', gold_gained, 'gold and', exp_gained, 'exp')
 
         // who else wants some??
-        const enemies_remaining = this.location?.characters.filter(char => char !== this && char.attackTarget === this || char.enemies.includes(this.name));
+        console.log('enemies remaining', enemies_remaining?.map(char => char.name))
         if (enemies_remaining?.length) {
-            await getKey();
+            await this.getKey();
             // group them by name and list them
-            printCharacters({ characters: enemies_remaining, capitalize: true });
-            print(` ${enemies_remaining.length > 1 ? 'continue' : 'continues'} the attack!`)
+            this.print(printCharacters({ characters: enemies_remaining, capitalize: true }), 1);
+            console.log('-----------------', this.name, 'continutes to fight', printCharacters({ characters: enemies_remaining, capitalize: true }))
+            this.print(`<black> ${enemies_remaining.length > 1 ? 'continue' : 'continues'} the attack!`)
             await this.fight(enemies_remaining[0]);
-        } else { await this.fight(null) }
+        } else {
+            await this.fight(null)
+        }
     }
 
     async turn() {
         if (this.flags.assistant)
             assistant(this);
-        await this.getInput();
+        this.fighting = this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
         if (this.fighting) {
-            if (!this.attackTarget || this.attackTarget.dead) {
+            if (!this.attackTarget) {
                 await this.fight(this.location?.characters.find(char => {
                     return char.attackTarget === this || char.enemies.includes(this.name) || this.enemies.includes(char.name)
                 }) || null);
+            } else {
+                await this.right_attack(this.attackTarget.unique_id)
+                this.sp -= 1;
+                if (this.sp < 0) {
+                    this.hp -= 1;
+                    this.sp = 0;
+                }
             }
-            if (!this.attackTarget) { return }
-            this.useWeapon('right hand');
-            await this.attack(
-                this.attackTarget,
-                this.equipment['right hand'],
-                this.weaponDamage('right hand')
-            );
-            this.sp -= 1;
-            if (this.sp < 0) {
-                this.hp -= 1;
-                this.sp = 0;
-            }
+        } else {
+            // ready bow when not fighting
+            this.useWeapon('bow');
+            this.fight(null);
         }
-
+        await this.getinput();
     }
 
     buff_additive(key: BaseStats): number {
@@ -1255,7 +1406,6 @@ class Player extends A2dCharacter {
         for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
             buff += this.equipment?.[slot]?.buff?.plus?.[key] ?? 0;
         }
-        if (this.activeEquipment['bow'] && key == 'coordination') { buff += this.base_stats.archery / 4 - this.base_stats.coordination * 3 / 4; }
         return buff;
     }
 
@@ -1277,8 +1427,6 @@ class Player extends A2dCharacter {
         for (let slot of Object.keys(this.equipment).filter(k => this.activeEquipment[k as EquipmentSlot]) as EquipmentSlot[]) {
             buff += this.equipment?.[slot]?.buff?.plus?.damage?.[type] ?? 0;
         }
-        // archery bonus
-        if (this.activeEquipment['bow']) { buff *= Math.log10(this.archery); }
         return buff + super.buff_damage_additive(type);
     }
 
@@ -1312,17 +1460,18 @@ class Player extends A2dCharacter {
         return buff * super.buff_defense_multiplier(type);
     }
 
-    weaponDamage(weapon: 'right hand' | 'left hand' | 'bow') {
+    weaponDamage(weapon: 'right hand' | 'left hand' | 'bow', multiplier: number = 1) {
         this.useWeapon(weapon);
         const dam: { [key in DamageTypes]: number } = {
-            'blunt': this.strength * this.buff_damage_multiplier('blunt') + this.buff_damage_additive('blunt'),
-            'sharp': this.strength * this.buff_damage_multiplier('sharp') + this.buff_damage_additive('sharp'),
-            'magic': (this.strength + this.magic_level) * this.buff_damage_multiplier('magic') + this.buff_damage_additive('magic'),
-            'poison': this.buff_damage_additive('poison'),
-            'fire': this.buff_damage_additive('fire'),
-            'cold': this.buff_damage_additive('cold'),
-            'electric': this.buff_damage_additive('electric'),
-            'sonic': this.buff_damage_additive('sonic'),
+            'blunt': this.strength * this.buff_damage_multiplier('blunt') + this.buff_damage_additive('blunt') * multiplier,
+            'sharp': this.strength * this.buff_damage_multiplier('sharp') + this.buff_damage_additive('sharp') * multiplier,
+            'magic': (this.strength + this.magic_level) * this.buff_damage_multiplier('magic') + this.buff_damage_additive('magic') * multiplier,
+            'poison': this.buff_damage_additive('poison') * multiplier,
+            'fire': this.buff_damage_additive('fire') * multiplier,
+            'cold': this.buff_damage_additive('cold') * multiplier,
+            'electric': this.buff_damage_additive('electric') * multiplier,
+            'sonic': this.buff_damage_additive('sonic') * multiplier,
+            'acid': this.buff_damage_additive('acid') * multiplier,
         }
         console.log(`weapon damage: ${JSON.stringify(dam)}`)
         return dam;
@@ -1330,11 +1479,12 @@ class Player extends A2dCharacter {
 
     async cheat(command: string) {
         if (!this.cheatMode) {
-            print("what?")
+            this.print("what?")
             return;
         } else {
             const code = command.includes(' ') ? command.split(' ')[0] : command;
             const value = command.includes(' ') ? command.split(' ').slice(1).join(' ') : command;
+            const quantity = parseInt(value.slice(0, value.indexOf(' '))) || 0;
             switch (code) {
                 case ('hp'):
                     this.recoverStats({ hp: parseInt(value) || 0 });
@@ -1349,35 +1499,63 @@ class Player extends A2dCharacter {
                     await this.checkHP();
                     break;
                 case ('max_hp'):
-                    this.base_stats.max_hp += parseInt(value) || 0;
+                    this.base_stats.max_hp = parseInt(value) || 0;
                     await this.checkHP();
                     break;
                 case ('max_sp'):
-                    this.base_stats.max_sp += parseInt(value) || 0;
+                    this.base_stats.max_sp = parseInt(value) || 0;
                     await this.checkHP();
                     break;
                 case ('max_mp'):
-                    this.base_stats.max_mp += parseInt(value) || 0;
+                    this.base_stats.max_mp = parseInt(value) || 0;
                     await this.checkHP();
                     break;
                 case ('strength'):
-                    this.base_stats.strength += parseInt(value) || 0;
+                    this.base_stats.strength = parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('agility'):
-                    this.base_stats.agility += parseInt(value) || 0;
+                    this.base_stats.agility = parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('coordination'):
-                    this.base_stats.coordination += parseInt(value) || 0;
+                    this.base_stats.coordination = parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('healing'):
-                    this.base_stats.healing += parseInt(value) || 0;
+                    this.base_stats.healing = parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('magic_level'):
-                    this.base_stats.magic_level += parseInt(value) || 0;
+                    this.base_stats.magic_level = parseInt(value) || 0;
+                    await this.checkStats();
+                    break;
+                case ('newbie'):
+                    this.abilities.newbie = parseInt(value) || 0;
+                    await this.checkStats();
+                    break;
+                case ('bolt'):
+                    this.abilities.bolt = parseInt(value) || 0;
+                    await this.checkStats();
+                    break;
+                case ('fire'):
+                    this.abilities.fire = parseInt(value) || 0;
+                    await this.checkStats();
+                    break;
+                case ('blades'):
+                    this.abilities.blades = parseInt(value) || 0;
+                    await this.checkStats();
+                    break;
+                case ('powermaxout'):
+                    this.abilities.powermaxout = parseInt(value) || 0;
+                    await this.checkStats();
+                    break;
+                case ('archery'):
+                    this.base_stats.archery = parseInt(value) || 0;
+                    await this.checkStats();
+                    break;
+                case ('speed'):
+                    this.base_stats.speed = parseInt(value) || 0;
                     await this.checkStats();
                     break;
                 case ('xp'):
@@ -1386,32 +1564,32 @@ class Player extends A2dCharacter {
                     break;
                 case ('gold'):
                     this.game.addItem({ name: 'gold', quantity: parseInt(value) || 0, container: this.inventory });
-                    color(yellow)
-                    print(`ka-ching! +${value} = ${this.itemCount('gold')}`)
+                    this.color(yellow)
+                    this.print(`ka-ching! +${value} = ${this.itemCount('gold')}`)
                     break;
                 case ('item'):
                     if (isValidItemKey(value)) {
                         this.game.addItem({ name: value, quantity: 1, container: this.inventory });
-                        print(`${value} created ;)`)
+                        this.print(`${value} created ;)`)
                     }
                     break;
                 case ('delete'):
-                    const quantity = parseInt(value.slice(value.lastIndexOf(' ') + 1)) || 1
+
                     this.removeItem(this.item(value), quantity);
-                    print(`deleted ${quantity} ${value}`)
+                    this.print(`deleted ${quantity} ${value}`)
                     break;
                 case ('regen'):
                     this.game.loadScenario(scenario)
                     this.relocate(this.game.find_location(this.location?.key || '') || null);
-                    print('map regenerated.')
+                    this.print('map regenerated.')
                     break;
                 case ('enable'):
                     this.enableCommands();
-                    print('commands enabled.')
+                    this.print('commands enabled.')
                     break;
                 case ('landmark'):
                     this.game.addLandmark(value, this.location!);
-                    print(`landmark ${value} added.`)
+                    this.print(`landmark ${value} added.`)
                     break;
                 case ('flag'):
                 case ('flags'):
@@ -1436,14 +1614,14 @@ class Player extends A2dCharacter {
                             this.flags.forest_pass = !this.flags.forest_pass;
                             break;
                         default:
-                            print('flag not recognized.')
+                            this.print('flag not recognized.')
                             return;
                     }
-                    print(`flag ${value} set.`)
+                    this.print(`flag ${value} set.`)
                     break;
                 case ('assistant'):
                     this.assistantHintsUsed = {};
-                    print('assistant hints reset.')
+                    this.print('assistant hints reset.')
                     break;
                 case ('void'):
                     // delete any previous void
@@ -1457,15 +1635,15 @@ class Player extends A2dCharacter {
                     const target = this.location?.character(value);
                     if (target) {
                         target.die(this);
-                        this.slay(target);
+                        await this.slay(target);
                     } else {
-                        print('target not found.')
+                        this.print('target not found.')
                     }
                     break;
                 case ('spawn'):
                     const location = this.location!;
                     this.game.addCharacter({ name: value as keyof typeof this.game.characterTemplates, location });
-                    print(`${value} spawned.`)
+                    this.print(`${value} spawned.`)
                     break;
             }
         }
@@ -1505,15 +1683,17 @@ class Player extends A2dCharacter {
             equipment: Object.fromEntries(
                 Object.entries(this.equipment).map(([key, item]) => [key, item?.save() ?? null])
             ),
+            activeEquipment: this.activeEquipment,
             buffs: Object.fromEntries(
                 Object.entries(this.buffs).map(([key, buff]) => [key, buff.save()])
             ),
+            pets: this.pets.map(pet => pet.save()),
             flags: this.flags,
             assistantHintsUsed: this.assistantHintsUsed
         }
     }
 
-    load(character: any) {
+    async load(character: any) {
         Object.assign(this.base_stats, {
             max_hp: character._max_hp || character.max_hp,
             hp_recharge: character._hp_recharge || character.hp_recharge,
@@ -1542,10 +1722,11 @@ class Player extends A2dCharacter {
             disabledCommands: character.disabledCommands,
             flags: character.flags,
             assistantHintsUsed: character.assistantHintsUsed,
-            hp: character._hp || character.hp,
+            hp: Math.max(1, character._hp || character.hp),
             sp: character._sp || character.sp,
             mp: character._mp || character.mp,
         })
+        if (character.activeEquipment) { this.activeEquipment = character.activeEquipment }
         // load items properly
         this.clearInventory()
         character.items.forEach((itemData: any) => {
@@ -1564,26 +1745,33 @@ class Player extends A2dCharacter {
                 this.addBuff(getBuff(buff.name)?.(buff))
             })
         }
+        await this.relocate(character.location)
+        if (character.pets) {
+            for (let pet of character.pets) {
+                this.addPet(this.game.addCharacter({ location: this.location, name: pet.key, ...pet }))
+                console.log(`pet ${pet.key} loaded at ${this.location}.`)
+            }
+        }
         return this;
     }
 
     async loadGame() {
-        color(black)
+        this.color(black)
         let success = false;
         while (!success) {
             let saveName = ''
             while (!saveName) {
-                saveName = await input('Enter the name of your character to load: ');
+                saveName = await this.input('Enter the name of your character to load: ');
             }
-            print("Loading now...")
+            this.print("Loading now...")
             success = await this.game.load(saveName);
         }
     }
 
     async saveGame() {
-        color(black)
+        this.color(black)
         await this.game.save();
-        print('Game saved.')
+        this.print('Game saved.')
     }
 }
 
