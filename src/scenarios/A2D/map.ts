@@ -21,7 +21,7 @@ const scenario = {
                     "| This is a text-based game where you type |",
                     "| commands to have your character perform  |",
                     "| an action.  To learn about actions you   |",
-                    "| can do, type ",
+                    "| can do, type \"help\".                     |",
                     "|------------------------------------------|"
                 ]
             }]
@@ -309,7 +309,7 @@ const scenario = {
             name: "Meat Market",
             adjacent: { 'west': 88 },
             characters: [{ name: 'butcher' }],
-            items: [{ name: 'side_of_meat' }, { name: 'giraffe_gizzard' }]
+            items: [{ name: 'side of meat' }, { name: 'giraffe_gizzard' }]
         },
         26: {
             name: "North Road",
@@ -2501,9 +2501,19 @@ const scenario = {
         },
     },
     flags: {
-        orc_battle: false,
-        cradel: false,
+        cleric: false,
+        ieadon: false,
+        colonel_arach: false,
+        biadon: false,
         ziatos: false,
+        turlin: false,
+        henge: false,
+        cradel: false,
+        orc_mission: false,
+        orc_battle: false,
+        ierdale_mission: '',
+        sift: false,
+        soldier_dialogue: []
     }
 }
 
