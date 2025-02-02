@@ -33,6 +33,8 @@ X onTimer event
 X pets
 X map of the (human) world
 X eat multiple food items at once
+X enhance storyline around Ziatos
+X "help" command
 
 / revamp timing system (each action takes a specific amount of time, pop next action from the queue when character.time > action.timeNeeded)
 / battle royal vs orcs ... If Arach lives, he'll tell the player how to get to the void. If Arach dies, then Ieadon saunters back into town.
@@ -41,3 +43,5 @@ X eat multiple food items at once
   battle royal vs humans
   two-handed weapons
   list of existing (player) character names, enforce uniqueness
+  enhance storyline around Cat Woman
+  scroll over output on client side
