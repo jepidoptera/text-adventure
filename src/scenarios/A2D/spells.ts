@@ -154,11 +154,21 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
 }) {
     return async function (this: A2dCharacter, target: Character) {
         // console.log(this.abilities)
-        const hit = accuracy > target.evasion;
+        let hit = accuracy > target.evasion;
         if (!hit) {
-            damage = -1;
             console.log(`${target.name} dodges ${spellName}!`)
-        } else {
+            const otherEnemies = this.location?.characters.filter(character => {
+                (character.enemies.includes(this.name) || this.enemies.includes(character.name)) && !casualties.includes(character) && character !== target
+            }) || []
+            for (const char of otherEnemies) {
+                if (Math.random() * char.agility < Math.random() * otherEnemies.length) {
+                    this.game.print(`You miss ${target.name} and hit ${char.name} instead!`)
+                    target = char;
+                    hit = true;
+                }
+            }
+        }
+        if (hit) {
             damage = Math.max(target.modify_damage(damage, damageType), 0);
             console.log(`${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
         }
@@ -171,9 +181,9 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
             damage = (damage - target.hp) * damage_overflow
             console.log(`${target.name} is dead from ${spellName}!`)
             if (damage_overflow) {
-                const targetRemaining = this.location?.characters.filter(character => (character.enemies.includes(this.name) || this.enemies.includes(character.name)) && !casualties.includes(character)) || []
-                console.log(`damage overflows to ${targetRemaining.length} remaining enemies`)
-                const newTarget = randomChoice(targetRemaining)
+                const otherEnemies = this.location?.characters.filter(character => (character.enemies.includes(this.name) || this.enemies.includes(character.name)) && !casualties.includes(character)) || []
+                console.log(`damage overflows to ${otherEnemies.length} remaining enemies`)
+                const newTarget = randomChoice(otherEnemies)
                 if (newTarget) {
                     await damageSpell({ spellName, damage, accuracy, damageType, weaponType, damage_overflow, casualties }).call(this, newTarget)
                 } else { damage = 0 }
