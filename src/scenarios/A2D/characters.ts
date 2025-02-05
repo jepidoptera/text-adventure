@@ -108,8 +108,8 @@ class A2dCharacter extends Character {
         return super.onDeath(this.bindMethod(action));
     }
 
-    onTurn(action: ((this: A2dCharacter) => Promise<void>) | null) {
-        return super.onTurn(action ? this.bindMethod(action) : null);
+    onIdle(action: ((this: A2dCharacter) => Promise<void>) | null) {
+        return super.onIdle(action ? this.bindMethod(action) : null);
     }
 
     fightMove(action: (this: A2dCharacter) => Promise<void>): this {
@@ -300,6 +300,7 @@ class A2dCharacter extends Character {
 
 const actions = {
     wander: function ({ bounds, frequency = 1 / 2 }: { bounds?: string[], frequency?: number }) {
+        bounds = bounds?.map(bound => bound.toLowerCase())
         async function wander_function(this: A2dCharacter) {
             if (this.fighting) return;
             if (Math.random() < frequency) {
@@ -307,7 +308,7 @@ const actions = {
                     this.location?.adjacent?.keys() || []
                 ).filter(
                     // don't go back if you can help it
-                    key => key != this.backDirection
+                    async key => key != this.backDirection && await this.can_go(key)
                 ).filter(
                     key => {
                         // stay in bounds
@@ -328,7 +329,9 @@ const actions = {
                 )) {
                     console.log(`${this.name} turned back at ${goLocation.name}`)
                     return;
-                } else this.push_action(`go ${goDirection}`);
+                } else this.push_action({ command: `go ${goDirection}` });
+            } else {
+                this.push_action({ command: 'wait' });
             }
         }
         return wander_function;
@@ -604,7 +607,7 @@ const characters = {
             game: game,
             key: 'guard captain',
             items: [{ name: 'gold', quantity: 25 }, 'longsword'],
-            max_hp: 100,
+            max_hp: 200,
             damage: { blunt: 10, sharp: 40 },
             weaponName: 'longsword',
             attackVerb: 'slice',
@@ -745,7 +748,7 @@ const characters = {
             }
         }).fightMove(
             actions.call_help('security_guard')
-        ).onTurn(async function () {
+        ).onIdle(async function () {
             if (!this.fighting) this.flags.called_for_help = false;
         })
     },
@@ -782,7 +785,7 @@ const characters = {
             armor: { blunt: 2 },
             coordination: 3,
             agility: 2,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -821,7 +824,7 @@ const characters = {
             actions.declare_war
         ).fightMove(
             actions.call_help('general_kerry', 'general_gant', 'ierdale_soldier')
-        ).onTurn(async function () {
+        ).onIdle(async function () {
             if (this.game.flags.orc_battle && !this.fighting && !this.actionQueue.length) {
                 this.goto('eastern gatehouse')
             }
@@ -860,7 +863,7 @@ const characters = {
             }
         }).onAttack(
             actions.declare_war
-        ).onTurn(actions.wander({
+        ).onIdle(actions.wander({
             bounds: [
                 'mucky path', 'stony bridge', 'dry grass', 'entrance to the forest of thieves', 'house', 'sandy desert', 'path of nod'
             ], frequency: 1 / 4
@@ -1094,7 +1097,7 @@ const characters = {
                 console.log('character "blacksmith" not found.')
                 return
             }
-            blacksmith.attackPlayer = true
+            blacksmith.hostile = true
         }).fightMove(
             actions.heal
         ).interaction('buy', actions.buy);
@@ -1173,19 +1176,28 @@ const characters = {
             armor: { blunt: 1, magic: 18 },
             coordination: 1,
             agility: 1.5,
+            damage: { magic: 10 },
             weaponName: 'spritzer power',
             attackVerb: 'magic',
-            spellChance: () => Math.random() < 1 / 4,
         }).dialog(async function (player: Character) {
             this.print("Wanna play?");
         }).onDeath(async function () {
             this.color(brightblue);
             this.print(`Baby spritzer vanishes to be with ${this.pronouns.possessive} parents, ${this.pronouns.subject} is done playing.`);
-        }).fightMove(
-            actions.sleep
-        ).onRespawn(async function () {
+        }).fightMove(async function () {
+            if (Math.random() < 1 / 4) {
+                if (this.location?.playerPresent) {
+                    this.color(magenta);
+                    this.print(`Baby spritzer opens ${this.pronouns.possessive} mouth wide...`);
+                }
+                for (let character of this.location?.characters || []) {
+                    if (character != this) await character.addBuff(getBuff('sleep')({ duration: 25, power: 1 }));
+                    await character.fight(null)
+                }
+            }
+        }).onRespawn(async function () {
             this.enemies = [];
-            this.attackPlayer = false;
+            this.hostile = false;
         });
     },
 
@@ -1353,7 +1365,7 @@ const characters = {
             coordination: 25,
             agility: 15,
             armor: { blunt: 25 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
             exp: 3456,
@@ -1656,7 +1668,7 @@ const characters = {
         }).dialog(async function (player: Character) {
             this.print("Ierdale will stop at nothing to destroy us!");
             this.print("Join us against them, brother!");
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['grobin gates'] })
         ).onAttack(
             actions.declare_war
@@ -1683,7 +1695,7 @@ const characters = {
         }).dialog(async function (player: Character) {
             this.print("Ierdale will stop at nothing to destroy us!");
             this.print("Join us against them, brother!");
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
         ).onAttack(
             actions.declare_war
@@ -1708,7 +1720,7 @@ const characters = {
             pronouns: randomChoice([pronouns.male, pronouns.female]),
         }).dialog(async function (player: Character) {
             this.print('Kill humans! Weeeee!')
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
         ).onAttack(
             actions.declare_war
@@ -1732,7 +1744,7 @@ const characters = {
             agility: 3,
             alignment: 'orcs',
             flags: { enemy_of_ierdale: true },
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['grobin gates', 'peon house', 'orc house', 'house', 'orcish grocery'] })
         ).dialog(async function (player: Character) {
             this.print("Ten-hut! The humans will find no quarter with me!");
@@ -1780,7 +1792,7 @@ const characters = {
         }).onAttack(async function (attacker) {
             // pass revoked
             attacker.flags.orc_pass = false;
-        }).onTurn(async function () {
+        }).onIdle(async function () {
             if (this.game.flags.orc_battle && !this.fighting) {
                 this.goto('Ierdale Barracks');
             }
@@ -2060,7 +2072,7 @@ const characters = {
             pronouns: pronouns.male,
         }).dialog(async function (player: Character) {
             this.print("Duuuu... Ummmmmm... How me I forget to breathe...");
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: [] })
         );
     },
@@ -2079,7 +2091,7 @@ const characters = {
             fight_description: 'ultra clubman',
             alignment: 'clubmen clan',
             pronouns: pronouns.male,
-            attackPlayer: true,
+            hostile: true,
         }).fightMove(async function () {
             if (this.attackTarget?.isPlayer) {
                 this.print("Clubman attacks with his other hand!");
@@ -2100,7 +2112,7 @@ const characters = {
             weaponName: 'claws',
             attackVerb: 'slice',
             fight_description: 'rush lurker',
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         });
@@ -2136,7 +2148,7 @@ const characters = {
             weaponName: 'wooden stick',
             attackVerb: 'club',
             fight_description: 'evil forester',
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         });
@@ -2206,7 +2218,7 @@ const characters = {
             attackVerb: 'axe',
             fight_description: 'dark rider',
             armor: { blunt: 3 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         });
@@ -2322,15 +2334,23 @@ const characters = {
             this.print();
             this.pause((6));
             this.print("Oh, sorry, I have something to sell.");
-            this.print("Its called a \"spy o scope\". Cost ", 1);
-            this.color(yellow);
-            this.print("200gp");
-            this.color(black);
-            this.print("It allows you to peek into rooms that are next to you.");
+            this.print("Its called a \"spy o scope\". Cost <yellow>200GP<black>.");
+            this.print("It allows you to gain info about your enemies.");
             this.print("Type \"buy spy o scope\" to purchase it.");
+        }).interaction('buy spy o scope', async function (player: Character, action: string) {
+            if (player.has('gold', 200)) {
+                player.removeItem('gold', 200);
+                player.giveItem('spy o scope');
+                this.print("Trust me, this was worth it. You're gonna love it.");
+                this.print("To use it, type \"examine <name>.\"");
+                this.print("If you want to examine a clubman, type \"examine clubman.\"");
+                this.print("You get the picture. Have fun.")
+            } else {
+                this.print("You don't have enough gold.");
+            }
         }).onDeath(
             actions.declare_war
-        ).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
+        ).onIdle(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
     rock_hydra(game: GameState) {
@@ -2346,7 +2366,7 @@ const characters = {
             armor: { blunt: 5 },
             coordination: 4,
             agility: 1,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         });
@@ -2364,7 +2384,7 @@ const characters = {
             coordination: 9,
             agility: 5,
             armor: { blunt: 28 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         }).fightMove(async function () {
@@ -2384,7 +2404,7 @@ const characters = {
             coordination: 5,
             agility: 3,
             armor: { blunt: 36 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         }).onRespawn(async function () {
@@ -2406,7 +2426,7 @@ const characters = {
             agility: 25,
             armor: { blunt: 0 },
             pronouns: pronouns.inhuman,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         }).onRespawn(async function () {
             this.item('gold')!.quantity = Math.random() * 50;
@@ -2436,7 +2456,7 @@ const characters = {
             coordination: 12,
             agility: 4,
             armor: { blunt: 26 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         }).onRespawn(async function () {
@@ -2468,7 +2488,7 @@ const characters = {
             agility: 18,
             armor: { blunt: 50, sharp: 500, magic: 250 },
             alignment: 'fairy',
-            attackPlayer: true,
+            hostile: true,
             items: [],
         }).fightMove(async function () {
             if (Math.random() < 2 / 5) {
@@ -2486,7 +2506,7 @@ const characters = {
                 currentPoison += Math.max(dam, 0);
                 if (currentPoison) this.attackTarget?.addBuff(getBuff('poison')({ power: currentPoison, duration: currentPoison }))
             }
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'] })
         )
     },
@@ -2504,10 +2524,10 @@ const characters = {
             coordination: 9,
             agility: 4,
             armor: { blunt: 56, magic: 100 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: randomChoice([pronouns.male, pronouns.female]),
-        }).onTurn(actions.wander({ bounds: ['corroded gate'] }))
+        }).onIdle(actions.wander({ bounds: ['corroded gate'] }))
     },
 
     "giant spider"(game: GameState) {
@@ -2524,10 +2544,10 @@ const characters = {
             agility: 5,
             armor: { sharp: 60, magic: 150 },
             buff: { times: { defense: { magic: 2 } } },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
-        }).onTurn(actions.wander({ bounds: ['corroded gate'] }))
+        }).onIdle(actions.wander({ bounds: ['corroded gate'] }))
     },
 
     "wild boar"(game: GameState) {
@@ -2543,10 +2563,10 @@ const characters = {
             coordination: 8,
             agility: 3,
             armor: { blunt: 70, sharp: 30 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'] })
         )
     },
@@ -2564,7 +2584,7 @@ const characters = {
             coordination: 6,
             agility: 14,
             armor: { blunt: 30, sharp: 50, magic: 50 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
         }).fightMove(async function () {
@@ -2584,13 +2604,13 @@ const characters = {
                 const termite = this.game.addCharacter({ key: 'termite soldier', location: this.location! })
                 if (termite) {
                     termite.respawns = false;
-                    termite.onTurn(async function () {
+                    termite.onIdle(async function () {
                         if (!this.location?.playerPresent && Math.random() < 1 / 4) {
                             console.log('termite soldier dies in darkness.')
                             await this.die()
                         } else {
                             console.log('termite soldier wanders.')
-                            await this.go(randomChoice(Array.from(this.location?.adjacent.keys() ?? [])))
+                            this.action({ command: randomChoice(Array.from(this.location?.adjacent.keys() ?? [])) })
                         }
                     })
                 }
@@ -2604,7 +2624,7 @@ const characters = {
                 for (let i = 0; i < 2; i++) {
                     await this.game.addCharacter(
                         { key: 'termite soldier', respawns: false, location: character.location! }
-                    )?.onTurn(async function () {
+                    )?.onIdle(async function () {
                         if (!this.fighting) {
                             console.log('termite soldier dies, because the fight is over.')
                             await this.die()
@@ -2613,7 +2633,7 @@ const characters = {
                     console.log('termite soldier spawn a helper.')
                 }
             }
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'] })
         )
     },
@@ -2633,10 +2653,10 @@ const characters = {
             speed: 0.5,
             armor: { blunt: 200, sharp: 200, magic: 200 },
             buff: { times: { defense: { magic: 2, fire: 1 / 2 } } },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'], frequency: 1 / 3 })
         )
     },
@@ -2655,10 +2675,10 @@ const characters = {
             agility: 6,
             speed: 1.5,
             armor: { blunt: 100, sharp: 200, magic: 300 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'], frequency: 1 / 3 })
         )
     },
@@ -2676,7 +2696,7 @@ const characters = {
             coordination: 10,
             agility: 8,
             armor: { blunt: 5 },
-            attackPlayer: false,
+            hostile: false,
             alignment: 'fairy',
         }).onEncounter(
             actions.defend_tribe
@@ -2705,14 +2725,7 @@ const characters = {
             game: game,
             key: 'silver fox',
             max_hp: 30,
-            damage: { blunt: 3, sharp: 2 },
-            items: ['silver_sword'],
-            weaponName: 'teeth',
-            attackVerb: 'bite',
-            coordination: 5,
-            agility: 6,
-            armor: { blunt: 1 },
-            pronouns: pronouns.inhuman,
+            pacifist: true,
             flags: { path: ['west', 'west', 'south', 'west', 'south',], encountered: false }
         }).onEncounter(async function (character) {
             if (character.isPlayer) {
@@ -2730,9 +2743,6 @@ const characters = {
                     this.game.removeCharacter(this);
                 }
             }
-        }).onAttack(async function (character) {
-            character.fight(null);
-            this.fight(null);
         })
     },
 
@@ -2748,7 +2758,7 @@ const characters = {
             fight_description: 'Huge stone golem',
             coordination: 4,
             agility: 1,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         });
@@ -2769,7 +2779,7 @@ const characters = {
             agility: 5,
             armor: { blunt: 16 },
             alignment: 'evil/areaw',
-        }).onTurn(
+        }).onIdle(
             actions.wander({})
         ).fightMove(actions.call_help('wood_troll'));
     },
@@ -2791,7 +2801,8 @@ const characters = {
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             spellChance: () => Math.random() < 1 / 5,
             respawns: false,
-            alignment: 'evil',
+            hostile: true,
+            alignment: 'fairy',
         }).fightMove(actions.max_heal)
     },
 
@@ -2809,7 +2820,7 @@ const characters = {
             coordination: 10,
             agility: 0,
             armor: { blunt: 50 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -2852,7 +2863,7 @@ const characters = {
             fight_description: 'bull',
             coordination: 4,
             agility: 1,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -2998,7 +3009,7 @@ const characters = {
             coordination: 4,
             agility: 3,
             armor: { blunt: 6 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         });
@@ -3035,7 +3046,7 @@ const characters = {
             coordination: 5,
             agility: 3,
             armor: { blunt: 12 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
             respawns: false,
@@ -3240,7 +3251,7 @@ const characters = {
                 this.print();
                 this.print("Just an old prophecy, not much.  Thanks for the money");
             }
-        }).onTurn(actions.wander({ bounds: [] }));
+        }).onIdle(actions.wander({ bounds: [] }));
     },
 
     cleric_tendant(game: GameState) {
@@ -3476,7 +3487,7 @@ const characters = {
             agility: 1,
             weaponName: 'whip-like fingers',
             fight_description: 'swamp thing',
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -3509,7 +3520,7 @@ const characters = {
             attackVerb: 'club',
             items: [{ name: 'gold', quantity: 3 }, 'wooden_stick'],
             fight_description: 'evil looking goblin',
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -3528,7 +3539,7 @@ const characters = {
             armor: { blunt: 9 },
             agility: 3,
             coordination: 2,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         })
     },
@@ -3616,7 +3627,7 @@ const characters = {
             aliases: ['page'],
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
-            items: ['partial healing potion', 'mostly healing potion', 'full healing potion']
+            items: ['minor healing potion', 'major healing potion', 'mega healing potion']
         }).dialog(async function (player: Character) {
             this.print("What do you want... wait I am too good and too cool to be talking to you,");
             this.print("Eldfarl picked me to mentor him because I am the BEST!!!  Way better than you!");
@@ -3690,7 +3701,7 @@ const characters = {
             damage: { blunt: 0, sharp: 40 },
             weaponName: 'long rapier',
             attackVerb: 'stab',
-            items: [{ name: 'gold', quantity: 12 }, 'partial_healing_potion', 'long_rapier'],
+            items: [{ name: 'gold', quantity: 12 }, 'minor healing potion', 'long_rapier'],
             fight_description: 'quick sand scout',
             agility: 7,
             coordination: 10,
@@ -3727,7 +3738,7 @@ const characters = {
             fight_description: 'furious rooster',
             coordination: 4,
             agility: 2,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -3799,7 +3810,7 @@ const characters = {
             coordination: 8,
             agility: 5,
             armor: { blunt: 20 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         }).fightMove(async function () {
             if (Math.random() < 1 / 5) {
@@ -3939,7 +3950,7 @@ const characters = {
             coordination: 4,
             agility: 2,
             armor: { blunt: 13 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
@@ -3965,7 +3976,7 @@ const characters = {
             coordination: 2,
             agility: 3,
             armor: { blunt: 5 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
             persist: false,
@@ -3984,7 +3995,7 @@ const characters = {
             fight_description: 'bow fletcher',
             coordination: 2,
             armor: { blunt: 10 },
-            items: [{ name: 'arrow', quantity: Infinity }, 'short_bow', 'long_bow', 'composite_bow', 'hand_crossbow', 'crossbow', 'heavy_crossbow'],
+            items: [{ name: 'arrow', quantity: Infinity }, 'short bow', 'long bow', 'composite war bow', 'hand crossbow', 'crossbow', 'heavy crossbow'],
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
@@ -4027,7 +4038,7 @@ const characters = {
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
-        }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
+        }).onIdle(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
     peasant_woman(game: GameState) {
@@ -4058,7 +4069,7 @@ const characters = {
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
-        }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
+        }).onIdle(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
     dog(game: GameState) {
@@ -4076,7 +4087,7 @@ const characters = {
             armor: { blunt: 4 },
         }).dialog(async function (player: Character) {
             this.print("BOW WOW WOW!");
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse'] })
         ).interaction('get dog', async function (player) {
             const meat = player.item('chicken leg') || player.item('side of meat');
@@ -4158,7 +4169,7 @@ const characters = {
                             this.print(`${caps(this.name)} attacks with your other hand!`)
                             this.attack(player, this.flags['left hand']?.name, this.flags['left hand']?.damage)
                         }
-                    }).onTurn(async function () {
+                    }).onIdle(async function () {
                         player.pronouns.object = 'you';
                         console.log('evil you is having a turn.')
                     })
@@ -4180,7 +4191,7 @@ const characters = {
                     await player.die('Lars')
                 }
             }
-        }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
+        }).onIdle(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
     peasant_worker(game: GameState) {
@@ -4209,7 +4220,7 @@ const characters = {
             } else {
                 this.print("I am busy, go away.");
             }
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] })
         ).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
@@ -4424,7 +4435,7 @@ const characters = {
                     this.print("Hmmm...");
                     this.pause(3);
                     this.print("Suspicions confirmed, here you are.");
-                    this.print("Oh, I collect maple leaves, are not they beautiful. Have one.");
+                    this.print("Oh, I collect maple leaves, are they not beautiful. Have one.");
                     this.transferItem('maple leaf', player);
                     this.color(blue);
                     this.print("<recieved maple leaf>");
@@ -4438,12 +4449,16 @@ const characters = {
             if (this.attackTarget) spells['powermaxout'].bind(this)(this.attackTarget)
         }).interaction('list', async function () {
             this.color(black)
-            this.print("At the domain of Eldin we teach the following:")
-            this.print(" train mindfulness | increaces BP")
-            this.print(" train healing     | increases healing power")
-            this.print(" train archery     | increases archery skills")
-            this.print(" To train any of these, please type 'train' then")
-            this.print(" type what to train.")
+            this.print("At the Cottage of Eldin we teach the following:")
+            this.print(" train newbie        | a basic magical attack, uses little BP")
+            this.print(" train bolt          | a fast and and accurate lightning attack, 1 target")
+            this.print(" train bloodlust     | temporarily raises your strength and coordination")
+            this.print(" train shield        | while active, all damage is reduced")
+            this.print(" train fire          | slower but more powerful, can hit 2 or 3 targets")
+            this.print(" train blades        | a sharp and deadly storm, can hit several enemies")
+            this.print(" train powermaxout   | empty your reserves, sweeping all before you")
+            this.print(" train magic         | increases magical power")
+            // this.print(" To see info on a spell type 'info [spellname]'")
         }).interaction('train magic', actions.train({
             skillName: 'magic',
             requirements: (player) => ({
@@ -4671,7 +4686,7 @@ const characters = {
             armor: { blunt: 4 },
             coordination: 3,
             agility: 1,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
             exp: 1234
@@ -4715,7 +4730,7 @@ const characters = {
             buff: { times: { defense: { sharp: 2, blunt: 2 } } },
             coordination: 6,
             agility: 4,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
             exp: 2345,
@@ -4882,8 +4897,8 @@ const characters = {
             agility: 10,
             buff: { times: { defense: { blunt: 10, sharp: 10 } } },
             alignment: 'evil',
-            attackPlayer: true,
-        }).onTurn(
+            hostile: true,
+        }).onIdle(
             actions.wander({ bounds: ['250', 'corroded gate'] })
         )
     },
@@ -4976,7 +4991,7 @@ const characters = {
             coordination: 9,
             agility: -1,
             armor: { blunt: 26 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
         }).onDeath(async function () {
@@ -5002,7 +5017,7 @@ const characters = {
             coordination: 5,
             agility: -3,
             armor: { blunt: 60 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
         }).fightMove(async function () {
@@ -5096,7 +5111,7 @@ const characters = {
             this.game.removeCharacter(this)
             this.game.addCharacter({ key: 'path_demon', location: this.location! })
             console.log(`path demon respawned as ${this.location?.character('path_demon')?.key}`)
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['96', '191', 'meadow', 'bog'] })
         )
     },
@@ -5319,9 +5334,9 @@ const characters = {
             powers: {
                 'poison fang': 1,
             },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
-        }).onTurn(actions.wander({}));
+        }).onIdle(actions.wander({}));
     },
 
     gryphon(game: GameState) {
@@ -5363,7 +5378,7 @@ const characters = {
             weaponName: 'needle teeth',
             attackVerb: 'bite',
             alignment: 'evil',
-        }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }));
+        }).onIdle(actions.wander({ bounds: ['the end'], frequency: 1 }));
     },
 
     wraith(game: GameState) {
@@ -5380,7 +5395,7 @@ const characters = {
             attackVerb: 'sonic',
             alignment: 'evil',
             chase: true,
-        }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }));
+        }).onIdle(actions.wander({ bounds: ['the end'], frequency: 1 }));
     },
 
     voidrat(game: GameState) {
@@ -5396,7 +5411,7 @@ const characters = {
             attackVerb: 'bite',
             fight_description: 'monstrous rat',
             alignment: 'evil',
-        }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }))
+        }).onIdle(actions.wander({ bounds: ['the end'], frequency: 1 }))
     },
 
     grogren(game: GameState) {
@@ -5425,7 +5440,7 @@ const characters = {
             actions.defend_tribe
         ).fightMove(
             actions.call_help('orcish_soldier')
-        ).onTurn(async function () {
+        ).onIdle(async function () {
             if (this.game.flags.orc_battle && !this.fighting) {
                 this.goto('center of town')
             }

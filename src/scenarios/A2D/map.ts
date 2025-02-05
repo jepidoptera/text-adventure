@@ -1885,12 +1885,12 @@ const scenario = {
                     "[] Welcome to The Shop of Eldfarl []",
                     "[]                                []",
                     "[] Here is what we sell:          []",
-                    "[] partial healing potion ..  5gp []",
-                    "[] mostly healing potion ... 10gp []",
-                    "[] full healing potion ..... 30gp []",
+                    "[] minor healing potion ...  25gp []",
+                    "[] major healing potion ...  50gp []",
+                    "[] mega healing potion .... 100gp []",
                     "[]                                []",
                     "[]    To buy something, type:     []",
-                    "[]      ",
+                    "[]                                []",
                     "<---------------------------------->"
                 ]
             }]
@@ -1959,15 +1959,13 @@ const scenario = {
                     "|makes a better bow.  This is|",
                     "|what we sell:               |",
                     "|                            |",
-                    "| shortbow          99 gp    |",
-                    "| longbow           600 gp   |",
-                    "| crossbow          1300 gp  |",
-                    "| heavy crossbow    2500 gp  |",
+                    "| short bow         99 gp    |",
+                    "| long bow          210 gp   |",
+                    "| crossbow          455 gp   |",
+                    "| heavy crossbow    890 gp   |",
                     "| hand crossbow     140 gp   |",
-                    "| composite bow     2910 gp  |",
-                    "| ballista          18600 gp |",
+                    "| composite bow     2190 gp  |",
                     "| arrow             2 gp     |",
-                    "| ballista bolt     25 gp    |",
                     "|Type: buy [merchandise name]|",
                     "******************************"
                 ]

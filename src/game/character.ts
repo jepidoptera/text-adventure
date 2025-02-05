@@ -40,6 +40,7 @@ class Buff {
     private _onApply: ((this: Buff) => Promise<void>) | null = null;
     private _onExpire: ((this: Buff) => Promise<void>) | null = null;
     private _onTurn: ((this: Buff) => Promise<void>) | null = null;
+    private _display: ((this: Buff) => string) | null = null;
     public character!: Character;
     public name: string;
     public power: number;
@@ -88,12 +89,19 @@ class Buff {
         return this;
     }
     async turn() {
-        this.duration -= 1;
         await this._onTurn?.();
+        this.duration -= 1;
         if (this.duration === 0) {
             await this.expire();
             this.character.removeBuff(this);
         }
+    }
+    onDisplay(action: (this: Buff) => string) {
+        this._display = action.bind(this);
+        return this;
+    }
+    display() {
+        return this._display?.() || this.name;
     }
     get game() {
         return this.character.game;
@@ -144,7 +152,8 @@ interface CharacterParams {
     weaponName?: string;
     damage?: Partial<{ [key in DamageTypes]: number }>;
     armor?: Partial<{ [key in DamageTypes]: number }>;
-    attackPlayer?: boolean;
+    hostile?: boolean;
+    pacifist?: boolean;
     chase?: boolean;
     flags?: { [key: string]: any };
     respawn_time?: number;
@@ -201,12 +210,13 @@ class Character {
     private _onSlay: Action | undefined;
     private _onDeath: Action | undefined;
     private _onAttack: Action | undefined;
-    private _onTurn: Action | null = null;
+    private _onIdle: Action | null = null;
     private _fightMove: Action | undefined;
     private _onRespawn: Action | undefined;
     private _onDialog: Action | undefined = async () => { this.game.print("They don't want to talk") };
     interactions: Map<string, (...args: any[]) => Promise<void>> = new Map()
-    attackPlayer: boolean = false;
+    hostile: boolean = false;
+    pacifist: boolean = false;
     chase: boolean = false;
     respawnTime: number = 0;
     respawnCountdown: number = 0;
@@ -260,7 +270,8 @@ class Character {
         attackVerb: weaponType,
         damage,
         armor,
-        attackPlayer = false,
+        hostile = false,
+        pacifist = false,
         chase = false,
         respawns = true,
         respawnLocationKey,
@@ -320,7 +331,8 @@ class Character {
                 this.base_damage[damageType as DamageTypes] += damage[damageType as DamageTypes] || 0;
             }
         }
-        this.attackPlayer = attackPlayer;
+        this.hostile = hostile;
+        this.pacifist = pacifist
         this.chase = chase;
         this.following = following;
         this.flags = flags;
@@ -329,12 +341,12 @@ class Character {
         this.actionTiming = Object.keys(timeCost).reduce((acc, key) => { acc[key] = 0; return acc }, {} as Record<string, number>);
 
         this.color = this.game.color.bind(this.game);
-        this.print = this.game.print.bind(this.game);;
-        this.input = this.game.input.bind(this.game);;
-        this.clear = this.game.clear.bind(this.game);;
-        this.locate = this.game.locate.bind(this.game);;
-        this.pause = this.game.pause.bind(this.game);;
-        this.getKey = this.game.getKey.bind(this.game);;
+        this.print = this.game.print.bind(this.game);
+        this.input = this.game.input.bind(this.game);
+        this.clear = this.game.clear.bind(this.game);
+        this.locate = this.game.locate.bind(this.game);
+        this.pause = this.game.pause.bind(this.game);
+        this.getKey = this.game.getKey.bind(this.game);
     }
 
     async addBuff(buff: Buff) {
@@ -442,21 +454,46 @@ class Character {
     // }
 
     findEnemy() {
-        return this.location?.characters.find(character => this.hasEnemy(character)) || null;
+        if (this.pacifist) return null;
+        this.enemies = this.enemies.filter(enemy => enemy);
+        let enemy = this.location?.characters.find(character => this.hasEnemy(character) || this.attackTarget == character) || null;
+        if (!enemy && this.hostile) {
+            enemy = this.location?.characters.find(character => character.alignment !== this.alignment) || null;
+        }
+        return enemy;
     }
 
     hasEnemy(character: Character): boolean {
+        if (this.pacifist) return false;
         return this.enemies.includes(character.name) || this.enemies.includes(character.unique_id);
+    }
+
+    removeEnemy(character: Character) {
+        this.enemies = this.enemies.filter(name => name !== character.name && name !== character.unique_id);
+    }
+
+    addEnemy(character: Character) {
+        if (this.pacifist) return
+        if (!this.hasEnemy(character)) this.enemies.push(character.unique_id);
+        if (!this.attackTarget && this.location == character.location) {
+            this.fight(character);
+        }
     }
 
     async fight(enemy: Character | null = null) {
         if (this.dead) return;
+        if (this.pacifist || enemy?.pacifist) {
+            await enemy?._onAttack?.(this);
+            return;
+        }
         console.log(`${this.name} fights ${enemy?.name || 'nobody'} at ${this.location?.key}.`)
         if (enemy === null) {
-            this.clearEnemies();
+            if (this._attackTarget) { this.removeEnemy(this._attackTarget); }
             this._attackTarget = null;
             this.fighting = false;
             this.offTimer('repel')
+            this.offTimer('attack')
+            this.remove_action('attack');
             console.log(`${this.name} is at peace (fight(null)).`)
             return;
         } else if (enemy != this.attackTarget) {
@@ -469,15 +506,9 @@ class Character {
                 if (!enemy.hasEnemy(this)) {
                     enemy.enemies.push(this.name);
                 }
-                this.push_action('attack');
-                enemy.onTimer({ command: `repel ${this.name}`, time: 0 });
+                this.action({ command: 'attack' });
+                if (!enemy.attackTarget) enemy.action({ command: `repel ${this.name}`, time: 10 });
                 await enemy._onAttack?.(this);
-            }
-            for (let char of this.location?.characters ?? []) {
-                if (char != enemy && char.alignment === enemy.alignment) {
-                    console.log(`${char.name} defends ${enemy.name}!`)
-                    if (!char.hasEnemy(this)) char.enemies.push(this.name);
-                }
             }
         }
     }
@@ -746,7 +777,7 @@ class Character {
         if (this.location) {
             for (let item of this.inventory) {
                 // copy items so they will still have the stuff when they respawn
-                const dropItem = Object.assign(new Item({ name: item.name }), item);
+                const dropItem = Object.assign(new Item({ name: item.name, game: this.game }), item);
                 this.location?.add(dropItem)
             }
         }
@@ -825,8 +856,8 @@ class Character {
         return this;
     }
 
-    onTurn(action: ((this: Character) => Promise<void>) | null) {
-        this._onTurn = action ? action.bind(this) : null;
+    onIdle(action: ((this: Character) => Promise<void>) | null) {
+        this._onIdle = action ? action.bind(this) : null;
         return this;
     }
 
@@ -855,7 +886,7 @@ class Character {
         if (!this.fighting) {
             if (this.hasEnemy(character)) {
                 await this.fight(character);
-            } else if (this.attackPlayer && character.isPlayer) {
+            } else if (this.hostile && character.isPlayer) {
                 await this.fight(character);
             } else if (this.alignment == 'evil' && character.alignment != 'evil') {
                 await this.fight(character);
@@ -868,10 +899,10 @@ class Character {
         if (allow && this.attackTarget == character && this.chase) {
             // give chase
             console.log(`${this.name} chases ${character.name} ${direction}!`)
-            this.action(`go ${direction}`);
+            this.action({ command: `go ${direction}` });
         } else if (allow && this.following == character.name) {
             console.log(`${this.name} follows ${character.name} ${direction}!`)
-            this.push_action(`go ${direction}`);
+            this.push_action({ command: `go ${direction}` });
         }
         return allow;
     }
@@ -896,16 +927,22 @@ class Character {
         return this.coordination * Math.random()
     }
 
-    action(command: string, time: number = 10) {
+    action({ command, time = 10 }: { command: string, time?: number }) {
         this.actionQueue = [{ command, time }];
+        this.time = 0;
+        console.log(`${this.unique_id} actions ${command} in ${time} deci-seconds.`)
     }
 
-    push_action(command: string, time: number = 10) {
+    push_action({ command, time = 10 }: { command: string, time?: number }) {
         this.actionQueue.unshift({ command, time });
     }
 
-    queue_action(command: string, time: number = 10) {
+    queue_action({ command, time = 10 }: { command: string, time?: number }) {
         this.actionQueue.push({ command, time });
+    }
+
+    remove_action(command: string) {
+        this.actionQueue = this.actionQueue.filter(action => !action.command.startsWith(command));
     }
 
     get next_action() {
@@ -934,20 +971,21 @@ class Character {
                 await this.go(verb);
             } else {
                 // try again next turn
-                this.push_action(verb);
+                this.push_action({ command: command });
             }
         } else if (verb == 'attack') {
-            // if (!this.attackTarget) {
-            //     const enemiesPresent = this.location?.characters.filter(character => this.enemies.includes(character.name)) || [];
-            //     await this.fight(randomChoice(enemiesPresent));
             if (this.attackTarget && this.attackTarget.location === this.location) {
                 await this.attack(this.attackTarget, this.weaponName, this.base_damage);
+                await this._fightMove?.();
+            } else {
+                this._attackTarget = null;
             }
-            // }
         } else if (verb == 'repel') {
             console.log(`${this.name} repels ${args}`)
             const attacker = args ? this.game.find_character(args) : this.attackTarget;
             if (attacker) await this.repel(attacker);
+        } else if (verb == 'wait') {
+            return;
         }
     }
 
@@ -1023,17 +1061,30 @@ class Character {
     }
 
     async repel(attacker: Character) {
-        // console.log(`${this.name} is under attack by ${attacker.name}!`)
         if (!this.enemies.includes(attacker.name)) {
             this.enemies.push(attacker.name);
         }
         if (!this.fighting) {
             console.log(`${this.name} fights back against ${attacker.name}!`)
             await this.fight(attacker);
-        } // else { console.log(`${this.name} is already fighting`, this.enemies) }
-        // if (this._onAttack) {
-        //     await this._onAttack(attacker);
-        // }
+        }
+        for (let char of this.location?.characters ?? []) {
+            if (char != this && char.alignment && char.alignment === this.alignment) {
+                console.log(`${char.unique_id} defends ${this.unique_id}!`)
+                char.addEnemy(attacker);
+            }
+        }
+    }
+
+    async idle() {
+        await this._onIdle?.();
+        if (!this.attackTarget) {
+            let enemy = this.findEnemy();
+            if (enemy) {
+                console.log(`${this.name} picks a fight with ${enemy.name}.`)
+                await this.fight(enemy);
+            }
+        }
     }
 
     async turn() {
@@ -1041,37 +1092,12 @@ class Character {
             this.recoverStats({ hp: this.hp_recharge * this.max_hp, mp: this.mp_recharge * this.max_mp, sp: this.sp_recharge * this.max_sp });
             console.log(`${this.name} heals to ${this.hp} hp`)
         }
-        this.enemies = this.enemies.filter(enemy => enemy);
-        if (!this.attackTarget) {
-            for (let enemy of this.game.find_all_characters(this.enemies)) {
-                if (enemy.location === this.location) {
-                    console.log(`${this.name} picks a fight with ${enemy.name}.`)
-                    await this.fight(enemy);
-                    break;
-                }
-            }
-            if (this.attackPlayer) {
-                // console.log(`${this.name} is looking for a player to fight.`)
-                for (let character of this.location?.characters ?? []) {
-                    if (character.isPlayer) {
-                        await this.fight(character);
-                        break;
-                    }
-                }
-            }
-        }
-        this.fighting = this.location?.characters.some(character => character.hasEnemy(this) || this.hasEnemy(character)) || false
-        if (this.attackTarget?.location === this.location) {
-            // console.log(`${this.name} attacks ${this.attackTarget.name}!`)
-            await this.attack(this.attackTarget, this.weaponName, this.base_damage);
-        } else if (this.next_action) {
+        if (this.next_action) {
             await this.execute(typeof this.next_action == 'string' ? this.next_action : this.next_action.command);
             this.actionQueue.shift();
         }
-        if (this.fighting) {
-            await this._fightMove?.();
-        } else {
-            await this._onTurn?.();
+        if (this.attackTarget && this.fighting) {
+            this.action({ command: 'attack', time: 10 })
         }
     }
 
@@ -1082,7 +1108,7 @@ class Character {
             unique_id: this.unique_id,
             respawn: this.respawns,
             respawnLocation: this.respawnLocation,
-            attackPlayer: this.attackPlayer,
+            attackPlayer: this.hostile,
             backDirection: this.backDirection,
             alignment: this.alignment,
         }

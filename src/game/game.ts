@@ -388,7 +388,7 @@ abstract class GameState {
 
     find_character(name: string) {
         name = name.toLowerCase();
-        const character = this.characters.find(character => character.key.toLowerCase() === name);
+        const character = this.characters.find(character => character.key.toLowerCase() == name || character.name.toLowerCase() == name || character.unique_id == name) || null;
         if (!character) {
             console.log(`could not find character ${name}`);
         }
@@ -402,7 +402,7 @@ abstract class GameState {
         const chars = [] as Character[];
         for (let name of key) {
             name = name.toLowerCase();
-            chars.push(...this.characters.filter(character => character.key.toLowerCase() === name || character.key == name));
+            chars.push(...this.characters.filter(character => character.key.toLowerCase() == name || character.key == name || character.unique_id == name));
         }
         return chars;
     }
@@ -450,10 +450,10 @@ abstract class GameState {
     ) {
 
         if (!Object.keys(this.characterTemplates).includes(key.toString())) {
-            console.log('invalid character name', name);
+            console.log('invalid character name', key);
             return;
         }
-        const newCharacter = this.characterTemplates[name as keyof typeof this.characterTemplates](this);
+        const newCharacter = this.characterTemplates[key as keyof typeof this.characterTemplates](this);
         const passedAttributes: { [key: string]: any } = {};
         if (respawnLocation) { passedAttributes['respawnLocation'] = respawnLocation }
         if (respawnCountdown) { passedAttributes['respawnCountdown'] = respawnCountdown }

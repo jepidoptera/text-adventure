@@ -118,41 +118,48 @@ class A2D extends GameState {
             for (let character of characters) {
                 if (!character.dead) {
                     character.time += character.speed;
+                    for (let reaction of character.reactionQueue) {
+                        reaction.time -= character.speed;
+                        if (reaction.time <= 0) {
+                            console.log(character.name, 'executing reaction', reaction.command)
+                            await character.execute(reaction.command);
+                            if (reaction.repeat) {
+                                reaction.time += reaction.repeat;
+                            } else {
+                                character.reactionQueue = character.reactionQueue.filter(r => r !== reaction);
+                            }
+                        }
+                    }
+                    if (character.next_action) {
+                        if (character.time >= character.next_action.time) {
+                            character.time -= character.next_action.time;
+                            await character.turn();
+                        }
+                    } else {
+                        character.time = 0;
+                        await character.idle()
+                    }
+                    for (let buff of Object.values(character.buffs)) {
+                        await buff.turn();
+                    }
+                    if (character.isPlayer) {
+                        console.log(`player time: ${character.time}`)
+                        console.log(`player next action: ${character.next_action?.command}`)
+                    }
                 } else if (character.respawnCountdown < 0) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
             }
-            console.log(`player turncounter: ${this.player.time}`)
-            let activeCharacters = characters.filter(char => !char.dead);
-            for (let character of activeCharacters) {
-                for (let reaction of character.reactionQueue) {
-                    reaction.time -= character.speed;
-                    if (reaction.time <= 0) {
-                        console.log(character.name, 'executing reaction', reaction.command)
-                        await character.execute(reaction.command);
-                        if (reaction.repeat) {
-                            reaction.time += reaction.repeat;
-                        } else {
-                            character.reactionQueue = character.reactionQueue.filter(r => r !== reaction);
-                        }
-                    }
-                }
-            }
-            while (activeCharacters.length > 0) {
-                for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
-                    if (!character.dead) {
-                        if (character.buffs) {
-                            for (let buff of Object.values(character.buffs)) {
-                                await buff.turn();
-                            }
-                        }
-                        if (!character.dead) await character.turn();
-                    }
-                    character.time -= 1;
-                }
-                activeCharacters = this.characters.filter(char => !char.dead && char.time >= 1)
-            }
+            // while (activeCharacters.length > 0) {
+            //     for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
+            //         if (!character.dead) {
+            //             if (!character.dead) await character.turn();
+            //         }
+            //         character.time -= 1;
+            //     }
+            //     activeCharacters = this.characters.filter(char => !char.dead && char.time >= 1)
+            // }
         }
         this.print('Press any key to continue.')
         await this.getKey();

@@ -40,6 +40,14 @@ class Item {
     private _displayName: ((this: Item) => string) | undefined = undefined;
     private _actions: Map<string, (...args: any[]) => Promise<void>> = new Map();
 
+    color: Function;
+    print: Function;
+    input: Function;
+    clear: Function;
+    locate: Function;
+    pause: Function;
+    getKey: Function;
+
     constructor({
         name,
         game,
@@ -60,6 +68,14 @@ class Item {
         this.equipment_slot = equipment_slot;
         this.attackVerb = attack_verb;
         this.buff = buff;
+
+        this.color = this.game.color.bind(this.game);
+        this.print = this.game.print.bind(this.game);
+        this.input = this.game.input.bind(this.game);
+        this.clear = this.game.clear.bind(this.game);
+        this.locate = this.game.locate.bind(this.game);
+        this.pause = this.game.pause.bind(this.game);
+        this.getKey = this.game.getKey.bind(this.game);
     }
 
     addAction(name: string, action: (this: Item, ...args: any[]) => Promise<void>) {

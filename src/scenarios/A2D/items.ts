@@ -1,6 +1,6 @@
-import { Item, ItemParams } from "../../game/item.js";
+import { Item } from "../../game/item.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js";
-import { Character, Buff } from "../../game/character.js";
+import { Character, Buff, DamageTypes } from "../../game/character.js";
 import { getBuff } from "./buffs.js";
 import { musicc$ } from "./utils.js";
 import { lineBreak } from "../../game/utils.js";
@@ -297,34 +297,34 @@ const items = {
             player.mp += 100;
         })
     },
-    "mostly healing potion"(game: GameState) {
+    "minor healing potion"(game: GameState) {
         return new Item({
-            name: 'mostly healing potion',
+            name: 'minor healing potion',
             size: 0.4,
-            value: 10,
+            value: 25,
             game: game
         }).on_drink(async function (player) {
-            player.hp += player.max_hp / 2;
+            player.recoverStats({ hp: 25 });
         })
     },
-    "partial healing potion"(game: GameState) {
+    "major healing potion"(game: GameState) {
         return new Item({
-            name: 'partial healing potion',
+            name: 'major healing potion',
             size: 0.4,
-            value: 5,
+            value: 50,
             game: game
         }).on_drink(async function (player) {
-            player.hp += player.max_hp / 4;
+            player.recoverStats({ hp: 50 });
         })
     },
-    "full healing potion"(game: GameState) {
+    "mega healing potion"(game: GameState) {
         return new Item({
             name: 'full healing potion',
             size: 0.4,
-            value: 30,
+            value: 100,
             game: game
         }).on_drink(async function (player) {
-            player.hp = player.max_hp;
+            player.recoverStats({ hp: 100 });
         })
     },
     poison(game: GameState) {
@@ -452,7 +452,7 @@ const items = {
             game: game
         })
     },
-    crossbow(game: GameState) {
+    "crossbow"(game: GameState) {
         return new Item({
             name: 'crossbow',
             size: 1.6,
@@ -463,22 +463,22 @@ const items = {
             game: game
         })
     },
-    hand_crossbow(game: GameState) {
+    "hand crossbow"(game: GameState) {
         return new Item({
             name: 'hand crossbow',
             size: 1.0,
-            value: 84,
+            value: 140,
             attackVerb: 'bow',
             equipment_slot: 'bow',
             buff: { plus: { damage: { blunt: 8.0, sharp: 25.0 } } },
             game: game
         })
     },
-    short_bow(game: GameState) {
+    "short bow"(game: GameState) {
         return new Item({
             name: 'short bow',
             size: 0.8,
-            value: 35,
+            value: 99,
             attackVerb: 'bow',
             equipment_slot: 'bow',
             buff: { plus: { damage: { blunt: 6.0, sharp: 18.0 } } },
@@ -496,7 +496,7 @@ const items = {
             game: game
         })
     },
-    pocket_ballista(game: GameState) {
+    "pocket ballista"(game: GameState) {
         return new Item({
             name: 'pocket ballista',
             size: 1.5,
@@ -507,7 +507,7 @@ const items = {
             game: game
         })
     },
-    heavy_crossbow(game: GameState) {
+    "heavy crossbow"(game: GameState) {
         return new Item({
             name: 'heavy crossbow',
             size: 2.0,
@@ -518,11 +518,11 @@ const items = {
             game: game
         })
     },
-    composite_bow(game: GameState) {
+    "composite war bow"(game: GameState) {
         return new Item({
-            name: 'composite bow',
+            name: 'composite war bow',
             size: 2.4,
-            value: 2000,
+            value: 2190,
             attackVerb: 'bow',
             equipment_slot: 'bow',
             buff: { plus: { damage: { blunt: 15.0, sharp: 58.0 } } },
@@ -531,7 +531,7 @@ const items = {
             this.buff!.plus = { damage: { blunt: 15.0 + player.strength, sharp: 58.0 + player.strength } }
         })
     },
-    long_bow(game: GameState) {
+    "long bow"(game: GameState) {
         return new Item({
             name: 'long bow',
             size: 1.3,
@@ -1586,15 +1586,48 @@ const items = {
             name: 'whip',
             size: 0.5,
             value: 11,
-            game: game
+            game: game,
+            attackVerb: 'slice',
+            buff: { times: { damage: { sharp: 2.5 }, agility: 1.25 } },
         })
     },
-    spy_o_scope(game: GameState) {
+    "spy o scope"(game: GameState) {
         return new Item({
-            name: 'spy-o-scope',
+            name: 'spy o scope',
             size: 1,
             value: 200,
             game: game
+        }).addAction('examine', async function (player: Character, charName: string) {
+            if (!charName) {
+                charName = player.attackTarget?.name || player.location?.characters?.find(char => char != player)?.name || ''
+                if (!charName) {
+                    this.print("There is no one here.")
+                    return;
+                }
+            }
+            const target = player.location?.character(charName)
+            if (!target) {
+                this.print("Who?")
+                return;
+            }
+            this.print(`You peer at ${charName}...`)
+            this.print()
+            this.print(` HP: ${target.hp}/${target.max_hp}`)
+            this.print(` Damage:`)
+            for (let damageType in target.base_damage) {
+                const damage = target.base_damage[damageType as DamageTypes]
+                if (damage) this.print(`   ${damageType}: ${damage}`)
+            }
+            this.print()
+            const armor = target.getBuff('innate')?.plus?.defense
+            for (let damageType in armor) {
+                this.print(` ${armor[damageType as DamageTypes]} ${damageType} armor`)
+            }
+            const defense = target.getBuff('innate')?.times?.defense
+            for (let damageType in defense) {
+                const defenseValue = defense[damageType as DamageTypes]
+                if (defenseValue) this.print(` -${1 - 1 / defenseValue}% ${damageType}`)
+            }
         })
     },
     gavel(game: GameState) {
