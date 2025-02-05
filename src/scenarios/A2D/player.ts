@@ -1199,6 +1199,7 @@ class Player extends A2dCharacter {
         print(" talk [character]: speak to a character.")
         print(" fight [character]: attack a character.")
         print(" flee: run away from a fight.")
+        print(" heal: heal yourself. Costs SP, gains HP.")
         print(" wield [item]: equip an item to fight.")
         print(" left wield [item]: equip an item in your left hand.")
         print(" cast [spell]: use a spell.")
