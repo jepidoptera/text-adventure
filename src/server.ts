@@ -146,7 +146,7 @@ function scheduleCleanup(token: string): NodeJS.Timeout {
         if (activeGames.has(token)) {
             // save before shutting down
             const game = activeGames.get(token)!.gameState;
-            if (!game.player.dead) {
+            if (game.player && !game.player.dead) {
                 game.save();
             }
             activeGames.get(token)!.gameState.shutdown();
