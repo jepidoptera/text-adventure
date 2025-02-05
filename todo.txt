@@ -35,8 +35,8 @@ X map of the (human) world
 X eat multiple food items at once
 X enhance storyline around Ziatos
 X "help" command
+X revamp timing system (each action takes a specific amount of time, pop next action from the queue when character.time > action.timeNeeded)
 
-/ revamp timing system (each action takes a specific amount of time, pop next action from the queue when character.time > action.timeNeeded)
 / battle royal vs orcs ... If Arach lives, he'll tell the player how to get to the void. If Arach dies, then Ieadon saunters back into town.
 / spells (trance, transport and vanish)
 / strictly separate code files from content files
