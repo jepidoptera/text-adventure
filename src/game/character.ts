@@ -774,6 +774,7 @@ class Character {
         console.log(`${this.name} dies from ${cause?.name ?? 'no reason'}.`)
         this.actionQueue = [];
         this.reactionQueue = [];
+        this.fight(null);
         if (this.location) {
             for (let item of this.inventory) {
                 // copy items so they will still have the stuff when they respawn
