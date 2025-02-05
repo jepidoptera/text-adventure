@@ -118,41 +118,48 @@ class A2D extends GameState {
             for (let character of characters) {
                 if (!character.dead) {
                     character.time += character.speed;
+                    for (let reaction of character.reactionQueue) {
+                        reaction.time -= character.speed;
+                        if (reaction.time <= 0) {
+                            console.log(character.name, 'executing reaction', reaction.command)
+                            await character.execute(reaction.command);
+                            if (reaction.repeat) {
+                                reaction.time += reaction.repeat;
+                            } else {
+                                character.reactionQueue = character.reactionQueue.filter(r => r !== reaction);
+                            }
+                        }
+                    }
+                    if (character.next_action) {
+                        if (character.time >= character.next_action.time) {
+                            character.time -= character.next_action.time;
+                            await character.turn();
+                        }
+                    } else {
+                        character.time = 0;
+                        await character.idle()
+                    }
+                    for (let buff of Object.values(character.buffs)) {
+                        await buff.turn();
+                    }
+                    if (character.isPlayer) {
+                        console.log(`player time: ${character.time}`)
+                        console.log(`player next action: ${character.next_action?.command}`)
+                    }
                 } else if (character.respawnCountdown < 0) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
             }
-            console.log(`player turncounter: ${this.player.time}`)
-            let activeCharacters = characters.filter(char => !char.dead);
-            for (let character of activeCharacters) {
-                for (let reaction of character.reactionQueue) {
-                    reaction.time -= character.speed;
-                    if (reaction.time <= 0) {
-                        console.log(character.name, 'executing reaction', reaction.command)
-                        await character.execute(reaction.command);
-                        if (reaction.repeat) {
-                            reaction.time += reaction.repeat;
-                        } else {
-                            character.reactionQueue = character.reactionQueue.filter(r => r !== reaction);
-                        }
-                    }
-                }
-            }
-            while (activeCharacters.length > 0) {
-                for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
-                    if (!character.dead) {
-                        if (character.buffs) {
-                            for (let buff of Object.values(character.buffs)) {
-                                await buff.turn();
-                            }
-                        }
-                        if (!character.dead) await character.turn();
-                    }
-                    character.time -= 1;
-                }
-                activeCharacters = this.characters.filter(char => !char.dead && char.time >= 1)
-            }
+            // while (activeCharacters.length > 0) {
+            //     for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
+            //         if (!character.dead) {
+            //             if (!character.dead) await character.turn();
+            //         }
+            //         character.time -= 1;
+            //     }
+            //     activeCharacters = this.characters.filter(char => !char.dead && char.time >= 1)
+            // }
         }
         this.print('Press any key to continue.')
         await this.getKey();
@@ -252,13 +259,13 @@ class A2D extends GameState {
         await this.find_character('Ieadon')?.relocate(endPoint)
 
         // add some monsters and random objects
-        this.addCharacter({ name: 'voidfish', location: void_map[12] })
-        this.addCharacter({ name: 'voidfish', location: void_map[13] })
-        this.addCharacter({ name: 'wraith', location: void_map[14] })
-        this.addCharacter({ name: 'wraith', location: void_map[15] })
-        this.addCharacter({ name: 'voidrat', location: void_map[16] })
-        this.addCharacter({ name: 'voidrat', location: void_map[17] })
-        this.addCharacter({ name: 'voidrat', location: void_map[18] })
+        this.addCharacter({ key: 'voidfish', location: void_map[12] })
+        this.addCharacter({ key: 'voidfish', location: void_map[13] })
+        this.addCharacter({ key: 'wraith', location: void_map[14] })
+        this.addCharacter({ key: 'wraith', location: void_map[15] })
+        this.addCharacter({ key: 'voidrat', location: void_map[16] })
+        this.addCharacter({ key: 'voidrat', location: void_map[17] })
+        this.addCharacter({ key: 'voidrat', location: void_map[18] })
 
         this.addItem({ name: 'cranberries_cd', container: void_map[6], quantity: 100 })
         this.addItem({ name: 'mighty_warfork', container: void_map[0] })

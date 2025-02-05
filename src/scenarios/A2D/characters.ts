@@ -108,8 +108,8 @@ class A2dCharacter extends Character {
         return super.onDeath(this.bindMethod(action));
     }
 
-    onTurn(action: ((this: A2dCharacter) => Promise<void>) | null) {
-        return super.onTurn(action ? this.bindMethod(action) : null);
+    onIdle(action: ((this: A2dCharacter) => Promise<void>) | null) {
+        return super.onIdle(action ? this.bindMethod(action) : null);
     }
 
     fightMove(action: (this: A2dCharacter) => Promise<void>): this {
@@ -153,10 +153,10 @@ class A2dCharacter extends Character {
         let callAttack = ''
 
         const num_enemies = this.location?.characters.filter(c => {
-            return c.enemies.includes(this.name)
+            return c.hasEnemy(this)
         }).length || 0
         const num_allies = this.location?.characters.filter(c => {
-            return c.enemies.includes(target.name)
+            return c.hasEnemy(target)
         }).length || 0
 
         const attackerPronouns = {
@@ -300,6 +300,7 @@ class A2dCharacter extends Character {
 
 const actions = {
     wander: function ({ bounds, frequency = 1 / 2 }: { bounds?: string[], frequency?: number }) {
+        bounds = bounds?.map(bound => bound.toLowerCase())
         async function wander_function(this: A2dCharacter) {
             if (this.fighting) return;
             if (Math.random() < frequency) {
@@ -307,7 +308,7 @@ const actions = {
                     this.location?.adjacent?.keys() || []
                 ).filter(
                     // don't go back if you can help it
-                    key => key != this.backDirection
+                    async key => key != this.backDirection && await this.can_go(key)
                 ).filter(
                     key => {
                         // stay in bounds
@@ -328,7 +329,9 @@ const actions = {
                 )) {
                     console.log(`${this.name} turned back at ${goLocation.name}`)
                     return;
-                } else this.push_action(`go ${goDirection}`);
+                } else this.push_action({ command: `go ${goDirection}` });
+            } else {
+                this.push_action({ command: 'wait' });
             }
         }
         return wander_function;
@@ -508,7 +511,7 @@ const actions = {
                 names.map(creature => [creature, 1 / (1 + this.game.find_all_characters(creature).length)])
             );
             return this.game.addCharacter({
-                name: randomChoice(names),
+                key: randomChoice(names),
                 location: randomChoice(locations),
             })
         }
@@ -519,14 +522,14 @@ const characters = {
     player(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'player',
+            key: 'player',
             isPlayer: true,
         });
     },
     sick_old_cleric(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'A sick old cleric, lying in bed',
+            key: 'A sick old cleric, lying in bed',
             aliases: ['cleric', 'old cleric', 'sick cleric', 'sick old cleric'],
             fight_description: 'A sick old cleric, lying in bed',
             items: ['clear_liquid', 'blue_liquid', 'red_liquid'],
@@ -556,7 +559,7 @@ const characters = {
     ierdale_forester(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'ierdale forester',
+            key: 'ierdale forester',
             items: ['long_dagger', { name: 'gold', quantity: 12 }],
             max_hp: 54,
             damage: { blunt: 6, sharp: 20 },
@@ -602,9 +605,9 @@ const characters = {
     guard_captain(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'guard captain',
+            key: 'guard captain',
             items: [{ name: 'gold', quantity: 25 }, 'longsword'],
-            max_hp: 100,
+            max_hp: 200,
             damage: { blunt: 10, sharp: 40 },
             weaponName: 'longsword',
             attackVerb: 'slice',
@@ -675,17 +678,17 @@ const characters = {
                 this.game.find_character('colonel arach')?.goto(breach_point!)
                 const invading_army = this.game.find_all_characters(['dark angel', 'orcish soldier', 'orcish emissary', 'grogren']).filter(c => !c.dead)
                 invading_army.forEach(c => c.relocate(breach_point))
-                invading_army.push(this.game.addCharacter({ name: 'orc_amazon', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'orc_behemoth', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'orc_behemoth', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'gryphon', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'gryphon', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'gryphon', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'orcish_soldier', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'orcish_soldier', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'orcish_soldier', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'orcish_soldier', location: breach_point! })!)
-                invading_army.push(this.game.addCharacter({ name: 'orcish_soldier', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'orc_amazon', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'orc_behemoth', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'orc_behemoth', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'gryphon', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'gryphon', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'gryphon', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'orcish_soldier', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'orcish_soldier', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'orcish_soldier', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'orcish_soldier', location: breach_point! })!)
+                invading_army.push(this.game.addCharacter({ key: 'orcish_soldier', location: breach_point! })!)
                 invading_army.forEach(c => {
                     c.relocate(breach_point!)
                     c.goto('Center of Town');
@@ -745,7 +748,7 @@ const characters = {
             }
         }).fightMove(
             actions.call_help('security_guard')
-        ).onTurn(async function () {
+        ).onIdle(async function () {
             if (!this.fighting) this.flags.called_for_help = false;
         })
     },
@@ -753,7 +756,7 @@ const characters = {
     minotaur(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'minotaur',
+            key: 'minotaur',
             pronouns: pronouns.male,
             items: ['spiked_club'],
             max_hp: 760,
@@ -771,7 +774,7 @@ const characters = {
     stone_ogre(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'stone ogre',
+            key: 'stone ogre',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 5 }, 'spiked_club'],
             max_hp: 100,
@@ -782,7 +785,7 @@ const characters = {
             armor: { blunt: 2 },
             coordination: 3,
             agility: 2,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -790,7 +793,7 @@ const characters = {
     ierdale_soldier(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Ierdale soldier',
+            key: 'Ierdale soldier',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 50 }, 'claymoore'],
             max_hp: 300,
@@ -821,7 +824,7 @@ const characters = {
             actions.declare_war
         ).fightMove(
             actions.call_help('general_kerry', 'general_gant', 'ierdale_soldier')
-        ).onTurn(async function () {
+        ).onIdle(async function () {
             if (this.game.flags.orc_battle && !this.fighting && !this.actionQueue.length) {
                 this.goto('eastern gatehouse')
             }
@@ -831,7 +834,7 @@ const characters = {
     ierdale_patrol(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Ierdale soldier',
+            key: 'Ierdale soldier',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 50 }, 'claymoore'],
             max_hp: 300,
@@ -860,7 +863,7 @@ const characters = {
             }
         }).onAttack(
             actions.declare_war
-        ).onTurn(actions.wander({
+        ).onIdle(actions.wander({
             bounds: [
                 'mucky path', 'stony bridge', 'dry grass', 'entrance to the forest of thieves', 'house', 'sandy desert', 'path of nod'
             ], frequency: 1 / 4
@@ -872,7 +875,7 @@ const characters = {
     general_kerry(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Ierdale general',
+            key: 'Ierdale general',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 200 }, 'silver_sword'],
             max_hp: 700,
@@ -904,7 +907,7 @@ const characters = {
     general_gant(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Ierdale general',
+            key: 'Ierdale general',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 200 }, 'silver_sword'],
             max_hp: 700,
@@ -936,7 +939,7 @@ const characters = {
     security_page(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'security page',
+            key: 'security page',
             items: ['dagger', { name: 'gold', quantity: Math.random() * 300 + 500 }],
             max_hp: 21,
             damage: { blunt: 5, sharp: 3 },
@@ -999,9 +1002,9 @@ const characters = {
             player.flags.forest_pass = true
             // this is the signal for the farm goblins to appear
             for (let location of [34, 35, 36, 39, 41]) {
-                this.game.addCharacter({ name: 'goblin_captain', location: location })
+                this.game.addCharacter({ key: 'goblin_captain', location: location })
                 for (let i = 0; i < 4; i++) {
-                    this.game.addCharacter({ name: 'goblin_soldier', location: location })
+                    this.game.addCharacter({ key: 'goblin_soldier', location: location })
                 }
             }
         }).onRespawn(async function () {
@@ -1012,7 +1015,7 @@ const characters = {
     toothless_man(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'toothless man',
+            key: 'toothless man',
             pronouns: pronouns.male,
             items: ['battle_axe', { name: 'gold', quantity: 1000 }],
             max_hp: 70,
@@ -1059,7 +1062,7 @@ const characters = {
     armor_merchant(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'armor merchant',
+            key: 'armor merchant',
             pronouns: pronouns.male,
             items: [
                 'leather_armor',
@@ -1094,7 +1097,7 @@ const characters = {
                 console.log('character "blacksmith" not found.')
                 return
             }
-            blacksmith.attackPlayer = true
+            blacksmith.hostile = true
         }).fightMove(
             actions.heal
         ).interaction('buy', actions.buy);
@@ -1103,7 +1106,7 @@ const characters = {
     blacksmith(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'blacksmith',
+            key: 'blacksmith',
             items: [{ name: 'gold', quantity: 50 }, 'battle_axe'],
             max_hp: 500,
             damage: { blunt: 40, sharp: 100 },
@@ -1127,7 +1130,7 @@ const characters = {
     bag_boy(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'bag boy',
+            key: 'bag boy',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 4 }, 'banana'],
             fight_description: 'worthless little bag boy',
@@ -1165,7 +1168,7 @@ const characters = {
     baby_spritzer(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'baby spritzer',
+            key: 'baby spritzer',
             pronouns: randomChoice([pronouns.male, pronouns.female]),
             items: [{ name: 'gold', quantity: 6 }, 'spritzer_hair'],
             fight_description: 'potent baby spritzer',
@@ -1173,26 +1176,35 @@ const characters = {
             armor: { blunt: 1, magic: 18 },
             coordination: 1,
             agility: 1.5,
+            damage: { magic: 10 },
             weaponName: 'spritzer power',
             attackVerb: 'magic',
-            spellChance: () => Math.random() < 1 / 4,
         }).dialog(async function (player: Character) {
             this.print("Wanna play?");
         }).onDeath(async function () {
             this.color(brightblue);
             this.print(`Baby spritzer vanishes to be with ${this.pronouns.possessive} parents, ${this.pronouns.subject} is done playing.`);
-        }).fightMove(
-            actions.sleep
-        ).onRespawn(async function () {
+        }).fightMove(async function () {
+            if (Math.random() < 1 / 4) {
+                if (this.location?.playerPresent) {
+                    this.color(magenta);
+                    this.print(`Baby spritzer opens ${this.pronouns.possessive} mouth wide...`);
+                }
+                for (let character of this.location?.characters || []) {
+                    if (character != this) await character.addBuff(getBuff('sleep')({ duration: 25, power: 1 }));
+                    await character.fight(null)
+                }
+            }
+        }).onRespawn(async function () {
             this.enemies = [];
-            this.attackPlayer = false;
+            this.hostile = false;
         });
     },
 
     colonel_arach(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Colonel Arach',
+            key: 'Colonel Arach',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 500 }, 'mighty_excalabor'],
             fight_description: 'Arach the Terrible',
@@ -1342,7 +1354,7 @@ const characters = {
     sift(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Sift',
+            key: 'Sift',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 200 }, 'ring_of_dreams'],
             max_hp: 580,
@@ -1353,7 +1365,7 @@ const characters = {
             coordination: 25,
             agility: 15,
             armor: { blunt: 25 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
             exp: 3456,
@@ -1389,8 +1401,8 @@ const characters = {
                         this.print("-- bats summoned --")
                     }
                     const bats = [
-                        this.game.addCharacter({ name: 'mutant_bat', location: this.location! }),
-                        this.game.addCharacter({ name: 'mutant_bat', location: this.location! })
+                        this.game.addCharacter({ key: 'mutant_bat', location: this.location! }),
+                        this.game.addCharacter({ key: 'mutant_bat', location: this.location! })
                     ]
                     bats.forEach(bat => {
                         if (bat) {
@@ -1406,7 +1418,7 @@ const characters = {
     cradel(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'cradel',
+            key: 'cradel',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 100 }, 'spiked_club'],
             fight_description: 'Cradel the troll',
@@ -1505,7 +1517,7 @@ const characters = {
 
         return new A2dCharacter({
             game: game,
-            name: 'Mino',
+            key: 'Mino',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 15 }, 'long_dagger', 'lute_de_lumonate'],
             fight_description: 'musical Mino',
@@ -1641,7 +1653,7 @@ const characters = {
     peon(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'peon',
+            key: 'peon',
             items: [{ name: 'gold', quantity: 2 }],
             max_hp: 50,
             damage: { blunt: 10, sharp: 2 },
@@ -1656,7 +1668,7 @@ const characters = {
         }).dialog(async function (player: Character) {
             this.print("Ierdale will stop at nothing to destroy us!");
             this.print("Join us against them, brother!");
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['grobin gates'] })
         ).onAttack(
             actions.declare_war
@@ -1668,7 +1680,7 @@ const characters = {
     orcish_citizen(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'orcish citizen',
+            key: 'orcish citizen',
             items: [{ name: 'gold', quantity: 29 }, 'rapier'],
             max_hp: 80,
             damage: { sharp: 20 },
@@ -1683,7 +1695,7 @@ const characters = {
         }).dialog(async function (player: Character) {
             this.print("Ierdale will stop at nothing to destroy us!");
             this.print("Join us against them, brother!");
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
         ).onAttack(
             actions.declare_war
@@ -1695,7 +1707,7 @@ const characters = {
     orcish_child(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'orcish child',
+            key: 'orcish child',
             items: ['toy_sword'],
             max_hp: 10,
             damage: { blunt: 1, sharp: 0 },
@@ -1708,7 +1720,7 @@ const characters = {
             pronouns: randomChoice([pronouns.male, pronouns.female]),
         }).dialog(async function (player: Character) {
             this.print('Kill humans! Weeeee!')
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['grobin gates'], frequency: 1 / 3 })
         ).onAttack(
             actions.declare_war
@@ -1720,7 +1732,7 @@ const characters = {
     orcish_soldier(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'orcish soldier',
+            key: 'orcish soldier',
             pronouns: pronouns.male,
             items: [{ name: 'gold', quantity: 5 }, 'halberd'],
             fight_description: 'orcish soldier',
@@ -1732,7 +1744,7 @@ const characters = {
             agility: 3,
             alignment: 'orcs',
             flags: { enemy_of_ierdale: true },
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['grobin gates', 'peon house', 'orc house', 'house', 'orcish grocery'] })
         ).dialog(async function (player: Character) {
             this.print("Ten-hut! The humans will find no quarter with me!");
@@ -1748,7 +1760,7 @@ const characters = {
     dark_angel(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'dark angel',
+            key: 'dark angel',
             items: [{ name: 'gold', quantity: 50 }, 'dark_sword', 'banana'],
             max_hp: 300,
             damage: { sharp: 40, magic: 40 },
@@ -1780,7 +1792,7 @@ const characters = {
         }).onAttack(async function (attacker) {
             // pass revoked
             attacker.flags.orc_pass = false;
-        }).onTurn(async function () {
+        }).onIdle(async function () {
             if (this.game.flags.orc_battle && !this.fighting) {
                 this.goto('Ierdale Barracks');
             }
@@ -1790,7 +1802,7 @@ const characters = {
     gerard(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'gerard',
+            key: 'gerard',
             items: [{ name: 'gold', quantity: 50 }],
             max_hp: 200,
             damage: { blunt: 100, sharp: 50 },
@@ -1820,7 +1832,7 @@ const characters = {
     orc_emissary(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'orcish emissary',
+            key: 'orcish emissary',
             aliases: ['emissary', 'orcs'],
             pronouns: pronouns.female,
             fight_description: 'orc emissary',
@@ -1909,10 +1921,10 @@ const characters = {
                 attacker.flags.orc_pass = false;
                 this.color(black)
                 // call all the backup
-                this.game.addCharacter({ name: 'orc_amazon', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
-                this.game.addCharacter({ name: 'orc_behemoth', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
-                this.game.addCharacter({ name: 'orc_behemoth', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
-                this.game.addCharacter({ name: 'gryphon', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
+                this.game.addCharacter({ key: 'orc_amazon', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
+                this.game.addCharacter({ key: 'orc_behemoth', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
+                this.game.addCharacter({ key: 'orc_behemoth', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
+                this.game.addCharacter({ key: 'gryphon', location: this.location?.adjacent.get('east')!, chase: true })?.goto(this.location)
                 this.flags.minions = true;
             };
         })
@@ -1921,7 +1933,7 @@ const characters = {
     doo_dad_man(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'doo dad man',
+            key: 'doo dad man',
             items: [{ name: 'gold', quantity: 150 }, 'long_dagger'],
             max_hp: 90,
             damage: { blunt: 45, sharp: 10 },
@@ -1946,7 +1958,7 @@ const characters = {
     orcish_grocer(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'orcish grocer',
+            key: 'orcish grocer',
             aliases: ['grocer'],
             pronouns: pronouns.female,
             items: [
@@ -1993,7 +2005,7 @@ const characters = {
     farm_wife(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'farm wife',
+            key: 'farm wife',
             items: [],
             max_hp: 12,
             damage: { blunt: 3, sharp: 0 },
@@ -2028,7 +2040,7 @@ const characters = {
     clubman(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'clubman',
+            key: 'clubman',
             items: ['club', { name: 'gold', quantity: 5 }],
             max_hp: 21,
             damage: { blunt: 7 },
@@ -2047,7 +2059,7 @@ const characters = {
     wandering_clubman(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'clubman',
+            key: 'clubman',
             items: ['club', { name: 'gold', quantity: 5 }],
             max_hp: 21,
             damage: { blunt: 7 },
@@ -2060,7 +2072,7 @@ const characters = {
             pronouns: pronouns.male,
         }).dialog(async function (player: Character) {
             this.print("Duuuu... Ummmmmm... How me I forget to breathe...");
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: [] })
         );
     },
@@ -2068,7 +2080,7 @@ const characters = {
     ultra_clubman(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'clubman',
+            key: 'clubman',
             items: ['club', 'club', { name: 'gold', quantity: 10 }],
             max_hp: 84,
             damage: { blunt: 27 },
@@ -2079,7 +2091,7 @@ const characters = {
             fight_description: 'ultra clubman',
             alignment: 'clubmen clan',
             pronouns: pronouns.male,
-            attackPlayer: true,
+            hostile: true,
         }).fightMove(async function () {
             if (this.attackTarget?.isPlayer) {
                 this.print("Clubman attacks with his other hand!");
@@ -2091,7 +2103,7 @@ const characters = {
     rush_lurker(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'rush lurker',
+            key: 'rush lurker',
             items: [{ name: 'gold', quantity: 10 }],
             max_hp: 31,
             damage: { blunt: 8, sharp: 3 },
@@ -2100,7 +2112,7 @@ const characters = {
             weaponName: 'claws',
             attackVerb: 'slice',
             fight_description: 'rush lurker',
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         });
@@ -2109,7 +2121,7 @@ const characters = {
     swordsman(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'swordsman',
+            key: 'swordsman',
             items: ['shortsword', { name: 'gold', quantity: 5 }],
             max_hp: 72,
             damage: { blunt: 8, sharp: 14 },
@@ -2126,7 +2138,7 @@ const characters = {
     evil_forester(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'evil forester',
+            key: 'evil forester',
             aliases: ['forester'],
             items: ['wooden_stick', { name: 'gold', quantity: 8 }],
             max_hp: 50,
@@ -2136,7 +2148,7 @@ const characters = {
             weaponName: 'wooden stick',
             attackVerb: 'club',
             fight_description: 'evil forester',
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         });
@@ -2145,7 +2157,7 @@ const characters = {
     dirty_thief(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'dirty thief',
+            key: 'dirty thief',
             aliases: ['thief'],
             items: ['dagger', { name: 'gold', quantity: 6 }],
             max_hp: 52,
@@ -2162,7 +2174,7 @@ const characters = {
     fat_merchant_thief(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'fat merchant-thief',
+            key: 'fat merchant-thief',
             items: ['whip', { name: 'gold', quantity: 20 }],
             aliases: ['fat merchant', 'merchant-thief', 'merchant', 'thief'],
             max_hp: 61,
@@ -2179,7 +2191,7 @@ const characters = {
     snarling_thief(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'snarling thief',
+            key: 'snarling thief',
             aliases: ['thief'],
             items: ['flail', { name: 'gold', quantity: 7 }],
             max_hp: 82,
@@ -2196,7 +2208,7 @@ const characters = {
     dark_rider(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'dark rider',
+            key: 'dark rider',
             items: ['hand_axe', { name: 'gold', quantity: 3 }],
             max_hp: 115,
             damage: { blunt: 20, sharp: 10 },
@@ -2206,7 +2218,7 @@ const characters = {
             attackVerb: 'axe',
             fight_description: 'dark rider',
             armor: { blunt: 3 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         });
@@ -2215,7 +2227,7 @@ const characters = {
     fine_gentleman(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'fine gentleman',
+            key: 'fine gentleman',
             aliases: ['gentleman'],
             items: ['rapier', { name: 'gold', quantity: 26 }],
             max_hp: 103,
@@ -2233,7 +2245,7 @@ const characters = {
     little_goblin_thief(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'little goblin thief',
+            key: 'little goblin thief',
             aliases: ['goblin thief', 'goblin', 'thief'],
             items: ['metal_bar', { name: 'gold', quantity: 6 }],
             max_hp: 100,
@@ -2250,7 +2262,7 @@ const characters = {
     orc_amazon(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'orc amazon',
+            key: 'orc amazon',
             aliases: ['amazon', 'orc'],
             items: ['claymoore', { name: 'gold', quantity: 17 }],
             max_hp: 250,
@@ -2276,7 +2288,7 @@ const characters = {
     orc_behemoth(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'orc behemoth',
+            key: 'orc behemoth',
             aliases: ['behemoth', 'orc'],
             pronouns: pronouns.male,
             items: ['mighty_warhammer'],
@@ -2302,7 +2314,7 @@ const characters = {
     peddler(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'peddler',
+            key: 'peddler',
             items: ['spy_o_scope', { name: 'gold', quantity: 100 }],
             max_hp: 100,
             weaponName: 'dagger',
@@ -2322,21 +2334,29 @@ const characters = {
             this.print();
             this.pause((6));
             this.print("Oh, sorry, I have something to sell.");
-            this.print("Its called a \"spy o scope\". Cost ", 1);
-            this.color(yellow);
-            this.print("200gp");
-            this.color(black);
-            this.print("It allows you to peek into rooms that are next to you.");
+            this.print("Its called a \"spy o scope\". Cost <yellow>200GP<black>.");
+            this.print("It allows you to gain info about your enemies.");
             this.print("Type \"buy spy o scope\" to purchase it.");
+        }).interaction('buy spy o scope', async function (player: Character, action: string) {
+            if (player.has('gold', 200)) {
+                player.removeItem('gold', 200);
+                player.giveItem('spy o scope');
+                this.print("Trust me, this was worth it. You're gonna love it.");
+                this.print("To use it, type \"examine <name>.\"");
+                this.print("If you want to examine a clubman, type \"examine clubman.\"");
+                this.print("You get the picture. Have fun.")
+            } else {
+                this.print("You don't have enough gold.");
+            }
         }).onDeath(
             actions.declare_war
-        ).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
+        ).onIdle(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
     rock_hydra(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'rock hydra',
+            key: 'rock hydra',
             aliases: ['hydra'],
             items: [{ name: 'gold', quantity: 29 }],
             max_hp: 200,
@@ -2346,7 +2366,7 @@ const characters = {
             armor: { blunt: 5 },
             coordination: 4,
             agility: 1,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         });
@@ -2355,7 +2375,7 @@ const characters = {
     nightmare(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'nightmare',
+            key: 'nightmare',
             items: [{ name: 'gold', quantity: 50 }, 'longsword'],
             max_hp: 450,
             damage: { blunt: 112, sharp: 21 },
@@ -2364,7 +2384,7 @@ const characters = {
             coordination: 9,
             agility: 5,
             armor: { blunt: 28 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         }).fightMove(async function () {
@@ -2375,7 +2395,7 @@ const characters = {
     mogrim(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'mogrim',
+            key: 'mogrim',
             items: [{ name: 'gold', quantity: Math.random() * 30 }, 'hardened_club'],
             max_hp: 490,
             damage: { blunt: 56, sharp: 20 },
@@ -2384,7 +2404,7 @@ const characters = {
             coordination: 5,
             agility: 3,
             armor: { blunt: 36 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         }).onRespawn(async function () {
@@ -2395,7 +2415,7 @@ const characters = {
     reaper(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'reaper',
+            key: 'reaper',
             items: ['scythe', { name: 'gold', quantity: Math.random() * 50 }],
             max_hp: 150,
             damage: { blunt: 0, sharp: 250 },
@@ -2406,7 +2426,7 @@ const characters = {
             agility: 25,
             armor: { blunt: 0 },
             pronouns: pronouns.inhuman,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         }).onRespawn(async function () {
             this.item('gold')!.quantity = Math.random() * 50;
@@ -2426,7 +2446,7 @@ const characters = {
     goblin_hero(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'goblin hero',
+            key: 'goblin hero',
             items: ['jagged_polearm', { name: 'gold', quantity: Math.random() * 56 + 1 }],
             max_hp: 230,
             damage: { blunt: 120, sharp: 70 },
@@ -2436,7 +2456,7 @@ const characters = {
             coordination: 12,
             agility: 4,
             armor: { blunt: 26 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         }).onRespawn(async function () {
@@ -2457,7 +2477,7 @@ const characters = {
     "spiny monstrosity"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'spiny monstrosity',
+            key: 'spiny monstrosity',
             pronouns: pronouns.female,
             max_hp: 1200,
             damage: { blunt: 26, sharp: 75 },
@@ -2468,7 +2488,7 @@ const characters = {
             agility: 18,
             armor: { blunt: 50, sharp: 500, magic: 250 },
             alignment: 'fairy',
-            attackPlayer: true,
+            hostile: true,
             items: [],
         }).fightMove(async function () {
             if (Math.random() < 2 / 5) {
@@ -2476,7 +2496,7 @@ const characters = {
                 if (this.attackTarget?.isPlayer) {
                     this.print("Spiny monstrosity shoots her poisoned spikes at you!")
                 } else if (this.location?.playerPresent) {
-                    this.print("Spiny monstrosity shoots her poisoned spikes at " + this.attackTarget?.name + "!")
+                    this.print("Spiny monstrosity shoots her poisoned spikes at " + this.attackTarget?.key + "!")
                 }
                 let dam = highRandom(65)
                 dam = this.attackTarget?.modify_damage(dam, 'sharp') || 0
@@ -2486,7 +2506,7 @@ const characters = {
                 currentPoison += Math.max(dam, 0);
                 if (currentPoison) this.attackTarget?.addBuff(getBuff('poison')({ power: currentPoison, duration: currentPoison }))
             }
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'] })
         )
     },
@@ -2494,7 +2514,7 @@ const characters = {
     "wood rat"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'wood rat',
+            key: 'wood rat',
             items: ['rat steak'],
             max_hp: 460,
             damage: { blunt: 60, sharp: 170 },
@@ -2504,16 +2524,16 @@ const characters = {
             coordination: 9,
             agility: 4,
             armor: { blunt: 56, magic: 100 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: randomChoice([pronouns.male, pronouns.female]),
-        }).onTurn(actions.wander({ bounds: ['corroded gate'] }))
+        }).onIdle(actions.wander({ bounds: ['corroded gate'] }))
     },
 
     "giant spider"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'giant spider',
+            key: 'giant spider',
             items: ['spider_web'],
             max_hp: 500,
             damage: { poison: 50, sharp: 180 },
@@ -2524,16 +2544,16 @@ const characters = {
             agility: 5,
             armor: { sharp: 60, magic: 150 },
             buff: { times: { defense: { magic: 2 } } },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
-        }).onTurn(actions.wander({ bounds: ['corroded gate'] }))
+        }).onIdle(actions.wander({ bounds: ['corroded gate'] }))
     },
 
     "wild boar"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'wild boar',
+            key: 'wild boar',
             items: ['side of meat', 'side of meat'],
             max_hp: 600,
             damage: { blunt: 100, sharp: 50 },
@@ -2543,10 +2563,10 @@ const characters = {
             coordination: 8,
             agility: 3,
             armor: { blunt: 70, sharp: 30 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'] })
         )
     },
@@ -2554,7 +2574,7 @@ const characters = {
     "termite soldier"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'termite soldier',
+            key: 'termite soldier',
             items: ['termite mandible'],
             max_hp: 20,
             damage: { sharp: 50 },
@@ -2564,7 +2584,7 @@ const characters = {
             coordination: 6,
             agility: 14,
             armor: { blunt: 30, sharp: 50, magic: 50 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
         }).fightMove(async function () {
@@ -2581,16 +2601,16 @@ const characters = {
                 await this.attackTarget?.hurt(dam, 'acid')
             } else if (Math.random() < 1 / 3) {
                 if (this.location?.playerPresent) { this.print("Termite soldier shrieks, summoning help!") }
-                const termite = this.game.addCharacter({ name: 'termite soldier', location: this.location! })
+                const termite = this.game.addCharacter({ key: 'termite soldier', location: this.location! })
                 if (termite) {
                     termite.respawns = false;
-                    termite.onTurn(async function () {
+                    termite.onIdle(async function () {
                         if (!this.location?.playerPresent && Math.random() < 1 / 4) {
                             console.log('termite soldier dies in darkness.')
                             await this.die()
                         } else {
                             console.log('termite soldier wanders.')
-                            await this.go(randomChoice(Array.from(this.location?.adjacent.keys() ?? [])))
+                            this.action({ command: randomChoice(Array.from(this.location?.adjacent.keys() ?? [])) })
                         }
                     })
                 }
@@ -2603,8 +2623,8 @@ const characters = {
                 }
                 for (let i = 0; i < 2; i++) {
                     await this.game.addCharacter(
-                        { name: 'termite soldier', respawns: false, location: character.location! }
-                    )?.onTurn(async function () {
+                        { key: 'termite soldier', respawns: false, location: character.location! }
+                    )?.onIdle(async function () {
                         if (!this.fighting) {
                             console.log('termite soldier dies, because the fight is over.')
                             await this.die()
@@ -2613,7 +2633,7 @@ const characters = {
                     console.log('termite soldier spawn a helper.')
                 }
             }
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'] })
         )
     },
@@ -2621,7 +2641,7 @@ const characters = {
     "mega turtle"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'mega turtle',
+            key: 'mega turtle',
             items: ['turtle shell'],
             max_hp: 1000,
             damage: { blunt: 250, sharp: 150 },
@@ -2633,10 +2653,10 @@ const characters = {
             speed: 0.5,
             armor: { blunt: 200, sharp: 200, magic: 200 },
             buff: { times: { defense: { magic: 2, fire: 1 / 2 } } },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'], frequency: 1 / 3 })
         )
     },
@@ -2644,7 +2664,7 @@ const characters = {
     "horned serpent"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'horned serpent',
+            key: 'horned serpent',
             items: ['serpent horn'],
             max_hp: 800,
             damage: { blunt: 100, sharp: 200 },
@@ -2655,10 +2675,10 @@ const characters = {
             agility: 6,
             speed: 1.5,
             armor: { blunt: 100, sharp: 200, magic: 300 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'fairy',
             pronouns: pronouns.inhuman,
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['corroded gate'], frequency: 1 / 3 })
         )
     },
@@ -2666,7 +2686,7 @@ const characters = {
     effelin(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'fairy queen',
+            key: 'fairy queen',
             items: ['elven bow', { name: 'gold', quantity: 100 }, 'magic acorn'],
             max_hp: 1000,
             damage: { blunt: 5, sharp: 45, magic: 70 },
@@ -2676,7 +2696,7 @@ const characters = {
             coordination: 10,
             agility: 8,
             armor: { blunt: 5 },
-            attackPlayer: false,
+            hostile: false,
             alignment: 'fairy',
         }).onEncounter(
             actions.defend_tribe
@@ -2703,16 +2723,9 @@ const characters = {
     "silver fox"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'silver fox',
+            key: 'silver fox',
             max_hp: 30,
-            damage: { blunt: 3, sharp: 2 },
-            items: ['silver_sword'],
-            weaponName: 'teeth',
-            attackVerb: 'bite',
-            coordination: 5,
-            agility: 6,
-            armor: { blunt: 1 },
-            pronouns: pronouns.inhuman,
+            pacifist: true,
             flags: { path: ['west', 'west', 'south', 'west', 'south',], encountered: false }
         }).onEncounter(async function (character) {
             if (character.isPlayer) {
@@ -2730,16 +2743,13 @@ const characters = {
                     this.game.removeCharacter(this);
                 }
             }
-        }).onAttack(async function (character) {
-            character.fight(null);
-            this.fight(null);
         })
     },
 
     stone_golem(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'stone golem',
+            key: 'stone golem',
             items: ['warhammer', { name: 'gold', quantity: 19 }],
             max_hp: 120,
             damage: { blunt: 45, sharp: 15 },
@@ -2748,7 +2758,7 @@ const characters = {
             fight_description: 'Huge stone golem',
             coordination: 4,
             agility: 1,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.inhuman,
         });
@@ -2757,7 +2767,7 @@ const characters = {
     wood_troll(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'wood troll',
+            key: 'wood troll',
             pronouns: pronouns.male,
             items: ['club'],
             max_hp: 250,
@@ -2769,7 +2779,7 @@ const characters = {
             agility: 5,
             armor: { blunt: 16 },
             alignment: 'evil/areaw',
-        }).onTurn(
+        }).onIdle(
             actions.wander({})
         ).fightMove(actions.call_help('wood_troll'));
     },
@@ -2777,7 +2787,7 @@ const characters = {
     cat_woman(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'cat woman',
+            key: 'cat woman',
             items: ['axe_of_the_cat', { name: 'gold', quantity: 25 }],
             max_hp: 400,
             damage: { blunt: 75, sharp: 100 },
@@ -2791,14 +2801,15 @@ const characters = {
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             spellChance: () => Math.random() < 1 / 5,
             respawns: false,
-            alignment: 'evil',
+            hostile: true,
+            alignment: 'fairy',
         }).fightMove(actions.max_heal)
     },
 
     megara(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'megara',
+            key: 'megara',
             pronouns: pronouns.inhuman,
             items: ['megarian_club', { name: 'gold', quantity: 50 }],
             max_hp: 300,
@@ -2809,7 +2820,7 @@ const characters = {
             coordination: 10,
             agility: 0,
             armor: { blunt: 50 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -2817,7 +2828,7 @@ const characters = {
     cow(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'cow',
+            key: 'cow',
             items: ['side of meat'],
             max_hp: 51,
             damage: { blunt: 4, sharp: 4 },
@@ -2842,7 +2853,7 @@ const characters = {
     bull(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'bull',
+            key: 'bull',
             pronouns: pronouns.male,
             items: ['side of meat'],
             max_hp: 55,
@@ -2852,7 +2863,7 @@ const characters = {
             fight_description: 'bull',
             coordination: 4,
             agility: 1,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -2860,7 +2871,7 @@ const characters = {
     jury_member(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'jury member',
+            key: 'jury member',
             items: [{ name: 'gold', quantity: 1 }],
             max_hp: 20,
             damage: { blunt: 3, sharp: 0 },
@@ -2885,7 +2896,7 @@ const characters = {
     peasant_elder(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'peasant elder',
+            key: 'peasant elder',
             pronouns: pronouns.female,
             items: ['magic_ring'],
             respawns: false,
@@ -2988,7 +2999,7 @@ const characters = {
     scarecrow_gaurd(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'scarecrow gaurd',
+            key: 'scarecrow gaurd',
             items: ['pitchfork', { name: 'gold', quantity: 10 }],
             max_hp: 210,
             damage: { blunt: 31, sharp: 57 },
@@ -2998,7 +3009,7 @@ const characters = {
             coordination: 4,
             agility: 3,
             armor: { blunt: 6 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
         });
@@ -3007,7 +3018,7 @@ const characters = {
     scarecrow_worker(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'scarecrow worker',
+            key: 'scarecrow worker',
             items: ['pitchfork'],
             max_hp: 130,
             damage: { blunt: 25, sharp: 48 },
@@ -3025,7 +3036,7 @@ const characters = {
     scarecrow_king(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'scarecrow king',
+            key: 'scarecrow king',
             items: ['golden_pitchfork', { name: 'gold', quantity: 38 }],
             max_hp: 260,
             damage: { blunt: 43, sharp: 75 },
@@ -3035,7 +3046,7 @@ const characters = {
             coordination: 5,
             agility: 3,
             armor: { blunt: 12 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             pronouns: pronouns.male,
             respawns: false,
@@ -3045,7 +3056,7 @@ const characters = {
     grocer(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'grocer',
+            key: 'grocer',
             pronouns: pronouns.male,
             items: [
                 { name: 'banana', quantity: Infinity },
@@ -3070,7 +3081,7 @@ const characters = {
     old_woman(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'old woman',
+            key: 'old woman',
             pronouns: pronouns.female,
             max_hp: 1000,
         }).dialog(async function (player: Character) {
@@ -3089,7 +3100,7 @@ const characters = {
     blobin(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Blobin',
+            key: 'Blobin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 600,
             agility: 10,
@@ -3114,10 +3125,10 @@ const characters = {
                         if (await this.getKey(['y', 'n']) == "y") {
                             this.game.player.flags.enemy_of_ierdale = true
                             const soldiers = [
-                                this.game.addCharacter({ name: 'orc_amazon', location: this.location! }),
-                                this.game.addCharacter({ name: 'orc_behemoth', location: this.location! }),
-                                this.game.addCharacter({ name: 'orc_behemoth', location: this.location! }),
-                                this.game.addCharacter({ name: 'gryphon', location: this.location! })
+                                this.game.addCharacter({ key: 'orc_amazon', location: this.location! }),
+                                this.game.addCharacter({ key: 'orc_behemoth', location: this.location! }),
+                                this.game.addCharacter({ key: 'orc_behemoth', location: this.location! }),
+                                this.game.addCharacter({ key: 'gryphon', location: this.location! })
                             ].filter(c => c) as Character[];
                             soldiers.forEach(soldier => soldier.following = player.name);
                             this.print("Here, take these soldiers and this gryphon on your way.");
@@ -3179,10 +3190,10 @@ const characters = {
                             await ieadon.fight(player);
                         }
                     }
-                    this.game.addCharacter({ name: 'gryphon', location: this.location! })?.onDeath(soldierDown);
-                    this.game.addCharacter({ name: 'orc_behemoth', location: this.location! })?.onDeath(soldierDown);
-                    this.game.addCharacter({ name: 'orc_behemoth', location: this.location! })?.onDeath(soldierDown);
-                    this.game.addCharacter({ name: 'orc_amazon', location: this.location! })?.onDeath(soldierDown);
+                    this.game.addCharacter({ key: 'gryphon', location: this.location! })?.onDeath(soldierDown);
+                    this.game.addCharacter({ key: 'orc_behemoth', location: this.location! })?.onDeath(soldierDown);
+                    this.game.addCharacter({ key: 'orc_behemoth', location: this.location! })?.onDeath(soldierDown);
+                    this.game.addCharacter({ key: 'orc_amazon', location: this.location! })?.onDeath(soldierDown);
                     (player as Player).disableCommands(['save'], 'no.')
                     // Fight 157
                     // this.print("Ieadon is hiding in a mysterious place know as ", 1);
@@ -3211,7 +3222,7 @@ const characters = {
     beggar(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'beggar',
+            key: 'beggar',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 35,
             coordination: 3,
@@ -3240,13 +3251,13 @@ const characters = {
                 this.print();
                 this.print("Just an old prophecy, not much.  Thanks for the money");
             }
-        }).onTurn(actions.wander({ bounds: [] }));
+        }).onIdle(actions.wander({ bounds: [] }));
     },
 
     cleric_tendant(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'cleric tendant',
+            key: 'cleric tendant',
             pronouns: pronouns.male,
             agility: 2,
             max_hp: 100,
@@ -3327,7 +3338,7 @@ const characters = {
     blind_hermit(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'blind hermit',
+            key: 'blind hermit',
             pronouns: pronouns.male,
             agility: 1,
             max_hp: 30,
@@ -3387,7 +3398,7 @@ const characters = {
     butcher(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'butcher',
+            key: 'butcher',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 1000,
             damage: { sharp: 20, blunt: 20 },
@@ -3425,7 +3436,7 @@ const characters = {
     adder(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'adder',
+            key: 'adder',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 32,
             damage: { blunt: 2, sharp: 10 },
@@ -3445,7 +3456,7 @@ const characters = {
     bridge_troll(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'bridge troll',
+            key: 'bridge troll',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 61,
             damage: { blunt: 16, sharp: 2 },
@@ -3468,7 +3479,7 @@ const characters = {
     swamp_thing(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'swamp thing',
+            key: 'swamp thing',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 46,
             damage: { blunt: 15, sharp: 1 },
@@ -3476,7 +3487,7 @@ const characters = {
             agility: 1,
             weaponName: 'whip-like fingers',
             fight_description: 'swamp thing',
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -3484,7 +3495,7 @@ const characters = {
     dryad(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'dryad',
+            key: 'dryad',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 130,
             damage: { blunt: 12, sharp: 5 },
@@ -3499,7 +3510,7 @@ const characters = {
     goblin_soldier(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'goblin soldier',
+            key: 'goblin soldier',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 21,
             damage: { blunt: 15, sharp: 3 },
@@ -3509,7 +3520,7 @@ const characters = {
             attackVerb: 'club',
             items: [{ name: 'gold', quantity: 3 }, 'wooden_stick'],
             fight_description: 'evil looking goblin',
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -3517,7 +3528,7 @@ const characters = {
     goblin_captain(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'goblin captain',
+            key: 'goblin captain',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 48,
             damage: { blunt: 29, sharp: 10 },
@@ -3528,7 +3539,7 @@ const characters = {
             armor: { blunt: 9 },
             agility: 3,
             coordination: 2,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         })
     },
@@ -3536,7 +3547,7 @@ const characters = {
     security_guard(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'security guard',
+            key: 'security guard',
             pronouns: randomChoice([pronouns.male, pronouns.female, pronouns.male]),
             max_hp: 35,
             damage: { blunt: 17, sharp: 7 },
@@ -3604,7 +3615,7 @@ const characters = {
     snotty_page(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'snotty page',
+            key: 'snotty page',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 20,
             damage: { blunt: 1, sharp: 10 },
@@ -3616,7 +3627,7 @@ const characters = {
             aliases: ['page'],
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
-            items: ['partial healing potion', 'mostly healing potion', 'full healing potion']
+            items: ['minor healing potion', 'major healing potion', 'mega healing potion']
         }).dialog(async function (player: Character) {
             this.print("What do you want... wait I am too good and too cool to be talking to you,");
             this.print("Eldfarl picked me to mentor him because I am the BEST!!!  Way better than you!");
@@ -3634,7 +3645,7 @@ const characters = {
     police_chief(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'police chief',
+            key: 'police chief',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 150,
             damage: { blunt: 65, sharp: 30 },
@@ -3668,7 +3679,7 @@ const characters = {
     sandworm(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'sandworm',
+            key: 'sandworm',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 450,
             damage: { blunt: 18, sharp: 0 },
@@ -3684,13 +3695,13 @@ const characters = {
     sand_scout(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'sand scout',
+            key: 'sand scout',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 45,
             damage: { blunt: 0, sharp: 40 },
             weaponName: 'long rapier',
             attackVerb: 'stab',
-            items: [{ name: 'gold', quantity: 12 }, 'partial_healing_potion', 'long_rapier'],
+            items: [{ name: 'gold', quantity: 12 }, 'minor healing potion', 'long_rapier'],
             fight_description: 'quick sand scout',
             agility: 7,
             coordination: 10,
@@ -3701,7 +3712,7 @@ const characters = {
     hen(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'hen',
+            key: 'hen',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 5,
             damage: { blunt: 2, sharp: 0 },
@@ -3717,7 +3728,7 @@ const characters = {
     large_rooster(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'large rooster',
+            key: 'large rooster',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 5,
             damage: { blunt: 7, sharp: 2 },
@@ -3727,7 +3738,7 @@ const characters = {
             fight_description: 'furious rooster',
             coordination: 4,
             agility: 2,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         });
     },
@@ -3735,7 +3746,7 @@ const characters = {
     chief_judge(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'chief judge',
+            key: 'chief judge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 30,
             damage: { blunt: 9, sharp: 0 },
@@ -3761,7 +3772,7 @@ const characters = {
     elite_guard(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'elite guard',
+            key: 'elite guard',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 50,
             damage: { blunt: 22, sharp: 10 },
@@ -3788,7 +3799,7 @@ const characters = {
     dreaugar_dwarf(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'dreaugar dwarf',
+            key: 'dreaugar dwarf',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 175,
             damage: { blunt: 90, sharp: 10 },
@@ -3799,7 +3810,7 @@ const characters = {
             coordination: 8,
             agility: 5,
             armor: { blunt: 20 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         }).fightMove(async function () {
             if (Math.random() < 1 / 5) {
@@ -3829,7 +3840,7 @@ const characters = {
         }
         return new A2dCharacter({
             game: game,
-            name: 'Orkin the animal trainer',
+            key: 'Orkin the animal trainer',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 220,
             damage: { blunt: 20, sharp: 10 },
@@ -3850,10 +3861,10 @@ const characters = {
                 this.print("Orkin -- Help me animals!");
             }
             for (let i = 0; i < 3; i++) {
-                this.game.addCharacter({ name: 'wolf', location: this.location! });
-                this.game.addCharacter({ name: 'tiger', location: this.location! });
-                this.game.addCharacter({ name: 'owl', location: this.location! });
-                this.game.addCharacter({ name: 'weasel', location: this.location! });
+                this.game.addCharacter({ key: 'wolf', location: this.location! });
+                this.game.addCharacter({ key: 'tiger', location: this.location! });
+                this.game.addCharacter({ key: 'owl', location: this.location! });
+                this.game.addCharacter({ key: 'weasel', location: this.location! });
             }
 
         }).interaction('buy', async function (player, petname: string) {
@@ -3865,7 +3876,7 @@ const characters = {
                     } else if (Object.keys(petPrices).includes(petname)) {
                         if (player.has('gold', petPrices[petname])) {
                             player.removeItem('gold', petPrices[petname]);
-                            const pet = this.game.addCharacter({ name: petname as CharacterNames, location: this.location! });
+                            const pet = this.game.addCharacter({ key: petname as CharacterNames, location: this.location! });
                             (player as Player).addPet(pet);
                             this.print(`You bought a ${petname}!`);
                         } else {
@@ -3888,7 +3899,7 @@ const characters = {
         const gender = randomChoice(['male', 'female']) as keyof typeof pronouns;
         return new A2dCharacter({
             game: game,
-            name: gender == 'male' ? 'lion' : 'lioness',
+            key: gender == 'male' ? 'lion' : 'lioness',
             pronouns: gender == 'male' ? pronouns.male : pronouns.female,
             max_hp: 155,
             damage: { blunt: 12, sharp: 30 },
@@ -3911,7 +3922,7 @@ const characters = {
     mutant_bat(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'mutant bat',
+            key: 'mutant bat',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 50,
             damage: { sonic: 20 },
@@ -3928,7 +3939,7 @@ const characters = {
     kobalt_captain(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'kobalt captain',
+            key: 'kobalt captain',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 240,
             damage: { blunt: 10, sharp: 30 },
@@ -3939,7 +3950,7 @@ const characters = {
             coordination: 4,
             agility: 2,
             armor: { blunt: 13 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
         }).fightMove(async function () {
             if (Math.random() < 2 / 3) {
@@ -3947,7 +3958,7 @@ const characters = {
                     this.color(magenta);
                     this.print("Kobalt Captain calls for reinforcements!");
                 }
-                this.game.addCharacter({ name: 'kobalt_soldier', location: this.location! });
+                this.game.addCharacter({ key: 'kobalt_soldier', location: this.location! });
             }
         });
     },
@@ -3955,7 +3966,7 @@ const characters = {
     kobalt_soldier(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'kobalt soldier',
+            key: 'kobalt soldier',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 50,
             damage: { blunt: 15, sharp: 5 },
@@ -3965,7 +3976,7 @@ const characters = {
             coordination: 2,
             agility: 3,
             armor: { blunt: 5 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
             persist: false,
@@ -3975,7 +3986,7 @@ const characters = {
     bow_maker(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'bow maker',
+            key: 'bow maker',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 65,
             damage: { blunt: 20, sharp: 20 },
@@ -3984,7 +3995,7 @@ const characters = {
             fight_description: 'bow fletcher',
             coordination: 2,
             armor: { blunt: 10 },
-            items: [{ name: 'arrow', quantity: Infinity }, 'short_bow', 'long_bow', 'composite_bow', 'hand_crossbow', 'crossbow', 'heavy_crossbow'],
+            items: [{ name: 'arrow', quantity: Infinity }, 'short bow', 'long bow', 'composite war bow', 'hand crossbow', 'crossbow', 'heavy crossbow'],
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
@@ -4002,7 +4013,7 @@ const characters = {
     peasant_man(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'peasant man',
+            key: 'peasant man',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 100,
             damage: { sharp: 25 },
@@ -4027,13 +4038,13 @@ const characters = {
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
-        }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
+        }).onIdle(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
     peasant_woman(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'peasant woman',
+            key: 'peasant woman',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 90,
             damage: { blunt: 0, sharp: 15 },
@@ -4058,13 +4069,13 @@ const characters = {
                 this.game.player.flags.enemy_of_ierdale = true;
                 this.game.player.flags.murders += 1
             }
-        }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
+        }).onIdle(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
     dog(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'dog',
+            key: 'dog',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             max_hp: 45,
             damage: { blunt: 10, sharp: 15 },
@@ -4076,7 +4087,7 @@ const characters = {
             armor: { blunt: 4 },
         }).dialog(async function (player: Character) {
             this.print("BOW WOW WOW!");
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse'] })
         ).interaction('get dog', async function (player) {
             const meat = player.item('chicken leg') || player.item('side of meat');
@@ -4099,10 +4110,10 @@ const characters = {
     peasant_child(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'peasant child',
+            key: 'peasant child',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
         }).onAttack(async function (character: Character) {
-            console.log(this.name, 'onAttack')
+            console.log(this.key, 'onAttack')
             if (character.isPlayer) {
                 const player = character as Player
                 this.print("YOU DUMB CRAP!")
@@ -4110,7 +4121,7 @@ const characters = {
                 if (await this.getKey(['y', 'n']) == "n") {
                     this.print("The devilish side of you regrets that decision.")
                     const evil_you = new A2dCharacter({
-                        name: `evil ${player.name}`,
+                        key: `evil ${player.name}`,
                         pronouns: { subject: 'you', object: 'yourself', possessive: 'your' },
                         max_hp: player.hp,
                         weaponName: player.equipment['right hand']?.name || 'fist',
@@ -4158,7 +4169,7 @@ const characters = {
                             this.print(`${caps(this.name)} attacks with your other hand!`)
                             this.attack(player, this.flags['left hand']?.name, this.flags['left hand']?.damage)
                         }
-                    }).onTurn(async function () {
+                    }).onIdle(async function () {
                         player.pronouns.object = 'you';
                         console.log('evil you is having a turn.')
                     })
@@ -4180,13 +4191,13 @@ const characters = {
                     await player.die('Lars')
                 }
             }
-        }).onTurn(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
+        }).onIdle(actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] }));
     },
 
     peasant_worker(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'peasant worker',
+            key: 'peasant worker',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 190,
             damage: { blunt: 0, sharp: 70 },
@@ -4209,7 +4220,7 @@ const characters = {
             } else {
                 this.print("I am busy, go away.");
             }
-        }).onTurn(
+        }).onIdle(
             actions.wander({ bounds: ['eastern gatehouse', 'western gatehouse', 'northern gatehouse', 'mucky path'] })
         ).onDeath(async function (cause) {
             if (cause instanceof Character && cause.isPlayer) {
@@ -4224,7 +4235,7 @@ const characters = {
     ieadon(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Ieadon',
+            key: 'Ieadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 2400,
             damage: { blunt: 2000, sharp: 2000, magic: 300 },
@@ -4307,7 +4318,7 @@ const characters = {
     mythin(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Mythin',
+            key: 'Mythin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 550,
             damage: { blunt: 40, sharp: 120, magic: 40 },
@@ -4397,7 +4408,7 @@ const characters = {
     eldin(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Eldin',
+            key: 'Eldin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 450,
             max_mp: 400,
@@ -4424,7 +4435,7 @@ const characters = {
                     this.print("Hmmm...");
                     this.pause(3);
                     this.print("Suspicions confirmed, here you are.");
-                    this.print("Oh, I collect maple leaves, are not they beautiful. Have one.");
+                    this.print("Oh, I collect maple leaves, are they not beautiful. Have one.");
                     this.transferItem('maple leaf', player);
                     this.color(blue);
                     this.print("<recieved maple leaf>");
@@ -4438,12 +4449,16 @@ const characters = {
             if (this.attackTarget) spells['powermaxout'].bind(this)(this.attackTarget)
         }).interaction('list', async function () {
             this.color(black)
-            this.print("At the domain of Eldin we teach the following:")
-            this.print(" train mindfulness | increaces BP")
-            this.print(" train healing     | increases healing power")
-            this.print(" train archery     | increases archery skills")
-            this.print(" To train any of these, please type 'train' then")
-            this.print(" type what to train.")
+            this.print("At the Cottage of Eldin we teach the following:")
+            this.print(" train newbie        | a basic magical attack, uses little BP")
+            this.print(" train bolt          | a fast and and accurate lightning attack, 1 target")
+            this.print(" train bloodlust     | temporarily raises your strength and coordination")
+            this.print(" train shield        | while active, all damage is reduced")
+            this.print(" train fire          | slower but more powerful, can hit 2 or 3 targets")
+            this.print(" train blades        | a sharp and deadly storm, can hit several enemies")
+            this.print(" train powermaxout   | empty your reserves, sweeping all before you")
+            this.print(" train magic         | increases magical power")
+            // this.print(" To see info on a spell type 'info [spellname]'")
         }).interaction('train magic', actions.train({
             skillName: 'magic',
             requirements: (player) => ({
@@ -4616,7 +4631,7 @@ const characters = {
     eldfarl(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Eldfarl',
+            key: 'Eldfarl',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 450,
             damage: { blunt: 90, sharp: 0 },
@@ -4661,7 +4676,7 @@ const characters = {
     turlin(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Turlin',
+            key: 'Turlin',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 475,
             damage: { blunt: 60, sharp: 0 },
@@ -4671,7 +4686,7 @@ const characters = {
             armor: { blunt: 4 },
             coordination: 3,
             agility: 1,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
             exp: 1234
@@ -4703,7 +4718,7 @@ const characters = {
     henge(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Henge',
+            key: 'Henge',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 620,
             damage: { blunt: 20, sharp: 50 },
@@ -4715,7 +4730,7 @@ const characters = {
             buff: { times: { defense: { sharp: 2, blunt: 2 } } },
             coordination: 6,
             agility: 4,
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
             exp: 2345,
@@ -4748,7 +4763,7 @@ const characters = {
     ziatos(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'ziatos',
+            key: 'ziatos',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 2100,
             damage: { blunt: 50, sharp: 100, magic: 50 },
@@ -4795,7 +4810,7 @@ const characters = {
             for (let char of this.game.characters.filter(c => c.alignment == 'ierdale')) {
                 char.enemies = char.enemies.filter(e => e != this.game.player.name)
             }
-            this.game.addCharacter({ name: 'biadon', location: 78 })
+            this.game.addCharacter({ key: 'biadon', location: 78 })
             this.game.find_character('ieadon')?.relocate(this.game.find_location('the void'))
             this.game.find_character('doo dad man')?.giveItem('hang_glider')
             await this.pause(10)
@@ -4814,7 +4829,7 @@ const characters = {
     official(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'official',
+            key: 'official',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
             items: [{ name: 'gold', quantity: 25 }, 'long_dagger'],
             fight_description: 'orc official',
@@ -4871,7 +4886,7 @@ const characters = {
     wisp(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'wisp',
+            key: 'wisp',
             pronouns: { "subject": "it", "object": "it", "possessive": "its" },
             max_hp: 110,
             damage: { blunt: 10, sonic: 150 },
@@ -4882,8 +4897,8 @@ const characters = {
             agility: 10,
             buff: { times: { defense: { blunt: 10, sharp: 10 } } },
             alignment: 'evil',
-            attackPlayer: true,
-        }).onTurn(
+            hostile: true,
+        }).onIdle(
             actions.wander({ bounds: ['250', 'corroded gate'] })
         )
     },
@@ -4891,7 +4906,7 @@ const characters = {
     biadon(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'Biadon',
+            key: 'Biadon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 30000,
             damage: { blunt: 10, sharp: 0 },
@@ -4923,7 +4938,7 @@ const characters = {
             } else if (!barracks) {
                 console.log('Orc barracks not found')
             }
-            this.game.addCharacter({ name: 'orc_emissary', location: 197 })
+            this.game.addCharacter({ key: 'orc_emissary', location: 197 })
             const dispatches = [
                 'center of town',
                 'beet street',
@@ -4938,13 +4953,13 @@ const characters = {
                 "Ieadon's house",
             ]
             for (let i = 0; i < dispatches.length; i++) {
-                const soldier = await this.game.addCharacter({ name: 'ierdale_soldier', location: 284 })
+                const soldier = await this.game.addCharacter({ key: 'ierdale_soldier', location: 284 })
                 await soldier?.goto(dispatches[i])
             }
             for (let i = 0; i < 11; i++) {
-                this.game.addCharacter({ name: 'ierdale_patrol', location: 284 })
+                this.game.addCharacter({ key: 'ierdale_patrol', location: 284 })
             }
-            this.game.addCharacter({ name: 'security_guard', location: 'center of town' })
+            this.game.addCharacter({ key: 'security_guard', location: 'center of town' })
             this.game.flags.soldier_dialogue = [
                 "Something very serious has happened! Stay calm, but ARM YOURSELF TO THE TEETH! We need every fighter we can get.",
                 `I've heard of you, ${player.name}. You're the one who defeated the ogre king. Maybe you can help us! Talk to the security guards.`,
@@ -4957,8 +4972,8 @@ const characters = {
                 `It's good that you're here, ${player.name}. A strong ${player.class_name} like you could help us turn the tide in this fight.`,
                 "We have been dispatched to counter the rising threat of invasion from the orcs!"
             ]
-            this.game.addCharacter({ name: 'general_gant', location: "Ierdale Barracks" })
-            this.game.addCharacter({ name: 'general_kerry', location: "Ieadon's house" })
+            this.game.addCharacter({ key: 'general_gant', location: "Ierdale Barracks" })
+            this.game.addCharacter({ key: 'general_kerry', location: "Ieadon's house" })
             this.game.find_character('guard captain')?.goto('45')
         });
     },
@@ -4966,7 +4981,7 @@ const characters = {
     cyclops(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'cyclops',
+            key: 'cyclops',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 860,
             damage: { blunt: 174, sharp: 5 },
@@ -4976,7 +4991,7 @@ const characters = {
             coordination: 9,
             agility: -1,
             armor: { blunt: 26 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
         }).onDeath(async function () {
@@ -4991,7 +5006,7 @@ const characters = {
     dragon(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'dragon',
+            key: 'dragon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 1300,
             damage: { blunt: 40, sharp: 166 },
@@ -5002,7 +5017,7 @@ const characters = {
             coordination: 5,
             agility: -3,
             armor: { blunt: 60 },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
             respawns: false,
         }).fightMove(async function () {
@@ -5022,7 +5037,7 @@ const characters = {
     giant_scorpion(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'giant scorpion',
+            key: 'giant scorpion',
             pronouns: { "subject": "It", "object": "it", "possessive": "its" },
             max_hp: 100,
             damage: { blunt: 15, sharp: 6 },
@@ -5040,7 +5055,7 @@ const characters = {
     mutant_hedgehog(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'mutant hedgehog',
+            key: 'mutant hedgehog',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 100,
             damage: { blunt: 6, sharp: 15 },
@@ -5073,7 +5088,7 @@ const characters = {
     ogre(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'ogre',
+            key: 'ogre',
             pronouns: pronouns.male,
             items: ['club'],
             max_hp: 120,
@@ -5094,9 +5109,9 @@ const characters = {
             game
         ).onRespawn(async function () {
             this.game.removeCharacter(this)
-            this.game.addCharacter({ name: 'path_demon', location: this.location! })
-            console.log(`path demon respawned as ${this.location?.character('path_demon')?.name}`)
-        }).onTurn(
+            this.game.addCharacter({ key: 'path_demon', location: this.location! })
+            console.log(`path demon respawned as ${this.location?.character('path_demon')?.key}`)
+        }).onIdle(
             actions.wander({ bounds: ['96', '191', 'meadow', 'bog'] })
         )
     },
@@ -5104,7 +5119,7 @@ const characters = {
     grizzly_bear(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'grizzly bear',
+            key: 'grizzly bear',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 350,
             damage: { blunt: 60, sharp: 6 },
@@ -5122,7 +5137,7 @@ const characters = {
     striped_bear(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'striped bear',
+            key: 'striped bear',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 250,
             damage: { blunt: 42, sharp: 5 },
@@ -5143,7 +5158,7 @@ const characters = {
     tiger(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'tiger',
+            key: 'tiger',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 400,
             damage: { blunt: 40, sharp: 30 },
@@ -5163,7 +5178,7 @@ const characters = {
     "small dog"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'small dog',
+            key: 'small dog',
             pronouns: pronouns.inhuman,
             max_hp: 20,
             damage: { blunt: 2, sharp: 5 },
@@ -5182,7 +5197,7 @@ const characters = {
     "attack dog"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'attack dog',
+            key: 'attack dog',
             pronouns: pronouns.inhuman,
             max_hp: 40,
             damage: { blunt: 7, sharp: 15 },
@@ -5201,7 +5216,7 @@ const characters = {
     "wolf"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'wolf',
+            key: 'wolf',
             pronouns: pronouns.inhuman,
             max_hp: 80,
             damage: { blunt: 12, sharp: 35 },
@@ -5222,7 +5237,7 @@ const characters = {
     "vicious wolf"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'wolf',
+            key: 'wolf',
             pronouns: pronouns.inhuman,
             max_hp: 100,
             damage: { blunt: 10, sharp: 35 },
@@ -5243,7 +5258,7 @@ const characters = {
     "pigeon"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'pigeon',
+            key: 'pigeon',
             pronouns: pronouns.inhuman,
             max_hp: 10,
             damage: { blunt: 1, sharp: 2 },
@@ -5258,7 +5273,7 @@ const characters = {
     "falcon"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'falcon',
+            key: 'falcon',
             pronouns: pronouns.inhuman,
             max_hp: 20,
             damage: { blunt: 5, sharp: 10 },
@@ -5273,7 +5288,7 @@ const characters = {
     "owl"(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'owl',
+            key: 'owl',
             pronouns: pronouns.inhuman,
             max_hp: 40,
             damage: { blunt: 8, sharp: 20 },
@@ -5290,7 +5305,7 @@ const characters = {
     weasel(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'weasel',
+            key: 'weasel',
             pronouns: pronouns.inhuman,
             max_hp: 30,
             damage: { blunt: 3, sharp: 10 },
@@ -5306,7 +5321,7 @@ const characters = {
     rabid_wolf(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'rabid wolf',
+            key: 'rabid wolf',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 60,
             damage: { blunt: 12, sharp: 45 },
@@ -5319,15 +5334,15 @@ const characters = {
             powers: {
                 'poison fang': 1,
             },
-            attackPlayer: true,
+            hostile: true,
             alignment: 'evil',
-        }).onTurn(actions.wander({}));
+        }).onIdle(actions.wander({}));
     },
 
     gryphon(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'gryphon',
+            key: 'gryphon',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 64,
             armor: { blunt: 9 },
@@ -5351,7 +5366,7 @@ const characters = {
     voidfish(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'voidfish',
+            key: 'voidfish',
             fight_description: 'slithering voidfish',
             pronouns: pronouns.inhuman,
             max_hp: 164,
@@ -5363,13 +5378,13 @@ const characters = {
             weaponName: 'needle teeth',
             attackVerb: 'bite',
             alignment: 'evil',
-        }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }));
+        }).onIdle(actions.wander({ bounds: ['the end'], frequency: 1 }));
     },
 
     wraith(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'wraith',
+            key: 'wraith',
             pronouns: pronouns.inhuman,
             max_hp: 640,
             buff: { times: { defense: { 'fire': 0.1, 'electric': 0.2, 'blunt': 10, 'sharp': 100, 'magic': 10, 'cold': 10, 'poison': 10, 'sonic': 2 }, }, },
@@ -5380,13 +5395,13 @@ const characters = {
             attackVerb: 'sonic',
             alignment: 'evil',
             chase: true,
-        }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }));
+        }).onIdle(actions.wander({ bounds: ['the end'], frequency: 1 }));
     },
 
     voidrat(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'void rat',
+            key: 'void rat',
             pronouns: pronouns.inhuman,
             max_hp: 400,
             damage: { blunt: 60, sharp: 40 },
@@ -5396,13 +5411,13 @@ const characters = {
             attackVerb: 'bite',
             fight_description: 'monstrous rat',
             alignment: 'evil',
-        }).onTurn(actions.wander({ bounds: ['the end'], frequency: 1 }))
+        }).onIdle(actions.wander({ bounds: ['the end'], frequency: 1 }))
     },
 
     grogren(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: 'grogren',
+            key: 'grogren',
             pronouns: pronouns.male,
             max_hp: 1500,
             damage: { blunt: 0, sharp: 150 },
@@ -5425,7 +5440,7 @@ const characters = {
             actions.defend_tribe
         ).fightMove(
             actions.call_help('orcish_soldier')
-        ).onTurn(async function () {
+        ).onIdle(async function () {
             if (this.game.flags.orc_battle && !this.fighting) {
                 this.goto('center of town')
             }
@@ -5435,7 +5450,7 @@ const characters = {
     mythins_employee(game: GameState) {
         return new A2dCharacter({
             game: game,
-            name: "mythin's employee",
+            key: "mythin's employee",
             pronouns: pronouns.male,
             aliases: ['employee'],
         }).dialog(async function (player: Character) {

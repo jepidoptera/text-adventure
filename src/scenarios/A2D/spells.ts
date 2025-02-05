@@ -40,7 +40,7 @@ const spells: Record<string, SpellAction> = {
         if (this.isPlayer) this.game.print(`<brightred>A jet of flame shoots towards ${target.name}.`);
         await damageSpell({
             spellName: 'magic fire',
-            damage: highRandom() * (1 + (this.abilities['fire'] || 1) ** spellPower * 14 / 11) * this.magic_level,
+            damage: highRandom() * (3 + (this.abilities['fire'] || 1) ** spellPower * 14 / 11) * this.magic_level,
             accuracy: Math.random() * (this.coordination + 2 + (this.abilities['fire'] || 1) / 3),
             damageType: 'fire',
             weaponType: 'fire',

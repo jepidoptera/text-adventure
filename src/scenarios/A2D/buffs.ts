@@ -27,10 +27,8 @@ const buffs: { [key: string]: BuffCreator } = {
             this.power *= this.duration / (this.duration + 1);
             shieldPower = this.power;
             console.log('shield:', shieldPower)
-            if (this.character.isPlayer && this.power > 0) {
-                this.game.color(brightcyan);
-                this.game.print(`Shield: ${Math.ceil(shieldPower)}`);
-            }
+        }).onDisplay(function () {
+            return `<brightcyan>Shield: ${Math.ceil(shieldPower)}`
         })
     },
     bloodlust: ({ power, duration }: { power: number, duration: number }) => {
@@ -47,10 +45,8 @@ const buffs: { [key: string]: BuffCreator } = {
             this.power *= this.duration / (this.duration + 1);
             this.plus.strength = Math.ceil(this.power);
             this.plus.coordination = this.power / 4;
-            if (this.character.isPlayer && this.power > 0) {
-                this.game.color(brightred);
-                this.game.print(`Bloodlust: ${Math.ceil(this.power)}`);
-            }
+        }).onDisplay(function () {
+            return `<brightred>Bloodlust: ${Math.ceil(this.power)}`;
         })
     },
     fear: ({ power, duration }: { power: number, duration: number }) => {
@@ -86,10 +82,8 @@ const buffs: { [key: string]: BuffCreator } = {
         }).onTurn(async function () {
             this.character.hurt(Math.ceil(this.power), "poison");
             this.power *= this.duration / (this.duration + 1);
-            if (this.character.isPlayer && this.power > 0) {
-                this.game.color(brightgreen);
-                this.game.print(`Poison: ${Math.ceil(this.power)}`);
-            }
+        }).onDisplay(function () {
+            return `<brightgreen>Poison: ${Math.ceil(this.power)}`;
         })
     },
     sleep: ({ power, duration }: { power: number, duration: number }) => {
@@ -99,12 +93,16 @@ const buffs: { [key: string]: BuffCreator } = {
             power: power,
         }).onApply(async function () {
             if (this.character.isPlayer) {
-                this.game.color(brightcyan);
-                this.game.print(`Sleep: ${Math.ceil(this.duration)}`);
-                (this.character as Player).disableCommands(Object.keys((this.character as Player).actions.keys()), 'Shh. You are sleeping.')
+                (this.character as Player).disableCommands(
+                    Array.from((this.character as Player).actions.keys()),
+                    'Shh. You are sleeping.'
+                )
             }
-        }).onTurn(async function () {
-            this.apply(this.character)
+        }).onDisplay(function () {
+            if (this.character.isPlayer) {
+                console.log('disabled commands:', Object.keys((this.character as Player).disabledCommands))
+            }
+            return `<brightcyan>Sleep: ${Math.ceil(this.duration)}`;
         }).onExpire(async function () {
             if (this.character.isPlayer) {
                 this.game.color(brightcyan);
