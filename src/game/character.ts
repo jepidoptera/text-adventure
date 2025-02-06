@@ -228,7 +228,7 @@ class Character {
     actionQueue: { command: string, time: number }[] = [];
     actionTiming: Record<string, number>;
     reactionQueue: { command: string, time: number, repeat?: number }[] = [];
-    fighting: boolean = false;
+    // fighting: boolean = false;
 
     color: Function;
     print: Function;
@@ -449,9 +449,9 @@ class Character {
         return Math.max((baseAmount - subtract) / multiplier, 0);
     }
 
-    // get fighting(): boolean {
-    //     return this.location?.characters.some(character => this.enemies.includes(character.name)) || false;
-    // }
+    get fighting(): boolean {
+        return this.location?.characters.some(character => this.enemies.includes(character.name)) || false;
+    }
 
     findEnemy() {
         if (this.pacifist) return null;
@@ -490,7 +490,7 @@ class Character {
         if (enemy === null) {
             if (this._attackTarget) { this.removeEnemy(this._attackTarget); }
             this._attackTarget = null;
-            this.fighting = false;
+            // this.fighting = false;
             this.offTimer('repel')
             this.offTimer('attack')
             this.remove_action('attack');
@@ -502,7 +502,7 @@ class Character {
             }
             if (enemy.location == this.location) {
                 this._attackTarget = enemy;
-                this.fighting = true;
+                // this.fighting = true;
                 if (!enemy.hasEnemy(this)) {
                     enemy.enemies.push(this.name);
                 }
@@ -909,6 +909,11 @@ class Character {
     }
 
     async depart(character: Character, direction: string) {
+        if (this.attackTarget == character) {
+            // this.fighting = false;
+            this._attackTarget = null;
+            console.log(`${this.name} stops fighting ${character.name} because they left the area.`)
+        }
         await this._onDeparture?.(character, direction);
     }
 
@@ -980,6 +985,7 @@ class Character {
                 await this._fightMove?.();
             } else {
                 this._attackTarget = null;
+                // this.fighting = false;
             }
         } else if (verb == 'repel') {
             console.log(`${this.name} repels ${args}`)

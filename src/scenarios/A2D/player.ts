@@ -208,7 +208,7 @@ class Player extends A2dCharacter {
         this.addAction('equipment', 0, this.checkEquipment);
         this.addAction('heal', 10, this.heal);
         this.addAction(['talk', 'talk to'], 10, this.talkTo);
-        this.addAction('attack', 10, async (name: string) => await this.target(name));
+        this.addAction(['attack', 'repel'], 10, async (name: string) => await this.target(name));
         this.addAction('\\', 1, async (name: string) => { await this.left_attack(name); this.action({ command: '', time: 9 }) });
         this.addAction('shoot', 0, async (name: string) => await this.bow_attack(name));
         this.addAction('cast', 0, async (spell: string) => {
@@ -276,21 +276,25 @@ class Player extends A2dCharacter {
         return this;
     }
 
+    get fighting() {
+        return this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
+    }
+
     async idle() {
-        this.fighting = this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
-        if (this.fighting) {
-            if (!this.attackTarget) {
-                await this.fight(this.findEnemy())
-            } else {
-                await this.right_attack(this.attackTarget.unique_id)
-                this.sp -= 1;
-                if (this.sp < 0) {
-                    this.hp -= 1;
-                    this.sp = 0;
-                }
+        // this.fighting = this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
+        if (!this.attackTarget || this.attackTarget.location !== this.location) {
+            await this.fight(this.findEnemy())
+        }
+        if (this.fighting && this.attackTarget) {
+            await this.right_attack(this.attackTarget.unique_id)
+            this.sp -= 1;
+            if (this.sp < 0) {
+                this.hp -= 1;
+                this.sp = 0;
             }
         } else {
             // ready bow when not fighting
+            this.enemies = [];
             this.useWeapon('bow');
         }
         for (let buff of Object.values(this.buffs)) {
@@ -302,7 +306,7 @@ class Player extends A2dCharacter {
     async getinput() {
         let command = '';
         this.color(black, darkwhite)
-        this.fighting = this.location?.characters.some(character => character.hasEnemy(this) || this.hasEnemy(character)) || false;
+        // this.fighting = this.location?.characters.some(character => character.hasEnemy(this) || this.hasEnemy(character)) || false;
         // console.log('player input')
         if (this.fighting) {
             console.log(`player is fighting ${this.attackTarget?.name}`)
@@ -342,7 +346,7 @@ class Player extends A2dCharacter {
         }
         const timingIndex = Object.keys(this.actionTiming).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command
         const timing = time ?? this.actionTiming[timingIndex] ?? 10;
-        console.log(`player action ${command} ${timingIndex}, ${timing}`)
+        // console.log(`player action ${command} ${timingIndex}, ${timing}`)
         this.actionQueue = [{ command, time: timing }];
     }
 
