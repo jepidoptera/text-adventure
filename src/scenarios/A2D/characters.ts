@@ -3322,14 +3322,7 @@ const characters = {
                 player.base_stats.max_mp += 5;
                 player.game.print(`Your Mind Improved. Congradulations, your Boerdom Points are now: ${player.base_stats.max_mp}`);
             }
-        })).interaction('list', async function (player) {
-            this.print("At the domain of Eldfarl we teach the following:");
-            this.print(" train mindfulness | increaces BP");
-            this.print(" train healing     | increases healing power");
-            this.print(" train archery     | increases archery skills");
-            this.print(" To train any of these, please type 'train' then");
-            this.print(" type what to train.");
-        }).interaction('train', async function (player) {
+        })).interaction('train', async function (player) {
             this.color(black)
             this.print('That class is not taught here.')
         });
@@ -4301,14 +4294,6 @@ const characters = {
             } else {
                 // very unexpectedly, Ieadon died but the player didn't do it
             }
-        }).interaction('list', async function () {
-            this.color(black);
-            this.print("At the domain of Ieadon we teach the following:");
-            this.print(" train toughness   | increaces HP");
-            this.print(" train strength    | increases attack damage");
-            this.print(" train stamina     | increases SP");
-            this.print(" To train any of these, please type 'train' then");
-            this.print(" type what to train.");
         }).interaction('train', async function (player) {
             this.color(black)
             this.print('That class is not taught here.')
@@ -4394,14 +4379,6 @@ const characters = {
         })).interaction('train', async function (player) {
             this.color(black)
             this.print('That class is not taught here.')
-        }).interaction('list', async function () {
-            this.color(black)
-            this.print("At the domain of Mythin we teach the following:");
-            this.print(" train coordination | increaces to-hit");
-            this.print(" train agility      | decreases enemy to-hit");
-            this.print(" train offhand      | increases left-hand weapon power");
-            this.print(" To train any of these, please type 'train' then");
-            this.print(" type what to train.");
         }).fightMove(actions.heal);
     },
 
@@ -4447,18 +4424,6 @@ const characters = {
             }
         }).fightMove(async function () {
             if (this.attackTarget) spells['powermaxout'].bind(this)(this.attackTarget)
-        }).interaction('list', async function () {
-            this.color(black)
-            this.print("At the Cottage of Eldin we teach the following:")
-            this.print(" train newbie        | a basic magical attack, uses little BP")
-            this.print(" train bolt          | a fast and and accurate lightning attack, 1 target")
-            this.print(" train bloodlust     | temporarily raises your strength and coordination")
-            this.print(" train shield        | while active, all damage is reduced")
-            this.print(" train fire          | slower but more powerful, can hit 2 or 3 targets")
-            this.print(" train blades        | a sharp and deadly storm, can hit several enemies")
-            this.print(" train powermaxout   | empty your reserves, sweeping all before you")
-            this.print(" train magic         | increases magical power")
-            // this.print(" To see info on a spell type 'info [spellname]'")
         }).interaction('train magic', actions.train({
             skillName: 'magic',
             requirements: (player) => ({
