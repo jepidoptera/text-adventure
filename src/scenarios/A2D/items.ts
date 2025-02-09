@@ -520,7 +520,7 @@ const items = {
     },
     "composite war bow"(game: GameState) {
         return new Item({
-            name: 'composite war bow',
+            name: 'composite bow',
             size: 2.4,
             value: 2190,
             attackVerb: 'bow',

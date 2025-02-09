@@ -636,7 +636,7 @@ const characters = {
                 this.color(black)
                 this.print("This may also help you - ")
                 this.color(blue)
-                player.giveItem('pocket_ballista')
+                player.giveItem('pocket ballista')
                 player.giveItem('arrow', 10)
                 this.print("<recieved pocket ballista>")
             }
@@ -3995,7 +3995,7 @@ const characters = {
             fight_description: 'bow fletcher',
             coordination: 2,
             armor: { blunt: 10 },
-            items: [{ name: 'arrow', quantity: Infinity }, 'short bow', 'long bow', 'composite war bow', 'hand crossbow', 'crossbow', 'heavy crossbow'],
+            items: [{ name: 'arrow', quantity: Infinity }, 'short bow', 'long bow', 'composite bow', 'hand crossbow', 'crossbow', 'heavy crossbow'],
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true },
         }).dialog(async function (player: Character) {
