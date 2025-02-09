@@ -27,6 +27,12 @@ function initializeInputHandler() {
             inputBuffer.push(event.key);
         }
     });
+    window.addEventListener('beforeunload', (event) => {
+        // Send a message to the server indicating a refresh/close
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'reset' }));
+        }
+    })
 }
 
 // Central function for getting the next keystroke

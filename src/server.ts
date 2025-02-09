@@ -108,6 +108,14 @@ wss.on('connection', (ws) => {
             console.log('Invalid JSON input:', input.toString());
             return;
         }
+        if (message.type === 'reset') {
+            if (token && activeGames.has(token)) {
+                activeGames.get(token)!.gameState.shutdown();
+                activeGames.delete(token);
+                console.log(`Game with token ${token} removed due to reset.`);
+            }
+            message.type = 'connect';
+        }
         if (message.type === 'connect') {
             token = message.token || generateToken();
 
