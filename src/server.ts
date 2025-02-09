@@ -153,7 +153,7 @@ function scheduleCleanup(token: string): NodeJS.Timeout {
             activeGames.delete(token);
             console.log(`Game with token ${token} removed due to inactivity.`);
         }
-    }, 3600000); // 1 hour in milliseconds
+    }, 86400000); // 24 hours in milliseconds
 }
 
 server.listen(port, () => {
