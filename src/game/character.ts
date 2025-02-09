@@ -450,7 +450,7 @@ class Character {
     }
 
     get fighting(): boolean {
-        return this.location?.characters.some(character => this.enemies.includes(character.name)) || false;
+        return this.location?.characters.some(character => this.attackTarget == character) || false;
     }
 
     findEnemy() {
@@ -475,9 +475,9 @@ class Character {
     addEnemy(character: Character) {
         if (this.pacifist) return
         if (!this.hasEnemy(character)) this.enemies.push(character.unique_id);
-        if (!this.attackTarget && this.location == character.location) {
-            this.fight(character);
-        }
+        // if (!this.attackTarget && this.location == character.location) {
+        //     this.fight(character);
+        // }
     }
 
     async fight(enemy: Character | null = null) {
@@ -486,28 +486,26 @@ class Character {
             await enemy?._onAttack?.(this);
             return;
         }
-        console.log(`${this.name} fights ${enemy?.name || 'nobody'} at ${this.location?.key}.`)
         if (enemy === null) {
-            if (this._attackTarget) { this.removeEnemy(this._attackTarget); }
-            this._attackTarget = null;
+            if (this._attackTarget) {
+                this.removeEnemy(this._attackTarget);
+                console.log(`${this.name} is at peace (fight(null)).`)
+                this._attackTarget = null;
+            }
             // this.fighting = false;
             this.offTimer('repel')
             this.offTimer('attack')
             this.remove_action('attack');
-            console.log(`${this.name} is at peace (fight(null)).`)
             return;
-        } else if (enemy != this.attackTarget) {
-            if (!this.hasEnemy(enemy)) {
-                this.enemies.push(enemy.name);
-            }
+        } else {
+            if (!this.hasEnemy(enemy)) this.addEnemy(enemy);
             if (enemy.location == this.location) {
+                console.log(`${this.name} fights ${enemy?.name} at ${this.location?.key}.`)
                 this._attackTarget = enemy;
                 // this.fighting = true;
-                if (!enemy.hasEnemy(this)) {
-                    enemy.enemies.push(this.name);
-                }
+                enemy.addEnemy(this);
                 this.action({ command: 'attack' });
-                if (!enemy.attackTarget) enemy.action({ command: `repel ${this.name}`, time: 10 });
+                if (!enemy.attackTarget) enemy.action({ command: `repel ${this.name}`, time: 5 });
                 await enemy._onAttack?.(this);
             }
         }
@@ -884,14 +882,9 @@ class Character {
     async encounter(character: Character) {
         if (this.dead) return;
         await this._onEncounter?.(character);
+
         if (!this.fighting) {
-            if (this.hasEnemy(character)) {
-                await this.fight(character);
-            } else if (this.hostile && character.isPlayer) {
-                await this.fight(character);
-            } else if (this.alignment == 'evil' && character.alignment != 'evil') {
-                await this.fight(character);
-            }
+            this.fight(this.findEnemy());
         }
     }
 
@@ -949,6 +942,10 @@ class Character {
 
     remove_action(command: string) {
         this.actionQueue = this.actionQueue.filter(action => !action.command.startsWith(command));
+    }
+
+    clear_actions() {
+        this.actionQueue = [];
     }
 
     get next_action() {
@@ -1068,9 +1065,7 @@ class Character {
     }
 
     async repel(attacker: Character) {
-        if (!this.enemies.includes(attacker.name)) {
-            this.enemies.push(attacker.name);
-        }
+        this.addEnemy(attacker);
         if (!this.fighting) {
             console.log(`${this.name} fights back against ${attacker.name}!`)
             await this.fight(attacker);
@@ -1085,7 +1080,7 @@ class Character {
 
     async idle() {
         await this._onIdle?.();
-        if (!this.attackTarget) {
+        if (!this.fighting) {
             let enemy = this.findEnemy();
             if (enemy) {
                 console.log(`${this.name} picks a fight with ${enemy.name}.`)
