@@ -62,7 +62,7 @@ const buffs: { [key: string]: BuffCreator } = {
     blindness: ({ power, duration }: { power: number, duration: number }) => {
         return new Buff({
             name: 'blindness',
-            duration: duration,
+            duration: duration * 10,
             power: power,
             times: {
                 coordination: 1 / power,
@@ -77,10 +77,10 @@ const buffs: { [key: string]: BuffCreator } = {
     poison: ({ power, duration }: { power: number, duration: number }) => {
         return new Buff({
             name: 'poison',
-            duration: Math.ceil(duration || power || 1),
+            duration: Math.ceil(duration || power || 1) * 10,
             power: Math.ceil(power || duration || 1)
         }).onTurn(async function () {
-            this.character.hurt(Math.ceil(this.power), "poison");
+            this.character.hurt(this.power / 10, "poison");
             this.power *= this.duration / (this.duration + 1);
         }).onDisplay(function () {
             return `<brightgreen>Poison: ${Math.ceil(this.power)}`;
