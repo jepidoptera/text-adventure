@@ -1690,28 +1690,28 @@ const scenario = {
         281: {
             name: "Beet Street",
             adjacent: { 'north': 308, 'east': 314 },
-            landmarks: [{
-                name: 'sign',
-                text: [
-                    "%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%",
-                    "% RANDOM USEFUL THINGS - SIGN 2:    %",
-                    "%                                   %",
-                    "% *Sick of being attacked by guards?%",
-                    "%   If you've commited a past sin,  %",
-                    "%   there IS hope!  Visit the court %",
-                    "%   room on East Road to have your  %",
-                    "%   case repealed!                  %",
-                    "%                                   %",
-                    "%  For more useful INFO, visit the  %",
-                    "%    IERDALE INFORMATION ARCHIVES   %",
-                    "% Directly East       ------------> %",
-                    "%                                   %",
-                    "%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%",
-                    "                 | |",
-                    "                 | |",
-                    "                 | |"
-                ]
-            }]
+            // landmarks: [{
+            //     name: 'sign',
+            //     text: [
+            //         "%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%",
+            //         "% RANDOM USEFUL THINGS - SIGN 2:    %",
+            //         "%                                   %",
+            //         "% *Sick of being attacked by guards?%",
+            //         "%   If you've commited a past sin,  %",
+            //         "%   there IS hope!  Visit the court %",
+            //         "%   room on East Road to have your  %",
+            //         "%   case repealed!                  %",
+            //         "%                                   %",
+            //         "%  For more useful INFO, visit the  %",
+            //         "%    IERDALE INFORMATION ARCHIVES   %",
+            //         "% Directly East       ------------> %",
+            //         "%                                   %",
+            //         "%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%{-}%",
+            //         "                 | |",
+            //         "                 | |",
+            //         "                 | |"
+            //     ]
+            // }]
         },
         282: {
             name: "The Top of the Tree",
