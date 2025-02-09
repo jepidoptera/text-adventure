@@ -80,7 +80,7 @@ const spells: Record<string, SpellAction> = {
             return;
         }
         const power = 7 + (this.abilities['shield'] ** spellPower * 2) * this.magic_level / 7
-        const duration = 3 + this.abilities['shield']
+        const duration = (3 + this.abilities['shield']) * 10
         const existingShield = this.getBuff('shield')
         const magicCost = (3 + this.abilities['shield']) * 2 * (existingShield ? 1 - existingShield.duration / duration : 1)
         if (this.mp < magicCost) {
@@ -101,7 +101,7 @@ const spells: Record<string, SpellAction> = {
         }
         let magicCost = 10
         let power = 6 + (this.abilities['bloodlust'] ** spellPower) * this.magic_level / 5
-        let duration = 3 + this.abilities['bloodlust']
+        let duration = (3 + this.abilities['bloodlust']) * 10
         let maxCost = 6 + this.abilities['bloodlust'] * 2
         if (this.mp < maxCost) {
             power *= this.mp / maxCost
