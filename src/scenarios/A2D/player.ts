@@ -251,7 +251,8 @@ class Player extends A2dCharacter {
                 await this.bow_attack(attacker);
                 this.useWeapon('right hand')
             }
-            this.action({ command: 'attack', time: 1 });
+            this.action({ command: 'attack', time: 10 });
+            this.pets.forEach(pet => pet.action({ command: `attack ${attacker.unique_id}`, time: 1 }));
         })
     }
 
@@ -276,10 +277,6 @@ class Player extends A2dCharacter {
         return this;
     }
 
-    get fighting() {
-        return this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
-    }
-
     async idle() {
         // this.fighting = this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
         if (!this.attackTarget || this.attackTarget.location !== this.location) {
@@ -294,7 +291,7 @@ class Player extends A2dCharacter {
             }
         } else {
             // ready bow when not fighting
-            this.enemies = [];
+            this.clearEnemies();
             this.useWeapon('bow');
         }
         for (let buff of Object.values(this.buffs)) {
@@ -476,7 +473,8 @@ class Player extends A2dCharacter {
 
     async fight(target: Character | null) {
         super.fight(target);
-        this.offTimer('attack')
+        this.offTimer('attack');
+        this.clear_actions();
     }
 
     useWeapon(weapon: 'left hand' | 'right hand' | 'bow' | 'none') {
@@ -739,7 +737,8 @@ class Player extends A2dCharacter {
                 if (this.leader.fighting) {
                     this.fight(this.leader.attackTarget);
                 } else {
-                    this.fight(null)
+                    this.fight(null);
+                    this.clearEnemies();
                 }
             }).onDeath(async () => {
                 this.pets = this.pets.filter(p => p !== pet);
@@ -747,8 +746,10 @@ class Player extends A2dCharacter {
             }).onSlay(async (victim) => {
                 // player gets credit for pet's kills
                 await this.slay(victim);
-            })
-            pet.persist = false; // pets don't save
+            }).onAttack(async (attacker) => {
+                this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
+            }).base_stats.hp_recharge = 0.001;
+            pet.persist = false; // pets don't save (not in the regular way)
         }
     }
 
@@ -1357,6 +1358,10 @@ class Player extends A2dCharacter {
         } else {
             this.print(`You have died from ${cause}.`)
         }
+    }
+
+    get fighting(): boolean {
+        return this.location?.characters.some(character => this.attackTarget == character || character.attackTarget == this || character.attackTarget && this.pets.includes(character.attackTarget)) || false;
     }
 
     async slay(character: Character | Character[]) {
