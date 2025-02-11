@@ -1212,6 +1212,8 @@ class Player extends A2dCharacter {
         print(" stats: check your stats.")
         print(" hp: check your health, stamina, magic and hunger levels.")
         print(" equipment: examine your equipped items.")
+        print(" save: save your game.")
+        print(" load: load a saved game.")
     }
 
     statName(key: StatKey): string {
@@ -1783,17 +1785,13 @@ class Player extends A2dCharacter {
         return this;
     }
 
-    async loadGame() {
+    async loadGame(): Promise<boolean> {
         this.color(black)
         let success = false;
-        while (!success) {
-            let saveName = ''
-            while (!saveName) {
-                saveName = await this.input('Enter the name of your character to load: ');
-            }
-            this.print("Loading now...")
-            success = await this.game.load(saveName);
-        }
+        const saveName = await this.input('Enter the name of your character to load: ');
+        if (saveName == '' || saveName == 'cancel') return false;
+        this.print("Loading now...")
+        return await this.game.load(saveName);
     }
 
     async saveGame() {
