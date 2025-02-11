@@ -70,13 +70,14 @@ const hintParams: hintParameters[] = [
                 return true;
             } else { return false }
         },
-        repeats: 3
+        repeats: 5
     }, {
         name: 'check equipment',
         text: [
             'type "equipment" to see your gear.',
         ],
-        condition: (player: Player) => !player.fighting && player.equipment['right hand']?.name !== 'fist',
+        condition: (player: Player) => !player.fighting && Object.values(player.equipment).reduce((sum, item) => sum + (item ? 1 : 0), 0) > player.assistantHintsUsed['check equipment'],
+        repeats: 5
     }, {
         name: 'get item',
         text: [],
@@ -93,7 +94,7 @@ const hintParams: hintParameters[] = [
         repeats: 3
     }, {
         name: 'cast newbie',
-        text: ['type "cast newbie" to cast a spell.'],
+        text: ['type "cast newbie" to cast a fast and low-cost spell.'],
         condition: (player: Player) => player.abilities['bolt'] == 0 && player.abilities['newbie'] > 0 && player.fighting,
         repeats: 3
     }, {
@@ -119,6 +120,10 @@ const hintParams: hintParameters[] = [
                 return true;
             } else { return false; }
         },
+    }, {
+        name: 'save',
+        text: ['Don\'t forget to save! (type "save")'],
+        condition: (player: Player) => player.experience > 100 || player.has('gold', 100),
     }, {
         name: 'die',
         text: [
