@@ -84,7 +84,10 @@ class A2D extends GameState {
             this.saveName = this.player.name;
         } else if (opt === 1) {
             this.player = new Player('', '', this);
-            await this.player.loadGame();
+            let success = false;
+            while (!success) {
+                success = await this.player.loadGame();
+            }
             this.saveName = this.player.name;
         } else {
             // glitch on client side
