@@ -2081,8 +2081,8 @@ const characters = {
         return new A2dCharacter({
             game: game,
             key: 'clubman',
-            items: ['club', 'club', { name: 'gold', quantity: 10 }],
-            max_hp: 84,
+            items: ['club', 'club', { name: 'gold', quantity: 20 }],
+            max_hp: 184,
             damage: { blunt: 27 },
             coordination: 4,
             agility: 4,
