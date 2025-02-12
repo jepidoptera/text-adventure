@@ -121,6 +121,14 @@ class A2D extends GameState {
             for (let character of characters) {
                 if (!character.dead) {
                     character.time += character.speed;
+                    if (character.isPlayer) {
+                        console.log(`player time: ${character.time}`);
+                        console.log(`player next action: ${character.next_action?.command}`);
+                        (character as Player).pets.forEach(pet => {
+                            console.log(`pet ${pet.name} time: ${pet.time}`);
+                            console.log(`pet ${pet.name} next action: ${pet.next_action?.command}`);
+                        })
+                    }
                     for (let reaction of character.reactionQueue) {
                         reaction.time -= character.speed;
                         if (reaction.time <= 0) {
@@ -145,15 +153,12 @@ class A2D extends GameState {
                     for (let buff of Object.values(character.buffs)) {
                         await buff.turn();
                     }
-                    if (character.isPlayer) {
-                        console.log(`player time: ${character.time}`)
-                        console.log(`player next action: ${character.next_action?.command}`)
-                    }
                 } else if (character.respawnCountdown < 0) {
                     character.respawnCountdown = 0;
                     await character.respawn();
                 }
             }
+            console.log('------------------------Character loop complete------------------------')
             // while (activeCharacters.length > 0) {
             //     for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
             //         if (!character.dead) {
