@@ -234,16 +234,17 @@ class Player extends A2dCharacter {
         this.addAction('cheat', 0, this.cheat);
         this.addAction('buffs', 0, this.checkBuffs);
         this.addAction('goto', 0, this.goto);
-        this.addAction(['exit', 'quit'], 0, async () => { this.hp = -1 })
+        this.addAction(['exit', 'quit'], 0, async () => { this.hp = -1 });
         this.addAction('help', 0, this.help);
 
-        console.log('loaded player actions.')
-        console.log(this.actionTiming)
+        console.log('loaded player actions.');
+        console.log(this.actionTiming);
 
         // start with full health
         this.recoverStats({ hp: 100, sp: 100, mp: 100 });
         this.autoheal();
-        this.onAttack(async (attacker) => {
+        this.off('attack');
+        this.on('attack', async (attacker) => {
             if (attacker != this.attackTarget) {
                 this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
             }
@@ -251,9 +252,14 @@ class Player extends A2dCharacter {
                 await this.bow_attack(attacker);
                 this.useWeapon('right hand')
             }
-            this.action({ command: 'attack', time: 10 });
-            this.pets.forEach(pet => pet.action({ command: `attack ${attacker.unique_id}`, time: 1 }));
-        })
+            this.action({ command: `attack ${attacker.unique_id}`, time: 15 });
+            this.addEnemy(attacker);
+            this.pets.forEach(pet => {
+                pet.attackTarget = attacker;
+                pet.action({ command: `attack ${attacker.unique_id}`, time: 14 })
+                console.log(`pet ${pet.name} action: ${pet.next_action?.command}, ${pet.next_action?.time}`)
+            });
+        });
     }
 
     addAction(name: string | string[], timeNeeded: number, action: (this: Player, ...args: any[]) => Promise<any>) {
@@ -472,6 +478,7 @@ class Player extends A2dCharacter {
     }
 
     async fight(target: Character | null) {
+        console.log(`player fights: ${target?.name ?? 'no one.'}`)
         super.fight(target);
         this.offTimer('attack');
         this.clear_actions();
@@ -562,13 +569,6 @@ class Player extends A2dCharacter {
             this.print("You're out of arrows.")
         } else {
             this.print("You don't have a bow.")
-        }
-    }
-
-    async repel(attacker: Character) {
-        if (this.attackTarget?.location !== this.location) {
-            // if (this.equipment['bow']) { await this.bow_attack(attacker); }
-            await this.fight(attacker);
         }
     }
 
@@ -733,12 +733,13 @@ class Player extends A2dCharacter {
             pet.leader = this;
             pet.onIdle(async function () {
                 this.leader = this.leader instanceof Character ? this.leader : this.location?.character(this.leader) || this;
-                console.log('pet turn', this.name, this.leader.name)
                 if (this.leader.fighting) {
                     this.fight(this.leader.attackTarget);
+                    console.log(`${this.leader.name}'s pet ${this.name} joins the fight against ${this.leader.attackTarget?.name}.`)
                 } else {
                     this.fight(null);
                     this.clearEnemies();
+                    console.log(`${this.leader.name}'s pet ${this.name} is idle.`)
                 }
             }).onDeath(async () => {
                 this.pets = this.pets.filter(p => p !== pet);
@@ -746,9 +747,15 @@ class Player extends A2dCharacter {
             }).onSlay(async (victim) => {
                 // player gets credit for pet's kills
                 await this.slay(victim);
-            }).onAttack(async (attacker) => {
-                this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
-            }).base_stats.hp_recharge = 0.001;
+            }).onAttack(async function (attacker) {
+                if (attacker == this.leader) {
+                    this.leader = '';
+                    this.off('slay').off('attack').off('death').off('idle');
+                    this.fight(attacker);
+                }
+                else this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
+            })
+            pet.base_stats.hp_recharge = 0.001;
             pet.persist = false; // pets don't save (not in the regular way)
         }
     }
