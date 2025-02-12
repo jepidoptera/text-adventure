@@ -201,7 +201,7 @@ class Character {
     abilities: { [key: string]: number };
     size: number;
     flags: { [key: string]: any } = {};
-    private _attackTarget: Character | null = null;
+    attackTarget: Character | null = null;
     private _onEncounter: ((character: Character) => Promise<void>) | undefined;
     private _onDeparture: ((character: Character, direction: string) => Promise<void>) | undefined;
     private _allowDeparture: ((character: Character, direction: string) => Promise<boolean>) | undefined;
@@ -209,7 +209,7 @@ class Character {
     private _onLeave: Action | undefined;
     private _onSlay: Action | undefined;
     private _onDeath: Action | undefined;
-    private _onAttack: Action | undefined;
+    private _onAttack: Action[];
     private _onIdle: Action | null = null;
     private _fightMove: Action | undefined;
     private _onRespawn: Action | undefined;
@@ -339,6 +339,15 @@ class Character {
         if (buff) { this.addBuff(new Buff({ name: 'innate', plus: { defense: armor }, ...buff })); }
         this.size = size;
         this.actionTiming = Object.keys(timeCost).reduce((acc, key) => { acc[key] = 0; return acc }, {} as Record<string, number>);
+        this._onAttack = [
+            async function (enemy: Character) {
+                this.addEnemy(enemy);
+                if (!this.attackTarget) {
+                    console.log(`${this.unique_id} reacts to an attack from ${enemy.unique_id}.`)
+                    this.action({ command: `repel ${this.name}`, time: 5 });
+                }
+            }
+        ];
 
         this.color = this.game.color.bind(this.game);
         this.print = this.game.print.bind(this.game);
@@ -450,6 +459,7 @@ class Character {
     }
 
     get fighting(): boolean {
+        if (this.next_action?.command.startsWith('attack')) return true;
         return this.location?.characters.some(character => this.attackTarget == character) || false;
     }
 
@@ -482,15 +492,18 @@ class Character {
 
     async fight(enemy: Character | null = null) {
         if (this.dead) return;
-        if (this.pacifist || enemy?.pacifist) {
-            await enemy?._onAttack?.(this);
+        if (this.pacifist) return;
+        if (enemy?.pacifist) {
+            for (let action of enemy?._onAttack || []) {
+                await action.call(enemy, this);
+            }
             return;
         }
         if (enemy === null) {
-            if (this._attackTarget) {
-                this.removeEnemy(this._attackTarget);
+            if (this.attackTarget) {
+                this.removeEnemy(this.attackTarget);
                 console.log(`${this.name} is at peace (fight(null)).`)
-                this._attackTarget = null;
+                this.attackTarget = null;
             }
             // this.fighting = false;
             this.offTimer('repel')
@@ -501,31 +514,21 @@ class Character {
             if (!this.hasEnemy(enemy)) this.addEnemy(enemy);
             if (enemy.location == this.location) {
                 console.log(`${this.name} fights ${enemy?.name} at ${this.location?.key}.`)
-                this._attackTarget = enemy;
+                this.attackTarget = enemy;
                 // this.fighting = true;
-                enemy.addEnemy(this);
-                this.action({ command: 'attack' });
-                if (!enemy.attackTarget) enemy.action({ command: `repel ${this.name}`, time: 5 });
-                await enemy._onAttack?.(this);
+                if (!this.next_action?.command.startsWith('attack')) {
+                    console.log(`${this.name} prepares to attack ${enemy.name}.`)
+                    this.action({ command: 'attack' });
+                }
+                for (let action of enemy?._onAttack || []) {
+                    await action.call(enemy, this);
+                }
             }
         }
     }
 
     clearEnemies() {
         this.enemies = [];
-    }
-
-    get attackTarget(): Character | null {
-        if (this._attackTarget) return this._attackTarget;
-        // const enemy = this.location?.characters.find(
-        //     character => this.enemies.includes(character.name) || character.enemies.includes(this.name)
-        // ) || null;
-        // if (enemy && !this.enemies.includes(enemy.name)) {
-        //     this.enemies.push(enemy.name);
-        //     this._attackTarget = enemy;
-        // }
-        // return enemy;
-        return null;
     }
 
     get dead() {
@@ -816,7 +819,7 @@ class Character {
     }
 
     onAttack(action: (this: Character, character: Character) => Promise<void>) {
-        this._onAttack = action.bind(this);
+        this._onAttack.push(action.bind(this));
         return this;
     }
 
@@ -870,6 +873,41 @@ class Character {
         return this;
     }
 
+    on(
+        event: 'dialog' | 'encounter' | 'departure' | 'enter' | 'leave' | 'slay' | 'death' | 'idle' | 'respawn' | 'fight' | 'attack',
+        action: (args?: any) => Promise<void>) {
+        switch (event) {
+            case 'dialog': return this.onDialog(action);
+            case 'encounter': return this.onEncounter(action);
+            case 'departure': return this.onDeparture(action);
+            case 'enter': return this.onEnter(action);
+            case 'leave': return this.onLeave(action);
+            case 'slay': return this.onSlay(action);
+            case 'death': return this.onDeath(action);
+            case 'idle': return this.onIdle(action);
+            case 'respawn': return this.onRespawn(action);
+            case 'fight': return this.fightMove(action);
+            case 'attack': return this.onAttack(action);
+        }
+    }
+
+    off(event: 'dialog' | 'encounter' | 'departure' | 'enter' | 'leave' | 'slay' | 'death' | 'idle' | 'respawn' | 'fight' | 'attack') {
+        switch (event) {
+            case 'dialog': this._onDialog = undefined; break;
+            case 'encounter': this._onEncounter = undefined; break;
+            case 'departure': this._onDeparture = undefined; break;
+            case 'enter': this._onEnter = undefined; break;
+            case 'leave': this._onLeave = undefined; break;
+            case 'slay': this._onSlay = undefined; break;
+            case 'death': this._onDeath = undefined; break;
+            case 'idle': this._onIdle = null; break;
+            case 'respawn': this._onRespawn = undefined; break;
+            case 'fight': this._fightMove = undefined; break;
+            case 'attack': this._onAttack = []; break;
+        }
+        return this;
+    }
+
     interaction(name: string, action: (args?: string) => Promise<void>) {
         this.interactions.set(name, action.bind(this));
         return this;
@@ -883,8 +921,8 @@ class Character {
         if (this.dead) return;
         await this._onEncounter?.(character);
 
-        if (!this.fighting) {
-            this.fight(this.findEnemy());
+        if (!this.fighting && this.hasEnemy(character)) {
+            this.fight(character);
         }
     }
 
@@ -904,7 +942,7 @@ class Character {
     async depart(character: Character, direction: string) {
         if (this.attackTarget == character) {
             // this.fighting = false;
-            this._attackTarget = null;
+            this.attackTarget = null;
             console.log(`${this.name} stops fighting ${character.name} because they left the area.`)
         }
         await this._onDeparture?.(character, direction);
@@ -948,7 +986,7 @@ class Character {
         this.actionQueue = [];
     }
 
-    get next_action() {
+    get next_action(): { command: string, time: number } | null {
         return this.actionQueue[0] || null;
     }
 
@@ -981,7 +1019,7 @@ class Character {
                 await this.attack(this.attackTarget, this.weaponName, this.base_damage);
                 await this._fightMove?.();
             } else {
-                this._attackTarget = null;
+                this.attackTarget = null;
                 // this.fighting = false;
             }
         } else if (verb == 'repel') {
@@ -1000,7 +1038,7 @@ class Character {
     ) {
         if (!target) target = this.attackTarget;
         if (!target) return;
-        // await target?.repel(this)
+        // target.action({ command: `repel ${this.unique_id}`, time: 5 });
         if (!target || target.dead || this.attackTarget !== target || this.dead) return;
         if (!damage_potential) damage_potential = this.base_damage;
         console.log(`${this.name} attacks ${target.name} with ${JSON.stringify(damage_potential)}`)
@@ -1044,7 +1082,7 @@ class Character {
 
     async hurt(damage: number, cause: any): Promise<number> {
         this.hp -= damage;
-        console.log(`${this.name} takes ${damage} damage, ${this.hp} hp left.`)
+        console.log(`${this.name} takes ${damage} damage from ${cause}, ${this.hp} hp left.`)
         if (this.hp <= 0) {
             await this.die(cause);
         }
@@ -1080,7 +1118,7 @@ class Character {
 
     async idle() {
         await this._onIdle?.();
-        if (!this.fighting) {
+        if (!this.attackTarget) {
             let enemy = this.findEnemy();
             if (enemy) {
                 console.log(`${this.name} picks a fight with ${enemy.name}.`)
