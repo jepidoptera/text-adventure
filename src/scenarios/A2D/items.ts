@@ -327,6 +327,16 @@ const items = {
             player.recoverStats({ hp: 100 });
         })
     },
+    "giga healing potion"(game: GameState) {
+        return new Item({
+            name: 'giga healing potion',
+            size: 0.4,
+            value: 973,
+            game: game
+        }).on_drink(async function (player) {
+            player.addBuff(getBuff('heal')({ power: 10, duration: 100 }));
+        })
+    },
     poison(game: GameState) {
         return new Item({
             name: 'poison',
@@ -740,7 +750,7 @@ const items = {
             game: game
         })
     },
-    steel_polearm(game: GameState) {
+    "poleaxe"(game: GameState) {
         return new Item({
             name: 'steel polearm',
             size: 2.5,
@@ -983,11 +993,11 @@ const items = {
             game: game
         })
     },
-    draught_of_visions(game: GameState) {
+    "draught of visions"(game: GameState) {
         return new Item({
             name: 'draught of visions',
             size: 1,
-            value: 140,
+            value: 1937,
             game: game
         })
     },
@@ -1018,12 +1028,33 @@ const items = {
             }
         })
     },
+    "mana potion"(game: GameState) {
+        return new Item({
+            name: 'mana potion',
+            size: 0.4,
+            value: 157,
+            game: game
+        }).on_drink(async function (player) {
+            player.addBuff(getBuff('mana_potion')({ power: 50, duration: 50 }));
+        })
+    },
+    "antivenom"(game: GameState) {
+        return new Item({
+            name: 'antivenom',
+            size: 0.4,
+            value: 239,
+            game: game
+        }).on_drink(async function (player) {
+            player.addBuff(getBuff('antidote')({ power: 1, duration: 50 }));
+        })
+    },
     enhanced_club(game: GameState) {
         return new Item({
             name: 'enhanced club',
             size: 1,
             value: 17,
-            game: game
+            game: game,
+            buff: { times: { damage: { blunt: 3.7 } } }
         })
     },
     flute(game: GameState) {
