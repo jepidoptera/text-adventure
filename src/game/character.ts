@@ -812,8 +812,6 @@ class Character {
         if (this.hp < this.max_hp && !this.fighting) {
             this.recoverStats({ hp: this.hp_recharge * this.max_hp, mp: this.mp_recharge * this.max_mp, sp: this.sp_recharge * this.max_sp });
             console.log(`${this.name} heals to ${this.hp} hp`)
-        } else {
-            console.log(`${this.name} is at full health.`)
         }
     }
 
