@@ -3778,10 +3778,23 @@ const characters = {
             armor: { blunt: 5 },
             aliases: ['gaurd'],
             alignment: 'ierdale',
-            flags: { enemy_of_orcs: true },
+            flags: { enemy_of_orcs: true, desert_post: false },
         }).dialog(async function (player: Character) {
-            this.print("Be careful...");
-            this.print("It is very dangerous here in the desert.");
+            if (this.location?.landmarks.length ?? 0 > 0) {
+                this.print("This crevasse appeared about one month ago, just before Arach ordered")
+                this.print("the gates shut. We think the orcs did it, but we don't know how.")
+            } else {
+                this.print("Be careful...");
+                this.print("It is very dangerous here in the desert.");
+            }
+        }).onIdle(async function () {
+            if (this.game.flags.crevasse && !this.flags.desert_post) {
+                this.print("Elite guard -- Thank you for your help! Arach will hear of this.");
+                for (let guard of this.game.find_all_characters('elite guard')) {
+                    await guard.goto('283');
+                    guard.flags.desert_post = true;
+                }
+            }
         }).onDeath(
             actions.declare_war
         ).onEncounter(

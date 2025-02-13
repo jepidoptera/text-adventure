@@ -809,7 +809,8 @@ const scenario = {
         97: {
             name: "East Road",
             adjacent: { 'east': 96, 'west': 95 },
-            landmarks: [{ name: 'slash_in_the_earth' }]
+            characters: [{ name: 'elite_guard' }, { name: 'elite_guard' }, { name: 'elite_guard' }],
+            landmarks: [{ name: 'slash_in_the_earth' }],
         },
         98: {
             name: "West Road, Forks South",
@@ -1741,7 +1742,6 @@ const scenario = {
         283: {
             name: "Gatehouse",
             adjacent: { 'north': 286, 'east': 284, 'west': 96 },
-            characters: [{ name: 'elite_guard' }, { name: 'elite_guard' }, { name: 'elite_guard' }],
             landmarks: [{
                 name: 'sign',
                 text: [
