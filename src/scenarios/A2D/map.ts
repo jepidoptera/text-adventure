@@ -772,11 +772,53 @@ const scenario = {
         },
         95: {
             name: "East Road",
-            adjacent: { 'east': 97, 'west': 93 }
+            adjacent: { 'east': 95.1, 'west': 93 }
+        },
+        95.1: {
+            name: "East Road",
+            adjacent: { 'east': 95.2, 'west': 95 },
+            characters: [{ name: 'elite_guard' }, { name: 'elite_guard' }, { name: 'elite_guard' }],
+            landmarks: [{ name: 'slash_in_the_earth' }],
+        },
+        95.2: {
+            name: "East Road",
+            adjacent: { 'east': 95.3, 'west': 95.1 },
+        },
+        95.3: {
+            name: "Eastern Bulwark",
+            adjacent: { 'east': 95.4, 'west': 95.2 },
+        },
+        95.4: {
+            name: "East Road",
+            adjacent: { 'north': 97, 'west': 95.3, 'east': 96 },
+            landmarks: [{
+                name: 'sign',
+                text: [
+                    "=--=--=--=--=--=--=--=--=--=",
+                    "=  Dear Citzens of Ierdale,=",
+                    "= and all others passing   =",
+                    "= this way...              =",
+                    "=                          =",
+                    "=  North of this crossroad =",
+                    "= stretches the Desert.    =",
+                    "=                          =",
+                    "=  The Journey across the  =",
+                    "= the barren desert is     =",
+                    "= increadibly parilous. It =",
+                    "= intended for only those  =",
+                    "= who are thouroghly       =",
+                    "= comfortable walking      =",
+                    "= the Forest of Thieves.   =",
+                    "=                          =",
+                    "= Sincerely,               =",
+                    "=  Ierdale Chief of Police =",
+                    "=--=--=--=--=--=--=--=--=--="
+                ]
+            }]
         },
         96: {
-            name: "East Road, Fork of Nod",
-            adjacent: { 'east': 283, 'south': 142, 'west': 97 },
+            name: "Fork of Nod",
+            adjacent: { 'east': 283, 'south': 142, 'west': 95.4 },
             landmarks: [{
                 name: 'sign',
                 text: [
@@ -807,10 +849,8 @@ const scenario = {
             }]
         },
         97: {
-            name: "East Road",
-            adjacent: { 'east': 96, 'west': 95 },
-            characters: [{ name: 'elite_guard' }, { name: 'elite_guard' }, { name: 'elite_guard' }],
-            landmarks: [{ name: 'slash_in_the_earth' }],
+            name: "Desert Outpost",
+            adjacent: { 'south': 95.4, 'north': 286 },
         },
         98: {
             name: "West Road, Forks South",
@@ -1740,32 +1780,8 @@ const scenario = {
             ]
         },
         283: {
-            name: "Gatehouse",
-            adjacent: { 'north': 286, 'east': 284, 'west': 96 },
-            landmarks: [{
-                name: 'sign',
-                text: [
-                    "=--=--=--=--=--=--=--=--=--=",
-                    "=  Dear Citzens of Ierdale,=",
-                    "= and all others passing   =",
-                    "= this way...              =",
-                    "=                          =",
-                    "=  North of this gate house=",
-                    "= stretches the Desert.    =",
-                    "=                          =",
-                    "=  The Journey across the  =",
-                    "= the barren desert is     =",
-                    "= increadibly parilous. It =",
-                    "= intended for only those  =",
-                    "= who are thouroghly       =",
-                    "= comfortable walking      =",
-                    "= the Forest of Thieves.   =",
-                    "=                          =",
-                    "= Sincerely,               =",
-                    "=  Ierdale Chief of Police =",
-                    "=--=--=--=--=--=--=--=--=--="
-                ]
-            }]
+            name: "East Road",
+            adjacent: { 'east': 284, 'west': 96 },
         },
         284: {
             name: "East Road Ends",
@@ -1784,7 +1800,7 @@ const scenario = {
         },
         286: {
             name: "Sandy Desert",
-            adjacent: { 'north': 287, 'east': 285, 'south': 283 }
+            adjacent: { 'north': 287, 'east': 285, 'south': 97 }
         },
         287: {
             name: "Sandy Desert",
@@ -1996,8 +2012,8 @@ const scenario = {
         314: {
             name: "Apothecary",
             adjacent: { 'west': 281 },
-            landmarks: [{ name: 'mixing_pot' }
-            ],
+            landmarks: [{ name: 'mixing_pot' }],
+            characters: [{ name: 'philosopher' }]
         },
         315: {
             name: "The RIver",
