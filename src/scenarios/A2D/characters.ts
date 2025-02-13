@@ -3762,43 +3762,95 @@ const characters = {
         });
     },
 
+    philosopher(game: GameState) {
+        return new A2dCharacter({
+            game: game,
+            key: 'philosopher',
+            pacifist: true,
+            items: ['antivenom', 'mana potion', 'giga healing potion']
+        }).interaction(
+            'buy', actions.buy
+        ).dialog(async function (player) {
+            if (player instanceof Player && player.hasEquipped('ring of dreams')) {
+                this.print("Ahh, a dreamer, I see. It's not often that I see one such as you.")
+                this.print("Maybe I can interest you in something a little... different.")
+                await this.pause(5)
+                this.print("<Philosopher reveals a glowing violet potion>")
+                await this.pause(2)
+                this.print("Buy draught of visions for <yellow>1937GP<black>? [y/n]")
+                if (await this.getKey(['y', 'n']) == 'y') {
+                    if (player.has('gold', 1937)) {
+                        player.removeItem('gold', 1937)
+                        player.giveItem('draught of visions')
+                        this.print("Enjoy your new potion.")
+                    } else {
+                        this.print("You don't have enough gold.")
+                    }
+                }
+                if (!player.has('draught of visions')) {
+                    this.print("Come back later. This will be available to you.");
+                }
+                this.giveItem("draught of visions")
+            }
+            this.print("Do you want to buy some potions?")
+            this.print("I have mana potion for <yellow>157GP<black>,")
+            this.print("antivenom for <yellow>239<black>, and giga healing potion for <yellow>973<black>.")
+            if (this.has('draught of visions')) {
+                this.print("For you, I also have draught of visions for <yellow>1937<black>.")
+            }
+        })
+    },
+
     elite_guard(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'elite guard',
             pronouns: { "subject": "she", "object": "her", "possessive": "her" },
-            max_hp: 50,
-            damage: { blunt: 22, sharp: 10 },
-            weaponName: 'broadsword',
+            max_hp: 150,
+            damage: { blunt: 22, sharp: 40 },
+            weaponName: 'poleaxe',
             attackVerb: 'slice',
-            items: ['broadsword', { name: 'gold', quantity: 6 }],
+            items: ['poleaxe', { name: 'gold', quantity: 6 }],
             fight_description: 'Ierdale elite',
-            coordination: 2,
-            agility: 2,
-            armor: { blunt: 5 },
-            aliases: ['gaurd'],
+            coordination: 4,
+            agility: 4,
+            armor: { blunt: 25, sharp: 25 },
+            aliases: ['guard'],
             alignment: 'ierdale',
             flags: { enemy_of_orcs: true, desert_post: false },
         }).dialog(async function (player: Character) {
-            if (this.location?.landmarks.length ?? 0 > 0) {
+            if (!this.game.flags.crevasse) {
                 this.print("This crevasse appeared about one month ago, just before Arach ordered")
                 this.print("the gates shut. We think the orcs did it, but we don't know how.")
-            } else {
+            } else if (this.location?.name == 'Eastern Bulwark') {
+                this.print("Greetings, citizen. You impressed us with your potion work earlier.")
+                this.print("If you're headed south, bring some antivenom for the poisonous hedgehogs.")
+            } else if (this.location?.name == 'Desert Outpost') {
                 this.print("Be careful...");
                 this.print("It is very dangerous here in the desert.");
+            } else if (this.location?.name == 'Fork of Nod') {
+                this.print("The orcs are out there. I feel like I can almost smell them.")
+                this.print("They'll have to get through me first.")
             }
         }).onIdle(async function () {
             if (this.game.flags.crevasse && !this.flags.desert_post) {
+                this.color(magenta);
                 this.print("Elite guard -- Thank you for your help! Arach will hear of this.");
-                for (let guard of this.game.find_all_characters('elite guard')) {
-                    await guard.goto('283');
+                const elite_squad = this.game.find_all_characters('elite guard');
+                for (let guard of elite_squad) {
                     guard.flags.desert_post = true;
+                    console.log(`${guard.unique_id} dispatches to new post.`)
                 }
+                await elite_squad[0].goto('Eastern Bulwark');
+                await elite_squad[1].goto('Desert Outpost');
+                await elite_squad[2].goto('Fork of Nod');
             }
         }).onDeath(
             actions.declare_war
         ).onEncounter(
             actions.defend_tribe
+        ).fightMove(
+            actions.call_help('elite_guard', 'security_guard')
         )
     },
 
