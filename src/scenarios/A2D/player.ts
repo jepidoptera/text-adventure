@@ -176,7 +176,7 @@ class Player extends A2dCharacter {
 
         this.addAction('save', 0, this.saveGame);
         this.addAction('load', 0, this.loadGame);
-        this.addAction('', 10, async () => { if (this.flags.path?.length ?? 0 > 0) this.go('') });
+        this.addAction(['', 'wait'], 10, async () => { if (this.flags.path?.length ?? 0 > 0) this.go('') });
         this.addAction(['n', 'north'], 10, async () => await this.go('north'));
         this.addAction(['s', 'south'], 10, async () => await this.go('south'));
         this.addAction(['e', 'east'], 10, async () => await this.go('east'));
@@ -252,8 +252,8 @@ class Player extends A2dCharacter {
                 await this.bow_attack(attacker);
                 this.useWeapon('right hand')
             }
-            this.action({ command: `attack ${attacker.unique_id}`, time: 15 });
-            this.addEnemy(attacker);
+            this.fight(attacker);
+            this.action({ command: `wait ${attacker.unique_id}`, time: 15 });
             this.pets.forEach(pet => {
                 pet.attackTarget = attacker;
                 pet.action({ command: `attack ${attacker.unique_id}`, time: 14 })
@@ -475,12 +475,12 @@ class Player extends A2dCharacter {
         }
         console.log(`player targets ${target?.name}`)
         await this.fight(target);
+        this.action({ command: 'wait', time: 10 });
     }
 
     async fight(target: Character | null) {
         console.log(`player fights: ${target?.name ?? 'no one.'}`)
         super.fight(target);
-        this.offTimer('attack');
         this.clear_actions();
     }
 
@@ -747,13 +747,24 @@ class Player extends A2dCharacter {
             }).onSlay(async (victim) => {
                 // player gets credit for pet's kills
                 await this.slay(victim);
-            }).onAttack(async function (attacker) {
-                if (attacker == this.leader) {
-                    this.leader = '';
-                    this.off('slay').off('attack').off('death').off('idle');
-                    this.fight(attacker);
+            }).onAttack(async (attacker) => {
+                if (attacker == this) {
+                    pet.leader = '';
+                    pet.off('slay').off('attack').off('death').off('idle').off('fight');
+                    pet.fight(this);
                 }
-                else this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
+                else if (!this.hasEnemy(attacker)) {
+                    this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
+                }
+            }).fightMove(async () => {
+                // pets will draw some fire for you
+                if (pet.attackTarget && this.attackTarget) {
+                    if (Math.random() > 1 / 2) {
+                        pet.attackTarget.attackTarget = this;
+                    } else {
+                        this.attackTarget.attackTarget = pet;
+                    }
+                }
             })
             pet.base_stats.hp_recharge = 0.001;
             pet.persist = false; // pets don't save (not in the regular way)
@@ -764,12 +775,12 @@ class Player extends A2dCharacter {
         for (let pet of this.pets) {
             this.color(green)
             this.print(`${caps(pet.name)}:`)
-            this.print(`  HP: ${pet.hp}/${pet.max_hp}`)
-            this.print(`  agility: ${pet.agility}`)
-            this.print(`  coordination: ${pet.coordination}`)
+            this.print(`  HP: ${Math.ceil(pet.hp)}/${Math.ceil(pet.max_hp)}`)
+            this.print(`  agility: ${Math.ceil(pet.agility)}`)
+            this.print(`  coordination: ${Math.ceil(pet.coordination)}`)
             for (let dam of damageTypesList) {
                 if (pet.base_damage[dam]) {
-                    this.print(`  ${dam} damage: ${pet.base_damage[dam]}`)
+                    this.print(`  ${dam} damage: ${Math.ceil(pet.base_damage[dam])}`)
                 }
             }
         }
