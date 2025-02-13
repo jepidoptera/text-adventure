@@ -402,7 +402,7 @@ abstract class GameState {
         const chars = [] as Character[];
         for (let name of key) {
             name = name.toLowerCase();
-            chars.push(...this.characters.filter(character => character.key.toLowerCase() == name || character.key == name || character.unique_id == name));
+            chars.push(...this.characters.filter(character => character.key.toLowerCase() == name || character.name.toLowerCase() == name || character.unique_id.toLowerCase() == name));
         }
         return chars;
     }
