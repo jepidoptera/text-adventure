@@ -23,6 +23,7 @@ class A2D extends GameState {
         cleric: boolean,
         ieadon: boolean,
         colonel_arach: boolean,
+        crevasse: boolean,
         biadon: boolean,
         ziatos: boolean,
         turlin: boolean,
@@ -37,6 +38,7 @@ class A2D extends GameState {
             cleric: false,
             ieadon: false,
             colonel_arach: false,
+            crevasse: false,
             biadon: false,
             ziatos: false,
             turlin: false,
@@ -132,7 +134,7 @@ class A2D extends GameState {
                     for (let reaction of character.reactionQueue) {
                         reaction.time -= character.speed;
                         if (reaction.time <= 0) {
-                            console.log(character.name, 'executing reaction', reaction.command)
+                            // console.log(character.name, 'executing reaction', reaction.command)
                             await character.execute(reaction.command);
                             if (reaction.repeat) {
                                 reaction.time += reaction.repeat;
