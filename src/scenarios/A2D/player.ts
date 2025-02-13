@@ -908,7 +908,7 @@ class Player extends A2dCharacter {
                 if (i > 0) await this.game.pause(0.1);
                 await item[verb](this);
                 this.removeItem(item, 1);
-                if (this.dead) return;
+                if (this.dead || verb == 'use') return;
                 this.color(orange)
                 this.print(`${item.name} was consumed.`)
             }
@@ -1171,6 +1171,10 @@ class Player extends A2dCharacter {
     has = (item_name: string, quantity: number = 1) => {
         // count both inventory and equipment
         return this.itemCount(item_name) + equipmentSlots.filter(slot => this.equipment[slot]?.name == item_name).length >= quantity;
+    }
+
+    hasEquipped = (item_name: string) => {
+        return equipmentSlots.some(slot => this.equipment[slot]?.name == item_name);
     }
 
     async checkHP() {
