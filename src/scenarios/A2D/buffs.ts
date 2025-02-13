@@ -84,8 +84,34 @@ const buffs: { [key: string]: BuffCreator } = {
             this.power *= this.duration / (this.duration + 1);
         }).onDisplay(function () {
             return `<brightgreen>Poison: ${Math.ceil(this.power)}`;
+        }).onCombine(function (buff) {
+            this.power += buff.power;
+            this.duration += buff.duration;
+            return this;
         })
     },
+    anitdote: ({ power, duration }: { power: number, duration: number }) => {
+        return new Buff({
+            name: 'antidote',
+            duration: duration,
+            power: power,
+        }).onTurn(async function () {
+            const poisonDebuff = this.character.getBuff('poison')
+            if (!poisonDebuff) return;
+            poisonDebuff.power -= this.power;
+            if (poisonDebuff.power <= 0) {
+                poisonDebuff.expire();
+            }
+        }).onCombine(function (buff) {
+            const weighted_average = this.power * this.duration + buff.power * buff.duration / (this.duration + buff.duration);
+            this.duration += buff.duration;
+            this.power = weighted_average;
+            return this;
+        }).onDisplay(function () {
+            return `<orange>Antidote: ${Math.ceil(this.power)}`;
+        })
+    },
+
     sleep: ({ power, duration }: { power: number, duration: number }) => {
         return new Buff({
             name: 'sleep',
@@ -110,6 +136,27 @@ const buffs: { [key: string]: BuffCreator } = {
                 const player = this.character as Player;
                 player.enableCommands(Object.keys(player.disabledCommands))
             }
+        })
+    },
+    "mana potion": ({ power, duration }: { power: number, duration: number }) => {
+        return new Buff({
+            name: 'mana potion',
+            duration: duration,
+            power: power,
+        }).onApply(async function () {
+            this.character.mp += this.power;
+        }).onTurn(async function () {
+            this.character.mp += this.power / this.duration;
+        })
+    },
+    "heal": ({ power, duration }: { power: number, duration: number }) => {
+        return new Buff({
+            name: 'heal',
+            duration: duration,
+            power: power,
+        }).onTurn(async function () {
+            this.character.recoverStats({ hp: this.power });
+            this.power *= 0.9716416578630735; // 0.75 per 10-tick turn
         })
     },
     dreams: ({ power, duration }: { power: number, duration: number }) => {
