@@ -1007,13 +1007,14 @@ const items = {
             game: game
         }).on_use(async function (player) {
             if (player.location && player.location.landmarks?.map(landmark => landmark.key).includes('slash_in_the_earth')) {
-                this.game.print("You drop the potion into the crevice.")
-                await this.game.pause(2)
-                this.game.print("The earth shakes beneath you as the crevice seals itself shut.")
-                player.location.removeLandmark('slash_in_the_earth')
-                player.removeItem(this, 1)
+                this.game.print("You drop the potion into the crevice.");
+                await this.game.pause(2);
+                this.game.print("The earth shakes beneath you as the crevice seals itself shut.");
+                player.location.removeLandmark('slash_in_the_earth');
+                player.removeItem(this, 1);
+                this.game.flags.crevasse = true;
             } else {
-                this.game.print("You aren't supposed to use that here.")
+                this.game.print("You aren't supposed to use that here.");
             }
         })
     },
