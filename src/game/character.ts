@@ -41,6 +41,7 @@ class Buff {
     private _onExpire: ((this: Buff) => Promise<void>) | null = null;
     private _onTurn: ((this: Buff) => Promise<void>) | null = null;
     private _display: ((this: Buff) => string) | null = null;
+    private _onCombine: ((this: Buff, other: Buff) => Buff) | null = null;
     public character!: Character;
     public name: string;
     public power: number;
@@ -102,6 +103,13 @@ class Buff {
     }
     display() {
         return this._display?.() || this.name;
+    }
+    onCombine(action: (this: Buff, other: Buff) => Buff) {
+        this._onCombine = action.bind(this);
+        return this;
+    }
+    combine(other: Buff) {
+        return this._onCombine?.(other) || this;
     }
     get game() {
         return this.character.game;
@@ -363,7 +371,11 @@ class Character {
         if (!buff) return;
         await buff.apply(this);
         // console.log(`applying buff ${buff.name} to ${this.name} (${Object.keys(buff.times).reduce((prev, curr) => `${prev} ${curr}: ${buff.times[curr as BaseStats]}`, '')})`)
-        this.buffs[buff.name] = buff;
+        if (this.buffs[buff.name]) {
+            this.buffs[buff.name] = this.buffs[buff.name].combine(buff);
+        } else {
+            this.buffs[buff.name] = buff;
+        }
     }
 
     removeBuff(buff: string | Buff) {
