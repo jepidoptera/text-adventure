@@ -348,6 +348,7 @@ class Character {
                 }
             }
         ];
+        this.onTimer({ command: 'recover', time: 10, repeat: true })
 
         this.color = this.game.color.bind(this.game);
         this.print = this.game.print.bind(this.game);
@@ -807,6 +808,15 @@ class Character {
         }
     }
 
+    autoheal() {
+        if (this.hp < this.max_hp && !this.fighting) {
+            this.recoverStats({ hp: this.hp_recharge * this.max_hp, mp: this.mp_recharge * this.max_mp, sp: this.sp_recharge * this.max_sp });
+            console.log(`${this.name} heals to ${this.hp} hp`)
+        } else {
+            console.log(`${this.name} is at full health.`)
+        }
+    }
+
     recoverStats({ hp = 0, sp = 0, mp = 0 }: { hp?: number, sp?: number, mp?: number }) {
         this.hp = Math.min(this.max_hp, this.hp + hp);
         this.sp = Math.min(this.max_sp, this.sp + sp);
@@ -1005,7 +1015,7 @@ class Character {
     async execute(command: string) {
         // console.log(`${this.name} executes ${command}`)
         let [verb, args] = splitFirst(command);
-        console.log(`${this.name} action ${verb}: ${args}`)
+        // console.log(`${this.name} action ${verb}: ${args}`)
         if (verb == 'go') verb = args;
         if (this.location?.adjacent.has(verb)) {
             if (await this.can_go(verb)) {
@@ -1026,6 +1036,9 @@ class Character {
             console.log(`${this.name} repels ${args}`)
             const attacker = args ? this.game.find_character(args) : this.attackTarget;
             if (attacker) await this.repel(attacker);
+        } else if (verb == 'recover') {
+            // console.log('recover')
+            this.autoheal();
         } else if (verb == 'wait') {
             return;
         }
@@ -1128,10 +1141,6 @@ class Character {
     }
 
     async turn() {
-        if (this.hp < this.max_hp && !this.fighting) {
-            this.recoverStats({ hp: this.hp_recharge * this.max_hp, mp: this.mp_recharge * this.max_mp, sp: this.sp_recharge * this.max_sp });
-            console.log(`${this.name} heals to ${this.hp} hp`)
-        }
         if (this.next_action) {
             await this.execute(typeof this.next_action == 'string' ? this.next_action : this.next_action.command);
             this.actionQueue.shift();
