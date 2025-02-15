@@ -1126,7 +1126,7 @@ const scenario = {
         144: {
             name: "Path of Nod",
             adjacent: { 'north': 143, 'south': 145 },
-            characters: [{ name: 'path_demon' }]
+            characters: [{ name: 'gogglebird' }]
         },
         145: {
             name: "Path of Nod",
@@ -1167,7 +1167,7 @@ const scenario = {
         154: {
             name: "Path of Nod",
             adjacent: { 'north': 153, 'south': 155 },
-            characters: [{ name: 'path_demon' }]
+            characters: [{ name: 'bandit' }]
         },
         155: {
             name: "Path of Nod",
@@ -1228,7 +1228,7 @@ const scenario = {
         169: {
             name: "Path of Nod",
             adjacent: { 'north': 168, 'south': 170 },
-            characters: [{ name: 'path_demon' }]
+            characters: [{ name: 'ogre' }]
         },
         170: {
             name: "Path of Nod",
@@ -1265,7 +1265,7 @@ const scenario = {
         178: {
             name: "Path of Nod",
             adjacent: { 'north': 177, 'south': 179 },
-            characters: [{ name: 'path_demon' }]
+            characters: [{ name: 'giant scorpion' }]
         },
         179: {
             name: "Path of Nod",
@@ -1290,7 +1290,7 @@ const scenario = {
         184: {
             name: "Path of Nod",
             adjacent: { 'north': 183, 'south': 185 },
-            characters: [{ name: 'path_demon' }]
+            characters: [{ name: 'mutant hedgehog' }]
         },
         185: {
             name: "Path of Nod",
@@ -2175,10 +2175,10 @@ const scenario = {
             name: "Thieves' Hideout",
             adjacent: { 'north': 341 },
             characters: [
-                { name: 'snarling_thief', attackPlayer: true, chase: true },
-                { name: 'dirty_thief', attackPlayer: true, chase: true },
-                { name: 'fat_merchant_thief', attackPlayer: true, chase: true },
-                { name: 'little_goblin_thief', attackPlayer: true, chase: true },
+                { name: 'snarling_thief', hostile: true, chase: true },
+                { name: 'dirty_thief', hostile: true, chase: true },
+                { name: 'fat_merchant_thief', hostile: true, chase: true },
+                { name: 'little_goblin_thief', hostile: true, chase: true },
             ],
             items: [{ key: "pile_of_gold", quantity: 501, name: 'bag of loot' }]
         },
@@ -2541,6 +2541,7 @@ const scenario = {
         cleric: false,
         ieadon: false,
         colonel_arach: false,
+        crevasse: false,
         biadon: false,
         ziatos: false,
         turlin: false,
