@@ -3,7 +3,7 @@ import { A2dCharacter } from './characters.js';
 import { brightred, black, gray, magenta } from '../../game/colors.js';
 import { getBuff } from './buffs.js';
 import { WeaponTypes } from '../../game/item.js';
-import { highRandom, randomChoice } from '../../game/utils.js';
+import { highRandom, randomChoice, caps } from '../../game/utils.js';
 type SpellAction = (this: A2dCharacter, target: Character) => Promise<void>;
 const abilityLevels = ["None", "Novice", "Ameteur", "Competent", "Proficient", "Adept", "Expert", "Master", "Ultimate"]
 const spellPower = 1.0860331325016919
@@ -162,15 +162,19 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
             }) || []
             for (const char of otherEnemies) {
                 if (Math.random() * char.agility < Math.random() * otherEnemies.length) {
-                    this.game.print(`You miss ${target.name} and hit ${char.name} instead!`)
+                    this.game.print(`${caps(spellName)} misses ${target.name} and hits ${char.name} instead!`)
                     target = char;
                     hit = true;
+                    break;
                 }
             }
         }
         if (hit) {
             damage = Math.max(target.modify_damage(damage, damageType), 0);
-            console.log(`${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
+            console.log(`<black>${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
+        } else {
+            this.print(`<black>${caps(spellName)} misses ${target.name}.`);
+            return;
         }
         if (this.location?.playerPresent) {
             this.game.color(damage ? black : gray)
@@ -181,7 +185,7 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
             damage = (damage - target.hp) * damage_overflow
             console.log(`${target.name} is dead from ${spellName}!`)
             if (damage_overflow) {
-                const otherEnemies = this.location?.characters.filter(character => (character.enemies.includes(this.name) || this.enemies.includes(character.name)) && !casualties.includes(character)) || []
+                const otherEnemies = this.location?.characters.filter(character => (this.hasEnemy(character) || character.hasEnemy(this)) && !casualties.includes(character)) || []
                 console.log(`damage overflows to ${otherEnemies.length} remaining enemies`)
                 const newTarget = randomChoice(otherEnemies)
                 if (newTarget) {
