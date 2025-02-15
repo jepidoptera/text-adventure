@@ -237,7 +237,7 @@ const items = {
             game: game
         })
     },
-    bug_repellent(game: GameState) {
+    "bug repellent"(game: GameState) {
         return new Item({
             name: 'bug repellent',
             size: 0.1,
@@ -334,7 +334,9 @@ const items = {
             value: 973,
             game: game
         }).on_drink(async function (player) {
-            player.addBuff(getBuff('heal')({ power: 10, duration: 100 }));
+            player.recoverStats({ hp: 100 });
+            this.print("<blue>+100 HP")
+            player.addBuff(getBuff('heal')({ power: 27, duration: 100 }));
         })
     },
     poison(game: GameState) {
@@ -756,7 +758,7 @@ const items = {
             size: 2.5,
             value: 35,
             attackVerb: 'axe',
-            buff: { times: { damage: { blunt: 1.0, sharp: 3.2 } } },
+            buff: { times: { damage: { blunt: 2.0, sharp: 3.7 } } },
             game: game
         })
     },
@@ -1009,7 +1011,7 @@ const items = {
             game: game
         })
     },
-    earth_potion(game: GameState) {
+    "earth potion"(game: GameState) {
         return new Item({
             name: 'earth potion',
             size: 0.4,
@@ -1035,7 +1037,7 @@ const items = {
             value: 157,
             game: game
         }).on_drink(async function (player) {
-            player.addBuff(getBuff('mana_potion')({ power: 50, duration: 50 }));
+            player.addBuff(getBuff('mana potion')({ power: 50, duration: 50 }));
         })
     },
     "antivenom"(game: GameState) {
@@ -1045,7 +1047,7 @@ const items = {
             value: 239,
             game: game
         }).on_drink(async function (player) {
-            player.addBuff(getBuff('antidote')({ power: 1, duration: 50 }));
+            player.addBuff(getBuff('antidote')({ power: 10, duration: 50 }));
         })
     },
     enhanced_club(game: GameState) {
@@ -1288,7 +1290,7 @@ const items = {
                 player.attackTarget.addBuff(
                     new Buff({
                         name: 'power drain',
-                        duration: Math.floor(Math.random() * 5) + 1,
+                        duration: Math.floor(Math.random() * 50) + 1,
                         plus: { damage: { blunt: -10, sharp: -50 }, agility: -10 }
                     }).onExpire(async function () {
                         this.game.color(magenta)
@@ -1800,8 +1802,8 @@ function isValidItemKey(key: string): key is ItemNames {
 
 const potions = new Map(
     [
-        [['giraffe gizzard', 'blue liquid', 'spritzer hair'], 'bug_repellent'],
-        [['maple leaf', 'spritzer hair', 'ochre stone', 'music box', 'clear liquid'], 'earth_potion'],
+        [['giraffe gizzard', 'blue liquid', 'spritzer hair'], 'bug repellent'],
+        [['maple leaf', 'spritzer hair', 'ochre stone', 'music box', 'clear liquid'], 'earth potion'],
     ]
 )
 
