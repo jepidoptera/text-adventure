@@ -102,7 +102,7 @@ class Buff {
         return this;
     }
     display() {
-        return this._display?.() || this.name;
+        return this._display?.();
     }
     onCombine(action: (this: Buff, other: Buff) => Buff) {
         this._onCombine = action.bind(this);
@@ -356,6 +356,16 @@ class Character {
                 }
             }
         ];
+        if (this.alignment) {
+            this.on('attack', async (enemy: Character) => {
+                for (let char of this.location?.characters ?? []) {
+                    if (char != this && char.alignment && char.alignment === this.alignment) {
+                        console.log(`${char.unique_id} defends ${this.unique_id}!`)
+                        char.addEnemy(enemy);
+                    }
+                }
+            })
+        }
         this.onTimer({ command: 'recover', time: 10, repeat: true })
 
         this.color = this.game.color.bind(this.game);
@@ -370,12 +380,13 @@ class Character {
     async addBuff(buff: Buff) {
         if (!buff) return;
         await buff.apply(this);
-        // console.log(`applying buff ${buff.name} to ${this.name} (${Object.keys(buff.times).reduce((prev, curr) => `${prev} ${curr}: ${buff.times[curr as BaseStats]}`, '')})`)
+        console.log(`applying buff ${buff.name} to ${this.name}`)  // (${Object.keys(buff.times).reduce((prev, curr) => `${prev} ${curr}: ${buff.times[curr as BaseStats]}`, '')})`)
         if (this.buffs[buff.name]) {
             this.buffs[buff.name] = this.buffs[buff.name].combine(buff);
         } else {
             this.buffs[buff.name] = buff;
         }
+        console.log(`power ${this.buffs[buff.name].power}, duration ${this.buffs[buff.name].duration}`)
     }
 
     removeBuff(buff: string | Buff) {
@@ -487,7 +498,7 @@ class Character {
     }
 
     hasEnemy(character: Character): boolean {
-        if (this.pacifist) return false;
+        if (this.pacifist || character.pacifist) return false;
         return this.enemies.includes(character.name) || this.enemies.includes(character.unique_id);
     }
 
@@ -496,10 +507,11 @@ class Character {
     }
 
     addEnemy(character: Character) {
-        if (this.pacifist) return
+        if (this.pacifist || character.pacifist) return;
+        if (character == this) return;
         if (!this.hasEnemy(character)) this.enemies.push(character.unique_id);
         // if (!this.attackTarget && this.location == character.location) {
-        //     this.fight(character);
+        //     await this.fight(character);
         // }
     }
 
@@ -526,7 +538,7 @@ class Character {
         } else {
             if (!this.hasEnemy(enemy)) this.addEnemy(enemy);
             if (enemy.location == this.location) {
-                console.log(`${this.name} fights ${enemy?.name} at ${this.location?.key}.`)
+                console.log(`${this.unique_id} fights ${enemy?.unique_id} at ${this.location?.key}.`)
                 this.attackTarget = enemy;
                 // this.fighting = true;
                 if (!this.next_action?.command.startsWith('attack')) {
@@ -716,7 +728,7 @@ class Character {
         }
         for (let character of from.characters) {
             if (character !== this && !await character.allowDepart(this, direction)) {
-                console.log(`${this.name} blocked from going ${direction} by ${character.name}`);
+                // console.log(`${this.name} blocked from going ${direction} by ${character.name}`);
                 return false;
             }
         }
@@ -726,7 +738,7 @@ class Character {
     async go(direction: string): Promise<void> {
         // no check is performed here, so can_go should be called first
         if (!this.location) return
-        console.log(`${this.name} goes ${direction}`)
+        console.log(`${this.unique_id} goes ${direction}`)
         const newLocation = this.location.adjacent.get(direction);
         if (newLocation) {
             this.backDirection = Array.from(newLocation.adjacent?.keys()).find(key => newLocation.adjacent?.get(key) === this.location) || '';
@@ -788,7 +800,7 @@ class Character {
         console.log(`${this.name} dies from ${cause?.name ?? 'no reason'}.`)
         this.actionQueue = [];
         this.reactionQueue = [];
-        this.fight(null);
+        await this.fight(null);
         if (this.location) {
             for (let item of this.inventory) {
                 // copy items so they will still have the stuff when they respawn
@@ -897,18 +909,19 @@ class Character {
         event: 'dialog' | 'encounter' | 'departure' | 'enter' | 'leave' | 'slay' | 'death' | 'idle' | 'respawn' | 'fight' | 'attack',
         action: (args?: any) => Promise<void>) {
         switch (event) {
-            case 'dialog': return this.onDialog(action);
-            case 'encounter': return this.onEncounter(action);
-            case 'departure': return this.onDeparture(action);
-            case 'enter': return this.onEnter(action);
-            case 'leave': return this.onLeave(action);
-            case 'slay': return this.onSlay(action);
-            case 'death': return this.onDeath(action);
-            case 'idle': return this.onIdle(action);
-            case 'respawn': return this.onRespawn(action);
-            case 'fight': return this.fightMove(action);
-            case 'attack': return this.onAttack(action);
+            case 'dialog': this._onDialog = action.bind(this); break;
+            case 'encounter': this._onEncounter = action.bind(this); break;
+            case 'departure': this._onDeparture = action.bind(this); break;
+            case 'enter': this._onEnter = action.bind(this); break;
+            case 'leave': this._onLeave = action.bind(this); break;
+            case 'slay': this._onSlay = action.bind(this); break;
+            case 'death': this._onDeath = action.bind(this); break;
+            case 'idle': this._onIdle = action.bind(this); break;
+            case 'respawn': this._onRespawn = action.bind(this); break;
+            case 'fight': this._fightMove = action.bind(this); break;
+            case 'attack': this._onAttack.push(action.bind(this)); break;
         }
+        return this;
     }
 
     off(event: 'dialog' | 'encounter' | 'departure' | 'enter' | 'leave' | 'slay' | 'death' | 'idle' | 'respawn' | 'fight' | 'attack') {
@@ -941,8 +954,8 @@ class Character {
         if (this.dead) return;
         await this._onEncounter?.(character);
 
-        if (!this.fighting && this.hasEnemy(character)) {
-            this.fight(character);
+        if (!this.fighting && this.findEnemy() == character) {
+            await this.fight(character);
         }
     }
 
@@ -1037,7 +1050,7 @@ class Character {
         } else if (verb == 'attack') {
             if (this.attackTarget && this.attackTarget.location === this.location) {
                 await this.attack(this.attackTarget, this.weaponName, this.base_damage);
-                await this._fightMove?.();
+                if (!this.attackTarget?.dead) await this._fightMove?.();
             } else {
                 this.attackTarget = null;
                 // this.fighting = false;
@@ -1128,14 +1141,8 @@ class Character {
     async repel(attacker: Character) {
         this.addEnemy(attacker);
         if (!this.fighting) {
-            console.log(`${this.name} fights back against ${attacker.name}!`)
+            console.log(`${this.unique_id} fights back against ${attacker.unique_id}!`)
             await this.fight(attacker);
-        }
-        for (let char of this.location?.characters ?? []) {
-            if (char != this && char.alignment && char.alignment === this.alignment) {
-                console.log(`${char.unique_id} defends ${this.unique_id}!`)
-                char.addEnemy(attacker);
-            }
         }
     }
 
@@ -1167,7 +1174,6 @@ class Character {
             unique_id: this.unique_id,
             respawn: this.respawns,
             respawnLocation: this.respawnLocation,
-            attackPlayer: this.hostile,
             backDirection: this.backDirection,
             alignment: this.alignment,
         }
@@ -1179,6 +1185,9 @@ class Character {
         }
         if (this.chase) {
             saveObject['chase'] = true;
+        }
+        if (this.hostile) {
+            saveObject['hostile'] = true;
         }
         if (this.following) {
             saveObject['following'] = this.following;
