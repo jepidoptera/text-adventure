@@ -192,13 +192,14 @@ class Player extends A2dCharacter {
         this.addAction('i', 0, async () => this.checkInventory());
         this.addAction('look', 5, this.look);
         this.addAction('read', 20, this.read);
-        this.addAction('eat', 20, async (itemName) => { await this.consume(itemName, 'eat') });
-        this.addAction('drink', 20, async (itemName) => { await this.consume(itemName, 'drink') });
+        this.addAction('eat', 10, async (itemName) => { await this.consume(itemName, 'eat') });
+        this.addAction('drink', 10, async (itemName) => { await this.consume(itemName, 'drink') });
         this.addAction('use', 10, async (itemName) => { await this.consume(itemName, 'use') });
         this.addAction('wield', 10, async (weapon: string) => await this.equip(weapon, 'right hand'));
         this.addAction(['wield2', 'left wield'], 10, async (weapon: string) => await this.equip(weapon, 'left hand'));
-        this.addAction('wear', 30, async (item: string) => await this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
+        this.addAction('wear', 15, async (item: string) => await this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
         this.addAction('ready', 10, async (weapon: string) => await this.equip(weapon, 'bow'));
+        this.addAction('remove', 10, async (item: string) => await this.unequip(item));
         this.addAction('pets', 0, this.checkPets);
         this.addAction('drop', 10, this.drop);
         this.addAction('get', 10, this.get);
@@ -245,20 +246,33 @@ class Player extends A2dCharacter {
         this.autoheal();
         this.off('attack');
         this.on('attack', async (attacker) => {
-            if (attacker != this.attackTarget) {
+            console.log(`player attacked by ${attacker.name}`)
+
+            if (!this.hasEnemy(attacker)) {
                 this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
+                this.addEnemy(attacker);
+                if (!this.attackTarget) {
+                    const next_action = this.actionQueue.pop();
+                    console.log(`action ${next_action?.command}, ${next_action?.time} interrupted`)
+                    const time = this.time;
+                    await this.fight(attacker);
+                    this.action({ command: `wait ${attacker.unique_id}`, time: 15 });
+                    if (next_action) {
+                        this.queue_action({ command: next_action.command, time: next_action.time - time });
+                    }
+                    // this.pets.forEach(pet => {
+                    //     pet.attackTarget = attacker;
+                    //     pet.action({ command: `attack ${attacker.unique_id}`, time: 14 })
+                    //     console.log(`pet ${pet.name} action: ${pet.next_action?.command}, ${pet.next_action?.time}`)
+                    // });
+                }
+            } else {
+                console.log(`player is already fighting ${attacker.name}`)
             }
             if (this.activeEquipment['bow'] && this.equipment['bow'] && this.has('arrow')) {
                 await this.bow_attack(attacker);
                 this.useWeapon('right hand')
             }
-            this.fight(attacker);
-            this.action({ command: `wait ${attacker.unique_id}`, time: 15 });
-            this.pets.forEach(pet => {
-                pet.attackTarget = attacker;
-                pet.action({ command: `attack ${attacker.unique_id}`, time: 14 })
-                console.log(`pet ${pet.name} action: ${pet.next_action?.command}, ${pet.next_action?.time}`)
-            });
         });
     }
 
@@ -301,7 +315,8 @@ class Player extends A2dCharacter {
             this.useWeapon('bow');
         }
         for (let buff of Object.values(this.buffs)) {
-            this.print(buff.display());
+            const displayBuff = buff.display();
+            if (displayBuff) this.print(displayBuff);
         }
         await this.getinput();
     }
@@ -351,6 +366,7 @@ class Player extends A2dCharacter {
         const timing = time ?? this.actionTiming[timingIndex] ?? 10;
         // console.log(`player action ${command} ${timingIndex}, ${timing}`)
         this.actionQueue = [{ command, time: timing }];
+        this.time = 0;
     }
 
     async execute(command: string) {
@@ -474,14 +490,19 @@ class Player extends A2dCharacter {
             target = this.findEnemy();
         }
         console.log(`player targets ${target?.name}`)
+        this.useWeapon('right hand');
         await this.fight(target);
         this.action({ command: 'wait', time: 10 });
     }
 
     async fight(target: Character | null) {
+        for (let pet of this.pets) { await pet.fight(target) };
+        if (target) { this.addEnemy(target) }
+        if (this.attackTarget && this.attackTarget.location == this.location) { return }
         console.log(`player fights: ${target?.name ?? 'no one.'}`)
-        super.fight(target);
-        this.clear_actions();
+        const actions = this.actionQueue;
+        await super.fight(target);
+        this.actionQueue = actions;
     }
 
     useWeapon(weapon: 'left hand' | 'right hand' | 'bow' | 'none') {
@@ -560,7 +581,7 @@ class Player extends A2dCharacter {
             }
             dam = Math.min(1.5, hitted / 33.3)
             this.print(lineBreak(does))
-            await this.game.pause(0.5)
+            await this.pause(0.5)
             const actual_coordination = this.base_stats.coordination
             this.base_stats.coordination = Infinity  // we already did the coordination check
             await this.attack(enemy, this.equipment['bow'], this.weaponDamage('bow', dam));
@@ -734,10 +755,10 @@ class Player extends A2dCharacter {
             pet.onIdle(async function () {
                 this.leader = this.leader instanceof Character ? this.leader : this.location?.character(this.leader) || this;
                 if (this.leader.fighting) {
-                    this.fight(this.leader.attackTarget);
+                    await this.fight(this.leader.attackTarget);
                     console.log(`${this.leader.name}'s pet ${this.name} joins the fight against ${this.leader.attackTarget?.name}.`)
                 } else {
-                    this.fight(null);
+                    await this.fight(null);
                     this.clearEnemies();
                     console.log(`${this.leader.name}'s pet ${this.name} is idle.`)
                 }
@@ -751,7 +772,7 @@ class Player extends A2dCharacter {
                 if (attacker == this) {
                     pet.leader = '';
                     pet.off('slay').off('attack').off('death').off('idle').off('fight');
-                    pet.fight(this);
+                    await pet.fight(this);
                 }
                 else if (!this.hasEnemy(attacker)) {
                     this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
@@ -913,7 +934,7 @@ class Player extends A2dCharacter {
                 this.print(`${item.name} was consumed.`)
             }
             this.checkHP();
-            this.checkHunger();
+            if (verb == 'eat') this.checkHunger();
         }
         else {
             this.color(gray)
@@ -1000,6 +1021,20 @@ class Player extends A2dCharacter {
         if (item.equip) {
             await item.equip(this);
         }
+    }
+
+    async unequip(itemName: string) {
+        for (let slot of equipmentSlots) {
+            if (this.equipment[slot]?.name === itemName) {
+                const item = this.equipment[slot];
+                this.equipment[slot] = null;
+                item.unequip(this);
+                this.giveItem(item);
+                this.print(`${item.name} unequipped.`)
+                return;
+            }
+        }
+        this.print("You don't have that equipped.")
     }
 
     async checkEquipment() {
@@ -1321,7 +1356,7 @@ class Player extends A2dCharacter {
             this.print(this.statValue(statName, (this[statName] as number)), 1)
             if (plus > 0) this.print(` (+${this.statValue(statName, plus)})`, 1)
             else if (plus < 0) this.print(` (${this.statValue(statName, plus)})`, 1)
-            if (times !== 1) this.print(` (x${this.statValue(statName, times)})`, 1)
+            if (times !== 1) this.print(` (+${Math.ceil(times * 100) - 100}%)`, 1)
             this.print()
             this.color(black)
         }
@@ -1389,7 +1424,7 @@ class Player extends A2dCharacter {
     }
 
     async slay(character: Character | Character[]) {
-        const enemies_remaining = this.location?.characters.filter(char => char !== this && (char.attackTarget === this || char.enemies.includes(this.name)));
+        const enemies_remaining = this.location?.characters.filter(char => char !== this && (char.attackTarget === this || char.hasEnemy(this)));
         if (enemies_remaining) this.checkHP();
 
         if (character instanceof Character) {
@@ -1533,8 +1568,11 @@ class Player extends A2dCharacter {
             return;
         } else {
             const code = command.includes(' ') ? command.split(' ')[0] : command;
-            const value = command.includes(' ') ? command.split(' ').slice(1).join(' ') : command;
+            let value = command.includes(' ') ? command.split(' ').slice(1).join(' ') : command;
             const quantity = parseInt(value.slice(0, value.indexOf(' '))) || 0;
+            if (quantity) {
+                value = value.slice(value.indexOf(' ') + 1);
+            }
             switch (code) {
                 case ('hp'):
                     this.recoverStats({ hp: parseInt(value) || 0 });
@@ -1618,8 +1656,10 @@ class Player extends A2dCharacter {
                     this.print(`ka-ching! +${value} = ${this.itemCount('gold')}`)
                     break;
                 case ('item'):
+                    const sing = singular(value);
+                    if (isValidItemKey(sing)) value = sing;
                     if (isValidItemKey(value)) {
-                        this.game.addItem({ name: value, quantity: 1, container: this.inventory });
+                        this.game.addItem({ name: value, quantity: quantity || 1, container: this.inventory });
                         this.print(`${value} created ;)`)
                     }
                     break;
@@ -1763,6 +1803,7 @@ class Player extends A2dCharacter {
         Object.assign(this, {
             name: character.name,
             class_name: character.class_name,
+            unique_id: `player::${character.name}`,
             hunger: character.hunger,
             abilities: character.abilities,
             max_pets: character.max_pets,
