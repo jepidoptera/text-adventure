@@ -143,7 +143,7 @@ class A2dCharacter extends Character {
         damage: number,
         call_attack: boolean = false
     ): string {
-        console.log(`${this.name} attacking ${target.name} with ${weaponName} (${weaponType}): ${damage} damage`)
+        console.log(`${this.unique_id} attacking ${target.name} with ${weaponName} (${weaponType}): ${damage} damage`)
         const DT = (damage / target.max_hp) * 100
 
         if (weaponType === 'sword') weaponType = randomChoice(['stab', 'slice'])
@@ -281,8 +281,8 @@ class A2dCharacter extends Character {
                 if (DT >= 500) { does = `${caps(attackerPronouns.possessive)} ${weaponName} whips through ${targetPronouns.possessive} body, and ${target.pronouns.possessive} frozen limbs shatter like fine crystal."   ` };
                 break;
             case ("bite"):
-                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('nip')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
-                if (DT >= 10) { does = `${caps(attackerPronouns.subject)} ${s('rake')} ${targetPronouns.object} with ${weaponName}, leaving a trail of scratches.` };
+                if (DT >= 5) { does = `${caps(attackerPronouns.subject)} ${s('rake')} ${targetPronouns.object} with ${weaponName}, leaving a trail of scratches.` };
+                if (DT >= 10) { does = `${caps(attackerPronouns.subject)} ${s('nip')} ${targetPronouns.object} with ${weaponName}, inflicting a minor wound.` };
                 if (DT >= 20) { does = `${caps(attackerPronouns.subject)} ${s('bite')} ${targetPronouns.object} with ${weaponName}, inflicting a major wound.` };
                 if (DT >= 35) { does = `${caps(attackerPronouns.subject)} ${s('chomp')} ${targetPronouns.object} with ${weaponName}, taking a chunk from ${target.pronouns.possessive} side.` };
                 if (DT >= 60) { does = `${caps(attackerPronouns.subject)} ${s('rip')} ${targetPronouns.object} with ${weaponName}, making vital fluids gush.` };
@@ -1420,6 +1420,7 @@ const characters = {
             game: game,
             key: 'cradel',
             pronouns: pronouns.male,
+            pacifist: true,
             items: [{ name: 'gold', quantity: 100 }, 'spiked_club'],
             fight_description: 'Cradel the troll',
             max_hp: 1000,
@@ -2492,12 +2493,6 @@ const characters = {
             items: [],
         }).fightMove(async function () {
             if (Math.random() < 2 / 5) {
-                this.fight(randomChoice(this.location?.characters.filter(c => c != this && c.alignment != 'fairy') ?? []))
-                if (this.attackTarget?.isPlayer) {
-                    this.print("Spiny monstrosity shoots her poisoned spikes at you!")
-                } else if (this.location?.playerPresent) {
-                    this.print("Spiny monstrosity shoots her poisoned spikes at " + this.attackTarget?.key + "!")
-                }
                 let dam = highRandom(65)
                 dam = this.attackTarget?.modify_damage(dam, 'sharp') || 0
                 dam = this.attackTarget?.modify_damage(dam, 'poison') || 0
@@ -2505,6 +2500,17 @@ const characters = {
                 let currentPoison = this.attackTarget?.getBuff('poison')?.power || 0;
                 currentPoison += Math.max(dam, 0);
                 if (currentPoison) this.attackTarget?.addBuff(getBuff('poison')({ power: currentPoison, duration: currentPoison }))
+                this.fight(randomChoice(this.location?.characters.filter(c => c != this && c.alignment != 'fairy') ?? []))
+                if (this.location?.playerPresent) {
+                    if (this.attackTarget?.isPlayer) {
+                        this.print("Spiny monstrosity shoots her poisoned spikes at you!", 1)
+                    } else if (this.location?.playerPresent) {
+                        this.print("Spiny monstrosity shoots her poisoned spikes at " + this.attackTarget?.key + "!", 1)
+                    }
+                    await this.pause(1);
+                    this.print(`<brightgreen>  +${Math.ceil(dam)} poison damage!`);
+                    await this.pause(0.5);
+                }
             }
         }).onIdle(
             actions.wander({ bounds: ['corroded gate'] })
@@ -3820,8 +3826,11 @@ const characters = {
             flags: { enemy_of_orcs: true, desert_post: false },
         }).dialog(async function (player: Character) {
             if (!this.game.flags.crevasse) {
-                this.print("This crevasse appeared about one month ago, just before Arach ordered")
-                this.print("the gates shut. We think the orcs did it, but we don't know how.")
+                this.print("This crevasse appeared about one month ago, just before Arach ordered the")
+                this.print("gates shut. We think the orcs did it, but we don't know how.")
+                this.print("It almost looks like the earth is bleeding...")
+                this.print("If you know a way to get past it, let us know. We can't even reach the")
+                this.print("eastern bulwark anymore.")
             } else if (this.location?.name == 'Eastern Bulwark') {
                 this.print("Greetings, citizen. You impressed us with your potion work earlier.")
                 this.print("If you're headed south, bring some antivenom for the poisonous hedgehogs.")
@@ -3833,7 +3842,7 @@ const characters = {
                 this.print("They'll have to get through me first.")
             }
         }).onIdle(async function () {
-            if (this.game.flags.crevasse && !this.flags.desert_post) {
+            if (this.game.flags.crevasse && !this.flags.desert_post && this.location?.playerPresent) {
                 this.color(magenta);
                 this.print("Elite guard -- Thank you for your help! Arach will hear of this.");
                 const elite_squad = this.game.find_all_characters('elite guard');
@@ -3963,7 +3972,6 @@ const characters = {
             damage: { blunt: 12, sharp: 30 },
             weaponName: 'claws',
             attackVerb: 'slice',
-            fight_description: 'Lion',
             coordination: 5,
             agility: 6,
             armor: { blunt: 2 },
@@ -4170,7 +4178,8 @@ const characters = {
             game: game,
             key: 'peasant child',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
-        }).onAttack(async function (character: Character) {
+            pacifist: true,
+        }).off('attack').onAttack(async function (character: Character) {
             console.log(this.key, 'onAttack')
             if (character.isPlayer) {
                 const player = character as Player
@@ -4231,11 +4240,9 @@ const characters = {
                         player.pronouns.object = 'you';
                         console.log('evil you is having a turn.')
                     })
-                    await this.fight(null)
-                    this.clearEnemies()
+                    player.clearEnemies()
                     await evil_you.relocate(player.location)
                     await evil_you.fight(player)
-                    await player.fight(null)
                     await player.fight(evil_you)
                 } else {
                     this.print("Now you will be punished!")
@@ -5064,25 +5071,33 @@ const characters = {
         })
     },
 
-    giant_scorpion(game: GameState) {
+    "giant scorpion"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'giant scorpion',
             pronouns: { "subject": "It", "object": "it", "possessive": "its" },
             max_hp: 100,
-            damage: { blunt: 15, sharp: 6 },
+            damage: { blunt: 5, sharp: 16, poison: 10 },
             weaponName: 'poison stinger',
             attackVerb: 'stab',
             fight_description: 'scorpion',
             coordination: 5,
-            agility: -1,
+            agility: 1,
             armor: { blunt: 15 },
             alignment: 'evil',
+            hostile: true,
             items: [],
-        });
+        }).onIdle(
+            actions.wander({ bounds: ['corroded gate', 'meadow', 'fork of nod', 'bog', 'cobblestone road'] })
+        ).onDeath(async function () {
+            this.game.addCharacter({
+                key: randomChoice(['mutant hedgehog', 'giant scorpion', 'ogre', 'bandit', 'gogglebird']),
+                location: randomChoice(this.game.find_all_locations('Path of Nod'))
+            })
+        })
     },
 
-    mutant_hedgehog(game: GameState) {
+    "mutant hedgehog"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'mutant hedgehog',
@@ -5091,62 +5106,140 @@ const characters = {
             damage: { blunt: 6, sharp: 15 },
             weaponName: 'horns',
             attackVerb: 'stab',
-            fight_description: 'mutant hedgehog',
-            coordination: 0,
+            fight_description: 'long-legged mutant',
+            aliases: ['hedgehog'],
+            coordination: 5,
             agility: 18,
             armor: { blunt: 25 },
             alignment: 'evil',
+            hostile: true,
             items: [],
+            exp: 232,
         }).fightMove(async function () {
             if (Math.random() < 1 / 3) {
-                if (this.attackTarget?.isPlayer) {
-                    this.print("Mutant hedgehog shoots its poisoned spikes at you!")
-                } else if (this.location?.playerPresent) {
-                    this.print("Mutant hedgehog shoots its poisoned spikes at " + this.attackTarget?.name + "!")
-                }
                 let dam = highRandom(50)
                 dam = this.attackTarget?.modify_damage(dam, 'sharp') || 0
                 dam = this.attackTarget?.modify_damage(dam, 'poison') || 0
                 console.log('poison damage =', dam)
-                let currentPoison = this.attackTarget?.getBuff('poison')?.power || 0;
-                currentPoison += Math.max(dam, 0);
-                if (currentPoison) this.attackTarget?.addBuff(getBuff('poison')({ power: currentPoison, duration: currentPoison }))
+                this.attackTarget?.addBuff(getBuff('poison')({ power: dam, duration: dam }))
+                if (this.location?.playerPresent) {
+                    if (this.attackTarget?.isPlayer) {
+                        this.print("Mutant hedgehog shoots its poisoned spikes at you!", 1)
+                    } else {
+                        this.print("Mutant hedgehog shoots its poisoned spikes at " + this.attackTarget?.name + "!", 1)
+                    }
+                    await this.pause(1);
+                    this.print(`<brightgreen> +${Math.ceil(dam)} poison damage`);
+                    await this.pause(0.5);
+                }
             }
-        });
+        }).onIdle(
+            actions.wander({ bounds: ['corroded gate', 'meadow', 'fork of nod', 'bog', 'cobblestone road'] })
+        ).onDeath(async function () {
+            this.game.addCharacter({
+                key: randomChoice(['mutant hedgehog', 'giant scorpion', 'ogre', 'bandit', 'gogglebird']),
+                location: randomChoice(this.game.find_all_locations('Path of Nod'))
+            })
+        })
     },
 
-    ogre(game: GameState) {
+    "ogre"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'ogre',
             pronouns: pronouns.male,
             items: ['club'],
             max_hp: 120,
-            damage: { blunt: 20, sharp: 0 },
+            damage: { blunt: 30, sharp: 0 },
             weaponName: 'club',
             attackVerb: 'club',
-            fight_description: 'giant ogre',
+            fight_description: 'wandering ogre',
             coordination: 2,
             agility: 1,
             armor: { blunt: 2 },
             alignment: 'evil',
-        });
-    },
-
-    path_demon(game: GameState) {
-        const monsterOptions = [this.ogre, this.mutant_hedgehog, this.giant_scorpion]
-        return randomChoice(monsterOptions)(
-            game
-        ).onRespawn(async function () {
-            this.game.removeCharacter(this)
-            this.game.addCharacter({ key: 'path_demon', location: this.location! })
-            console.log(`path demon respawned as ${this.location?.character('path_demon')?.key}`)
+            hostile: true,
         }).onIdle(
-            actions.wander({ bounds: ['96', '191', 'meadow', 'bog'] })
-        )
+            actions.wander({ bounds: ['corroded gate', 'meadow', 'fork of nod', 'bog', 'cobblestone road'] })
+        ).onDeath(async function () {
+            this.game.addCharacter({
+                key: randomChoice(['mutant hedgehog', 'giant scorpion', 'ogre', 'bandit', 'gogglebird']),
+                location: randomChoice(this.game.find_all_locations('Path of Nod'))
+            })
+        })
     },
 
-    grizzly_bear(game: GameState) {
+    "bandit"(game: GameState) {
+        return new A2dCharacter({
+            game: game,
+            key: 'bandit',
+            pronouns: pronouns.male,
+            items: ['dagger'],
+            max_hp: 100,
+            damage: { sharp: 30 },
+            weaponName: 'dagger',
+            attackVerb: 'stab',
+            fight_description: 'masked highwayman',
+            coordination: 3,
+            agility: 4,
+            armor: { blunt: 20 },
+            alignment: 'evil',
+            hostile: true,
+        }).onIdle(
+            actions.wander({ bounds: ['corroded gate', 'meadow', 'fork of nod', 'bog', 'cobblestone road'] })
+        ).onDeath(async function () {
+            this.game.addCharacter({
+                key: randomChoice(['mutant hedgehog', 'giant scorpion', 'ogre', 'bandit', 'gogglebird']),
+                location: randomChoice(this.game.find_all_locations('Path of Nod'))
+            })
+        })
+    },
+
+    "gogglebird"(game: GameState) {
+        return new A2dCharacter({
+            game: game,
+            key: 'gogglebird',
+            pronouns: pronouns.inhuman,
+            max_hp: 150,
+            damage: { blunt: 12, sharp: 25 },
+            weaponName: 'beak',
+            attackVerb: 'stab',
+            fight_description: 'leaf-head gogglebird',
+            coordination: 4,
+            agility: 10,
+            armor: { blunt: 50, magic: 100, electric: 100, fire: 100 },
+            hostile: true,
+            alignment: 'evil',
+        }).fightMove(async function () {
+            if (Math.random() < 1 / 3) {
+                if (this.location?.playerPresent) {
+                    this.print('Gogglebird opens its mouth...  ', 1);
+                    await this.pause(1);
+                    this.color(brightred);
+                    if (this.attackTarget?.isPlayer) {
+                        this.print("A wave of <blue>blue fire<brightred> flies at you!");
+                    } else {
+                        this.print("A wave of <blue>blue fire<brightred> flies at " + this.attackTarget?.name + "!");
+                    }
+                    await this.pause(0.5)
+                }
+                let dam = highRandom(50);
+                dam = this.attackTarget?.modify_damage(dam, 'fire') || 0;
+                this.print(this.describeAttack(this.attackTarget!, 'blue fire', 'fire', dam));
+                this.attackTarget?.hurt(dam, 'blue fire');
+                console.log('fire damage =', dam);
+            }
+        }).onIdle(
+            actions.wander({ bounds: ['corroded gate', 'meadow', 'fork of nod', 'bog', 'cobblestone road'] })
+        ).onDeath(async function () {
+            this.game.addCharacter({
+                key: randomChoice(['mutant hedgehog', 'giant scorpion', 'ogre', 'bandit', 'gogglebird']),
+                location: randomChoice(this.game.find_all_locations('Path of Nod'))
+            })
+        })
+    },
+
+    "grizzly bear"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'grizzly bear',
@@ -5164,7 +5257,7 @@ const characters = {
         }).fightMove(actions.growl);
     },
 
-    striped_bear(game: GameState) {
+    "striped bear"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'striped bear',
@@ -5185,7 +5278,7 @@ const characters = {
         }).fightMove(actions.growl);
     },
 
-    tiger(game: GameState) {
+    "tiger"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'tiger',
@@ -5332,7 +5425,7 @@ const characters = {
         })
     },
 
-    weasel(game: GameState) {
+    "weasel"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'weasel',
@@ -5348,7 +5441,7 @@ const characters = {
         })
     },
 
-    rabid_wolf(game: GameState) {
+    "rabid wolf"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'rabid wolf',
@@ -5369,7 +5462,7 @@ const characters = {
         }).onIdle(actions.wander({}));
     },
 
-    gryphon(game: GameState) {
+    "gryphon"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'gryphon',
@@ -5393,7 +5486,7 @@ const characters = {
         )
     },
 
-    voidfish(game: GameState) {
+    "voidfish"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'voidfish',
@@ -5411,7 +5504,7 @@ const characters = {
         }).onIdle(actions.wander({ bounds: ['the end'], frequency: 1 }));
     },
 
-    wraith(game: GameState) {
+    "wraith"(game: GameState) {
         return new A2dCharacter({
             game: game,
             key: 'wraith',
