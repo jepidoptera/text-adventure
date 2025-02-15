@@ -75,30 +75,44 @@ const buffs: { [key: string]: BuffCreator } = {
         })
     },
     poison: ({ power, duration }: { power: number, duration: number }) => {
+        let displayTurns = 0;
+        let poisonDam = 0;
         return new Buff({
             name: 'poison',
             duration: Math.ceil(duration || power || 1) * 10,
             power: Math.ceil(power || duration || 1)
         }).onTurn(async function () {
-            this.character.hurt(this.power / 10, "poison");
+            poisonDam += this.power / 10;
+            displayTurns += 1;
+            if (displayTurns % 10 === 0) {
+                if (this.character.isPlayer) {
+                    this.game.print(`<brightgreen, black>-${Math.ceil(poisonDam)} HP`, 1);
+                    this.game.color(black, darkwhite);
+                    this.game.print();
+                }
+                this.character.hurt(poisonDam, "poison");
+                poisonDam = 0;
+            }
             this.power *= this.duration / (this.duration + 1);
-        }).onDisplay(function () {
-            return `<brightgreen>Poison: ${Math.ceil(this.power)}`;
         }).onCombine(function (buff) {
             this.power += buff.power;
             this.duration += buff.duration;
             return this;
         })
     },
-    anitdote: ({ power, duration }: { power: number, duration: number }) => {
+    antidote: ({ power, duration }: { power: number, duration: number }) => {
         return new Buff({
             name: 'antidote',
             duration: duration,
             power: power,
+        }).onApply(async function () {
+            const poisonDebuff = this.character.getBuff('poison')
+            if (poisonDebuff) poisonDebuff.power -= this.power;
         }).onTurn(async function () {
             const poisonDebuff = this.character.getBuff('poison')
             if (!poisonDebuff) return;
-            poisonDebuff.power -= this.power;
+            poisonDebuff.power -= this.power / 10;
+            console.log(`poison reduced to ${poisonDebuff.power}`)
             if (poisonDebuff.power <= 0) {
                 poisonDebuff.expire();
             }
@@ -108,7 +122,7 @@ const buffs: { [key: string]: BuffCreator } = {
             this.power = weighted_average;
             return this;
         }).onDisplay(function () {
-            return `<orange>Antidote: ${Math.ceil(this.power)}`;
+            return `<orange>Antidote: ${Math.ceil(this.duration)}`;
         })
     },
 
@@ -150,13 +164,28 @@ const buffs: { [key: string]: BuffCreator } = {
         })
     },
     "heal": ({ power, duration }: { power: number, duration: number }) => {
+        let displayTurns = 0;
+        let healed = 0;
         return new Buff({
             name: 'heal',
             duration: duration,
             power: power,
         }).onTurn(async function () {
-            this.character.recoverStats({ hp: this.power });
+            healed += this.power;
+            displayTurns += 1;
             this.power *= 0.9716416578630735; // 0.75 per 10-tick turn
+            if (displayTurns % 5 === 0) {
+                healed = Math.min(healed, this.character.max_hp - this.character.hp);
+                this.game.color(blue);
+                this.game.print(`+${Math.ceil(healed)} HP`);
+                this.character.recoverStats({ hp: healed });
+                healed = 0;
+            }
+        }).onCombine(function (buff) {
+            const weighted_average = this.power * this.duration + buff.power * buff.duration / (this.duration + buff.duration);
+            this.duration += buff.duration;
+            this.power = weighted_average;
+            return this;
         })
     },
     dreams: ({ power, duration }: { power: number, duration: number }) => {
