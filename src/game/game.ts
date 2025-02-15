@@ -426,7 +426,8 @@ abstract class GameState {
             items,
             buffs,
             flags,
-            alignment
+            alignment,
+            hostile
         }: {
             key: K,
             name?: string,
@@ -445,7 +446,8 @@ abstract class GameState {
             buffs?: { name: string, power: number, duration: number }[],
             items?: { name?: string, key?: string, quantity: number }[],
             flags?: { [key: string]: any },
-            alignment?: string
+            alignment?: string,
+            hostile?: boolean
         }
     ) {
 
@@ -465,6 +467,7 @@ abstract class GameState {
         if (persist) { passedAttributes['persist'] = persist }
         if (leader) { passedAttributes['leader'] = leader }
         if (alignment) { passedAttributes['alignment'] = alignment }
+        if (hostile) { passedAttributes['hostile'] = hostile }
         if (!unique_id) {
             const clones = this.characters.filter(char => char.key == name)
             unique_id = `${key.toString()}_` + Array(clones.length + 1)
