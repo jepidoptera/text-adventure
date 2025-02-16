@@ -483,6 +483,7 @@ class Character {
     }
 
     get fighting(): boolean {
+        if (!this.attackTarget) return false;
         if (this.next_action?.command.startsWith('attack')) return true;
         return this.location?.characters.some(character => this.attackTarget == character) || false;
     }
@@ -1029,10 +1030,15 @@ class Character {
 
     offTimer(command?: string) {
         if (command) {
+            console.log(`${this.unique_id} offTimer ${command} removed ${this.reactionQueue.filter(reaction => reaction.command.startsWith(command))}.`)
             this.reactionQueue = this.reactionQueue.filter(reaction => !reaction.command.startsWith(command));
         } else {
             this.reactionQueue = [];
         }
+    }
+
+    hasTimer(command: string) {
+        return this.reactionQueue.find(reaction => reaction.command.startsWith(command));
     }
 
     async execute(command: string) {
@@ -1147,6 +1153,7 @@ class Character {
     }
 
     async idle() {
+        this.time = 0;
         await this._onIdle?.();
         if (!this.attackTarget) {
             let enemy = this.findEnemy();
