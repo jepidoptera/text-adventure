@@ -126,6 +126,7 @@ class A2D extends GameState {
                     if (character.isPlayer) {
                         console.log(`player time: ${character.time}`);
                         console.log(`player next action: ${character.next_action?.command}`);
+                        console.log(`player reaction queue: ${character.reactionQueue.map(r => `${r.command} in ${r.time}`).join(', ')}`);
                         (character as Player).pets.forEach(pet => {
                             console.log(`pet ${pet.name} time: ${pet.time}`);
                             console.log(`pet ${pet.name} next action: ${pet.next_action?.command}`);
@@ -148,9 +149,11 @@ class A2D extends GameState {
                             character.time -= character.next_action.time;
                             await character.turn();
                         }
-                    } else {
+                    } else if (character.time >= 0) {
                         character.time = 0;
-                        await character.idle()
+                        await character.idle();
+                    } else {
+                        // frozen in negative time!
                     }
                     for (let buff of Object.values(character.buffs)) {
                         await buff.turn();
