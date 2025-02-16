@@ -484,7 +484,7 @@ class Player extends A2dCharacter {
         for (let pet of this.pets) { await pet.fight(target); pet.push_action({ command: 'wait', time: 4 }) };
         if (target) {
             this.addEnemy(target);
-            if (!this.hasTimer('attack')) {
+            if (!this.hasTimer('right attack')) {
                 this.onTimer({ command: 'right attack', time: 10, repeat: true })
             }
         }
