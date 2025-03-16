@@ -319,7 +319,7 @@ const items = {
     },
     "mega healing potion"(game: GameState) {
         return new Item({
-            name: 'full healing potion',
+            name: 'mega healing potion',
             size: 0.4,
             value: 100,
             game: game
@@ -1290,11 +1290,23 @@ const items = {
                 player.attackTarget.addBuff(
                     new Buff({
                         name: 'power drain',
-                        duration: Math.floor(Math.random() * 50) + 1,
+                        duration: Math.floor(Math.random() * 5) + 2,
                         plus: { damage: { blunt: -10, sharp: -50 }, agility: -10 }
+                    }).onTurn(async function () {
+                        this.duration += 1;
+                    }).onCreate(async function () {
+                        const buff = this;
+                        this.character.onAttack(async function () {
+                            buff.duration -= 1;
+                            if (buff.duration === 0) {
+                                buff.expire();
+                                this.removeBuff(buff);
+                            }
+                        })
                     }).onExpire(async function () {
                         this.game.color(magenta)
                         this.game.print("Sift shakes off the trance of the lute.")
+                        this.character.off('attack');
                     })
                 )
             }
