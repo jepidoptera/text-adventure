@@ -1796,7 +1796,7 @@ const scenario = {
         285: {
             name: "Sandy Desert",
             adjacent: { 'north': 288, 'west': 286 },
-            characters: [{ name: 'sand_scout' }]
+            characters: [{ name: 'sand_scout' }, { name: 'desert cobra' }]
         },
         286: {
             name: "Sandy Desert",
@@ -1818,7 +1818,8 @@ const scenario = {
         },
         290: {
             name: "Sandy Desert",
-            adjacent: { 'north': 293, 'east': 291, 'south': 288, 'west': 289 }
+            adjacent: { 'north': 293, 'east': 291, 'south': 288, 'west': 289 },
+            characters: [{ name: 'desert cobra' }]
         },
         291: {
             name: "Sandy Desert",
@@ -1837,7 +1838,8 @@ const scenario = {
         },
         294: {
             name: "Sandy Desert",
-            adjacent: { 'north': 299, 'east': 295, 'west': 293 }
+            adjacent: { 'north': 299, 'east': 295, 'west': 293 },
+            characters: [{ name: 'desert cobra' }]
         },
         295: {
             name: "Sandy Desert",
@@ -1865,7 +1867,8 @@ const scenario = {
         },
         300: {
             name: "Sandy Desert",
-            adjacent: { 'east': 301, 'south': 304, 'west': 292 }
+            adjacent: { 'east': 301, 'south': 304, 'west': 292 },
+            characters: [{ name: 'desert cobra' }]
         },
         301: {
             name: "Sandy Desert",

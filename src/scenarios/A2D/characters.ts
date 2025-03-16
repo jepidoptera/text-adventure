@@ -3708,6 +3708,44 @@ const characters = {
         });
     },
 
+    rock_hydra(game: GameState) {
+        return new A2dCharacter({
+            game: game,
+            key: 'rock hydra',
+            aliases: ['hydra'],
+            items: [{ name: 'gold', quantity: 29 }],
+            max_hp: 300,
+            damage: { blunt: 60, sharp: 5 },
+            weaponName: 'his heads',
+            fight_description: 'Hydra',
+            armor: { blunt: 5 },
+            coordination: 4,
+            agility: 1,
+            hostile: true,
+            alignment: 'evil',
+            buff: { times: { damage: { sharp: 0.5, electric: 0.5 } } },
+            pronouns: pronouns.male,
+        });
+    },
+
+    "desert cobra": (game: GameState) => new A2dCharacter({
+        game: game,
+        key: 'desert cobra',
+        pronouns: randomChoice([pronouns.male, pronouns.female]),
+        max_hp: 130,
+        damage: { blunt: 2, sharp: 40 },
+        weaponName: 'fangs',
+        attackVerb: 'bite',
+        fight_description: 'venemous cobra',
+        coordination: 6,
+        agility: 14,
+        hostile: true,
+        alignment: 'evil',
+    }).onDealDamage(async function (target, damage) {
+        const poisonLevel = damage['sharp'] ?? 0;
+        if (poisonLevel) target.addBuff(getBuff('poison')({ power: poisonLevel, duration: poisonLevel }))
+    }).onIdle(actions.wander({ bounds: ['desert outpost'] })),
+
     hen(game: GameState) {
         return new A2dCharacter({
             game: game,
