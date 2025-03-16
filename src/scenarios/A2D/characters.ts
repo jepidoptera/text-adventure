@@ -1,7 +1,7 @@
 import { Location } from "../../game/location.js";
 import { Character, CharacterParams, pronouns, DamageTypes, damageTypesList } from "../../game/character.js";
 import { Player } from "./player.js";
-import { Item, WeaponTypes } from "../../game/item.js";
+import { Item, AttackDescriptors } from "../../game/item.js";
 import { plural, singular, caps, randomChoice, lineBreak, highRandom, findClosestMatch } from "../../game/utils.js";
 import { musicc$ } from "./utils.js";
 import { black, blue, green, cyan, red, magenta, orange, darkwhite, gray, brightblue, brightgreen, brightcyan, brightred, brightmagenta, yellow, white, qbColors } from "../../game/colors.js"
@@ -140,7 +140,7 @@ class A2dCharacter extends Character {
     describeAttack(
         target: Character,
         weaponName: string,
-        attackVerb: WeaponTypes,
+        attackVerb: AttackDescriptors,
         damage: number,
         call_attack: boolean = false
     ): string {

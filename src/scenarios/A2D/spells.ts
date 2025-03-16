@@ -2,7 +2,7 @@ import { Character, DamageTypes } from '../../game/character.js';
 import { A2dCharacter } from './characters.js';
 import { brightred, black, gray, magenta } from '../../game/colors.js';
 import { getBuff } from './buffs.js';
-import { WeaponTypes } from '../../game/item.js';
+import { AttackDescriptors } from '../../game/item.js';
 import { highRandom, randomChoice, caps } from '../../game/utils.js';
 type SpellAction = (this: A2dCharacter, target: Character) => Promise<void>;
 const abilityLevels = ["None", "Novice", "Ameteur", "Competent", "Proficient", "Adept", "Expert", "Master", "Ultimate"]
@@ -147,7 +147,7 @@ function damageSpell({ spellName, damage, accuracy, damageType, attackVerb, dama
     spellName: string,
     damage: number,
     accuracy: number,
-    attackVerb: WeaponTypes,
+    attackVerb: AttackDescriptors,
     damageType: DamageTypes,
     damage_overflow?: number,
     casualties?: Character[]

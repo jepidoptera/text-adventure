@@ -1,7 +1,7 @@
 import { Container, Item } from "./item.js";
 import { Location, findPath } from "./location.js";
 import { GameState, withGameState } from "./game.js";
-import { WeaponTypes } from "./item.js";
+import { AttackDescriptors } from "./item.js";
 import { highRandom, randomChoice, splitFirst } from "./utils.js";
 
 const pronouns = {
@@ -155,8 +155,8 @@ interface CharacterParams {
     friends?: string[];
     powers?: { [key: string]: number };
     weapons?: { [key: string]: Item };
-    weapon?: Item | { name: string, type: WeaponTypes, damage_type?: DamageTypes };
-    attackVerb?: WeaponTypes;
+    weapon?: Item | { name: string, type: AttackDescriptors, damage_type?: DamageTypes };
+    attackVerb?: AttackDescriptors;
     weaponName?: string;
     damage?: Partial<{ [key in DamageTypes]: number }>;
     armor?: Partial<{ [key in DamageTypes]: number }>;
@@ -199,7 +199,7 @@ class Character {
     friends: string[] = [];
     leader: string | Character = '';
     weaponName: string = "";
-    attackVerb: WeaponTypes = 'club';
+    attackVerb: AttackDescriptors = 'club';
     armor: { [key: string]: Item } = {};
     base_damage: Partial<{ [key in DamageTypes]: number }> = {};
     readonly buffs: { [key: string]: Buff } = {};

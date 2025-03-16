@@ -10,12 +10,12 @@ type ItemParams = {
     value?: number;
     size?: number;
     quantity?: number;
-    attackVerb?: WeaponTypes | '';
+    attackVerb?: AttackDescriptors | '';
     equipment_slot?: string;
     buff?: { plus?: BuffModifiers, times?: BuffModifiers };
     requirements?: Partial<{ [key in BaseStats]: number }>;
 }
-type WeaponTypes = 'club' | 'axe' | 'slice' | 'stab' | 'sword' | 'fire' | 'bow' | 'magic' | 'electric' | 'blades' | 'sonic' | 'bite'
+type AttackDescriptors = 'club' | 'axe' | 'slice' | 'stab' | 'sword' | 'fire' | 'bow' | 'magic' | 'electric' | 'blades' | 'sonic' | 'bite'
 
 class Item {
     key: string = '';
@@ -26,7 +26,7 @@ class Item {
     value: number = 0;
     size: number = 1;
     private _quantity: number = 1;
-    attackVerb: WeaponTypes | '' = '';
+    attackVerb: AttackDescriptors | '' = '';
     requirements: Partial<{ [key in BaseStats]: number }> = {}
     equipment_slot?: string;
     buff?: { plus?: BuffModifiers, times?: BuffModifiers };
@@ -312,4 +312,4 @@ class Container {
     }
 }
 
-export { Item, Container, ItemParams, WeaponTypes };
+export { Item, Container, ItemParams, AttackDescriptors };
