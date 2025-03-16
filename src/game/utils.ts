@@ -147,24 +147,24 @@ function printCharacters({
 function listify({
     items,
     basecolor = 'black',
-    charcolor = 'red',
+    itemcolor = 'red',
     capitalize = false
-}: { items: string[], basecolor?: string, charcolor?: string, capitalize?: boolean }) {
-    const enemy_numbers = items?.reduce((acc, name) => {
+}: { items: string[], basecolor?: string, itemcolor?: string, capitalize?: boolean }) {
+    const item_numbers = items?.reduce((acc, name) => {
         if (acc[name]) acc[name]++;
         else acc[name] = 1;
         return acc;
     }, {} as { [key: string]: number });
-    const names = Object.keys(enemy_numbers).sort((a, b) => enemy_numbers[a] - enemy_numbers[b]);
-    const enemy_list = names.map(name => enemy_numbers[name] > 1 ? plural(name) : name)
+    const names = Object.keys(item_numbers).sort((a, b) => item_numbers[a] - item_numbers[b]);
+    const item_list = names.map(name => item_numbers[name] > 1 ? plural(name) : name)
     let return_val = `<${basecolor}>`
-    for (let i = 0; i < enemy_list.length; i++) {
-        if (enemy_numbers[names[i]] > 1) return_val += `${enemy_numbers[names[i]]} `
-        return_val += `<${charcolor}>`
-        return_val += (i == 0 && capitalize ? caps(enemy_list[i]) : enemy_list[i])
+    for (let i = 0; i < item_list.length; i++) {
+        if (item_numbers[names[i]] > 1) return_val += `${item_numbers[names[i]]} `
+        return_val += `<${itemcolor}>`
+        return_val += (i == 0 && capitalize ? caps(item_list[i]) : item_list[i])
         return_val += `<${basecolor}>`
-        if (i < enemy_list.length - 2) return_val += ', '
-        else if (i < enemy_list.length - 1) return_val += ' and '
+        if (i < item_list.length - 2) return_val += ', '
+        else if (i < item_list.length - 1) return_val += ' and '
     }
     return return_val;
 }
@@ -212,4 +212,131 @@ function generateSessionID(): string {
     return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 }
 
-export { caps, plural, singular, randomChoice, highRandom, lineBreak, printCharacters, parseColoredText, splitFirst, generateSessionID };
+function levenshteinDistance(a: string, b: string): number {
+    const matrix: number[][] = [];
+
+    // Initialize the matrix
+    for (let i = 0; i <= b.length; i++) {
+        matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    // Fill the matrix
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    matrix[i][j - 1] + 1,     // insertion
+                    matrix[i - 1][j] + 1      // deletion
+                );
+            }
+        }
+    }
+
+    return matrix[b.length][a.length];
+}
+
+function weightedLevenshteinDistance(a: string, b: string) {
+    const deletionWeight = 0.5;
+    const insertionWeight = 1;
+    const substitutionWeight = 1;
+
+    const matrix = [];
+
+    for (let i = 0; i <= b.length; i++) {
+        matrix[i] = [i * insertionWeight];
+    }
+    for (let j = 0; j <= a.length; j++) {
+        matrix[0][j] = j * deletionWeight;
+    }
+
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + substitutionWeight,
+                    matrix[i][j - 1] + deletionWeight,
+                    matrix[i - 1][j] + insertionWeight
+                );
+            }
+        }
+    }
+
+    return matrix[b.length][a.length];
+}
+
+function wordSimilarity(word1: string, word2: string): number {
+    if (word1 === word2) return 1; // Exact matches are perfect!
+    const distance = weightedLevenshteinDistance(word1, word2);
+    return 1 / (1 + distance); // Inverse relationship: higher distance = lower similarity.  Adding 1 prevents division by zero.
+}
+
+function phraseSimilarity(phrase1: string, phrase2: string): number {
+    const words1 = phrase1.split(" ");
+    const words2 = phrase2.split(" ");
+
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= words1.length; i++) {
+        matrix[i] = new Array(words2.length + 1).fill(0);
+    }
+
+    for (let i = 1; i <= words1.length; i++) {
+        for (let j = 1; j <= words2.length; j++) {
+            matrix[i][j] = wordSimilarity(words1[i - 1], words2[j - 1]);
+        }
+    }
+
+
+    let totalSimilarity = 0;
+    let matches = 0;
+
+    for (let i = 1; i <= words1.length; i++) {
+        let maxSim = 0;
+        for (let j = 1; j <= words2.length; j++) {
+            maxSim = Math.max(maxSim, matrix[i][j]);
+        }
+        totalSimilarity += maxSim;
+
+    }
+
+    return totalSimilarity / words1.length; // Average similarity
+}
+
+function findClosestMatch(target: string, candidates: string[]) {
+    if (candidates.length === 0) return null;
+
+    let closestMatch = candidates[0];
+    let greatestSimilarity = phraseSimilarity(target, closestMatch); // Use phraseSimilarity
+
+    for (const candidate of candidates) {
+        const similarity = phraseSimilarity(target, candidate);
+        if (similarity > greatestSimilarity) {
+            greatestSimilarity = similarity;
+            closestMatch = candidate;
+        }
+    }
+
+    return closestMatch;
+}
+
+export {
+    caps,
+    plural,
+    singular,
+    randomChoice,
+    highRandom,
+    lineBreak,
+    printCharacters,
+    parseColoredText,
+    splitFirst,
+    generateSessionID,
+    findClosestMatch
+};
