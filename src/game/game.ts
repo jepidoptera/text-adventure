@@ -346,9 +346,13 @@ abstract class GameState {
             for (let character of temp.characters || []) {
                 if (!character.isPlayer) {
                     // console.log(character);
+                    if (character.name && !character.key) {
+                        character.key = character.name;
+                        character.name = undefined;
+                    }
                     const newCharacter = this.addCharacter({
                         location: location,
-                        key: (character.key || character.name!),
+                        key: character.key!,
                         ...character
                     });
                     if (newCharacter && character.enemies) {
@@ -376,14 +380,6 @@ abstract class GameState {
         for (const flag of Object.keys(scenario.flags)) {
             this.flags[flag] = scenario.flags[flag];
         };
-    }
-
-    animate_characters() {
-        this.characters.forEach(character => {
-            if (character.turn) {
-                character.turn();
-            }
-        });
     }
 
     find_character(name: string) {
@@ -468,8 +464,9 @@ abstract class GameState {
         if (leader) { passedAttributes['leader'] = leader }
         if (alignment) { passedAttributes['alignment'] = alignment }
         if (hostile) { passedAttributes['hostile'] = hostile }
+        if (name) { passedAttributes['name'] = name }
         if (!unique_id) {
-            const clones = this.characters.filter(char => char.key == name)
+            const clones = this.characters.filter(char => char.key == key)
             unique_id = `${key.toString()}_` + Array(clones.length + 1)
                 .fill(0).map((_, i) => i)
                 .find(i => !clones.some(char => char.unique_id == `${key.toString()}_${i.toString()}`))!
@@ -499,7 +496,7 @@ abstract class GameState {
         if (newCharacter?.respawns && newLocation && !respawnLocation) {
             newCharacter.respawnLocation = newLocation.key
         }
-        console.log(`Created ${newCharacter.key} at ${newLocation?.name}`)
+        console.log(`Created ${newCharacter.key} with name ${newCharacter.name} at ${newLocation?.name}`)
         return newCharacter;
     }
 

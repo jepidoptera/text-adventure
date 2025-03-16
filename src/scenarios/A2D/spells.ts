@@ -17,7 +17,7 @@ const spells: Record<string, SpellAction> = {
             damage: highRandom() * (((this.abilities['newbie'] || 1) ** spellPower + 1) / 3) * this.magic_level + Math.random() * 7,
             accuracy: Math.random() * (this.coordination + (this.abilities['newbie'] || 1) / 3),
             damageType: 'magic',
-            weaponType: 'magic',
+            attackVerb: 'magic',
         }).call(this, target)
     },
     // I want bolt, fire and blades to be relatively on a par with each other.
@@ -25,13 +25,13 @@ const spells: Record<string, SpellAction> = {
     bolt: async function (this: A2dCharacter, target: Character) {
         // bolt is low cost, low damage, high accuracy.
         if (!checkRequirements.call(this, 'bolt', 4 + this.abilities['bolt'] / 2)) return;
-        if (this.isPlayer) this.game.print(`<brightred>A jagged flash of lighning strikes towards ${target.name}.`);
+        if (this.isPlayer) this.game.print(`<brightred>A jagged flash of lightning strikes towards ${target.name}.`);
         await damageSpell({
             spellName: 'bolt',
-            damage: highRandom() * (1.5 + (this.abilities['bolt'] || 1) ** spellPower * 11 / 14) * this.magic_level + Math.random() * 5,
+            damage: highRandom() * (1 + (this.abilities['bolt'] || 1) ** spellPower * 11 / 14) * this.magic_level + Math.random() * 5,
             accuracy: Math.random() * (1.5 + this.coordination * (1.5 + (this.abilities['bolt'] || 1) / 5)),
             damageType: 'electric',
-            weaponType: 'electric',
+            attackVerb: 'electric',
         }).call(this, target)
     },
     fire: async function (this: A2dCharacter, target: Character) {
@@ -40,10 +40,10 @@ const spells: Record<string, SpellAction> = {
         if (this.isPlayer) this.game.print(`<brightred>A jet of flame shoots towards ${target.name}.`);
         await damageSpell({
             spellName: 'magic fire',
-            damage: highRandom() * (3 + (this.abilities['fire'] || 1) ** spellPower * 14 / 11) * this.magic_level,
+            damage: highRandom() * (4 + (this.abilities['fire'] || 1) ** spellPower * 14 / 11) * this.magic_level,
             accuracy: Math.random() * (this.coordination + 2 + (this.abilities['fire'] || 1) / 3),
             damageType: 'fire',
-            weaponType: 'fire',
+            attackVerb: 'fire',
             damage_overflow: 0.5
         }).call(this, target)
     },
@@ -53,9 +53,9 @@ const spells: Record<string, SpellAction> = {
         if (this.isPlayer) this.game.print(`<brightred>Blades sprout from your fingers and hurtle towards ${target.name}.`);
         await damageSpell({
             spellName: 'blades',
-            damage: highRandom() * (1 + (this.abilities['blades'] || 1) ** spellPower * 2) * this.magic_level,
+            damage: highRandom() * (5 + (this.abilities['blades'] || 1) ** spellPower * 2) * this.magic_level,
             accuracy: Math.random() * (Math.max(this.coordination - 1, 1) + (this.abilities['blades'] || 1) / 5),
-            weaponType: 'blades',
+            attackVerb: 'blades',
             damageType: 'sharp',
             damage_overflow: 0.8
         }).call(this, target)
@@ -67,9 +67,9 @@ const spells: Record<string, SpellAction> = {
         if (this.isPlayer) this.game.print(`<brightred>A booming wave of ULTIMATE POWER rolls towards ${target.name}.`);
         await damageSpell({
             spellName: 'powermaxout',
-            damage: highRandom() * (mp / 25 * (this.abilities['powermaxout'] || 1) ** spellPower) * this.magic_level,
+            damage: highRandom() * (7 + mp / 25 * (this.abilities['powermaxout'] || 1) ** spellPower) * this.magic_level,
             accuracy: highRandom() * 2 * (this.coordination + (this.abilities['powermaxout'] || 1) * 2),
-            weaponType: 'magic',
+            attackVerb: 'magic',
             damageType: 'magic',
             damage_overflow: 1
         }).call(this, target)
@@ -143,11 +143,11 @@ function checkRequirements(this: A2dCharacter, spellName: string, magicCost: num
     return true;
 }
 
-function damageSpell({ spellName, damage, accuracy, damageType, weaponType, damage_overflow = 0, casualties = [] }: {
+function damageSpell({ spellName, damage, accuracy, damageType, attackVerb, damage_overflow = 0, casualties = [] }: {
     spellName: string,
     damage: number,
     accuracy: number,
-    weaponType: WeaponTypes,
+    attackVerb: WeaponTypes,
     damageType: DamageTypes,
     damage_overflow?: number,
     casualties?: Character[]
@@ -171,14 +171,14 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
         }
         if (hit) {
             damage = Math.max(target.modify_damage(damage, damageType), 0);
-            console.log(`<black>${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
+            console.log(`${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
         } else {
             this.print(`<black>${caps(spellName)} misses ${target.name}.`);
             return;
         }
         if (this.location?.playerPresent) {
             this.game.color(damage ? black : gray)
-            this.game.print(this.describeAttack(target, spellName, weaponType, damage, false))
+            this.game.print(this.describeAttack(target, spellName, attackVerb, damage, false))
         }
         if (damage >= target.hp) {
             casualties.push(target)
@@ -189,11 +189,22 @@ function damageSpell({ spellName, damage, accuracy, damageType, weaponType, dama
                 console.log(`damage overflows to ${otherEnemies.length} remaining enemies`)
                 const newTarget = randomChoice(otherEnemies)
                 if (newTarget) {
-                    await damageSpell({ spellName, damage, accuracy, damageType, weaponType, damage_overflow, casualties }).call(this, newTarget)
+                    await damageSpell({ spellName, damage, accuracy, damageType, attackVerb: attackVerb, damage_overflow, casualties }).call(this, newTarget)
                 } else { damage = 0 }
             } else { damage = 0 }
         } else {
-            target.hurt(damage, this);
+            target.hurt({
+                'blunt': damageType == 'blunt' ? damage : 0,
+                'sharp': damageType == 'sharp' ? damage : 0,
+                'electric': damageType == 'electric' ? damage : 0,
+                'fire': damageType == 'fire' ? damage : 0,
+                'magic': damageType == 'magic' ? damage : 0,
+                'cold': damageType == 'cold' ? damage : 0,
+                'poison': damageType == 'poison' ? damage : 0,
+                'sickness': damageType == 'sickness' ? damage : 0,
+                'sonic': damageType == 'sonic' ? damage : 0,
+                'acid': damageType == 'acid' ? damage : 0,
+            }, this);
             damage = 0;
         }
         if (damage == 0 && casualties.length > 0) {
