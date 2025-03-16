@@ -177,27 +177,36 @@ class Player extends A2dCharacter {
         this.addAction('save', 0, this.saveGame);
         this.addAction('load', 0, this.loadGame);
         this.addAction(['', 'wait'], 10, async () => { if (this.flags.path?.length ?? 0 > 0) this.go('') });
-        this.addAction(['n', 'north'], 10, async () => await this.go('north'));
-        this.addAction(['s', 'south'], 10, async () => await this.go('south'));
-        this.addAction(['e', 'east'], 10, async () => await this.go('east'));
-        this.addAction(['w', 'west'], 10, async () => await this.go('west'));
-        this.addAction(['ne', 'northeast'], 10, async () => await this.go('northeast'));
-        this.addAction(['se', 'southeast'], 10, async () => await this.go('southeast'));
-        this.addAction(['sw', 'soutwest'], 10, async () => await this.go('southwest'));
-        this.addAction(['nw', 'northwest'], 10, async () => await this.go('northwest'));
-        this.addAction('down', 10, async () => await this.go('down'));
-        this.addAction('up', 10, async () => await this.go('up'));
-        this.addAction('go', 10, this.go);
-        this.addAction('flee', 10, async () => { if (this.backDirection) await this.go(this.backDirection); else { this.color(black); this.print('you are cornered!') } });
+        this.addAction(['n', 'north'], 10, async () => { await this.go('north') });
+        this.addAction(['s', 'south'], 10, async () => { await this.go('south') });
+        this.addAction(['e', 'east'], 10, async () => { await this.go('east') });
+        this.addAction(['w', 'west'], 10, async () => { await this.go('west') });
+        this.addAction(['ne', 'northeast'], 10, async () => { await this.go('northeast') });
+        this.addAction(['se', 'southeast'], 10, async () => { await this.go('southeast') });
+        this.addAction(['sw', 'soutwest'], 10, async () => { await this.go('southwest') });
+        this.addAction(['nw', 'northwest'], 10, async () => { await this.go('northwest') });
+        this.addAction('down', 10, async () => { await this.go('down') });
+        this.addAction('up', 10, async () => { await this.go('up') });
+        this.addAction('go', 10, async (direction) => { await this.go(direction) });
+        this.addAction('flee', 10, async () => {
+            if (await this.can_go(this.backDirection)) await this.go(this.backDirection);
+            else { this.color(black); this.print('you are cornered!') }
+        });
         this.addAction('i', 0, async () => this.checkInventory());
-        this.addAction('look', 5, this.look);
+        this.addAction('look', 0, this.look);
         this.addAction('read', 20, this.read);
-        this.addAction('eat', 10, async (itemName) => { await this.consume(itemName, 'eat') });
-        this.addAction('drink', 10, async (itemName) => { await this.consume(itemName, 'drink') });
-        this.addAction('use', 10, async (itemName) => { await this.consume(itemName, 'use') });
+        this.addAction('eat', 5, async (itemName) => { this.action({ command: `⌂eat ${itemName}` }); });
+        this.addAction('⌂eat', 5, async (itemName) => { await this.consume(itemName, 'eat'); });
+        this.addAction('drink', 5, async (itemName) => { this.action({ command: `⌂drink ${itemName}` }); });
+        this.addAction('⌂drink', 5, async (itemName) => { await this.consume(itemName, 'drink'); });
+        this.addAction('use', 5, async (itemName) => { this.action({ command: `⌂use ${itemName}` }); });
+        this.addAction('⌂use', 5, async (itemName) => { await this.consume(itemName, 'use'); });
         this.addAction('wield', 10, async (weapon: string) => await this.equip(weapon, 'right hand'));
         this.addAction(['wield2', 'left wield'], 10, async (weapon: string) => await this.equip(weapon, 'left hand'));
-        this.addAction('wear', 15, async (item: string) => await this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']));
+        this.addAction('wear', 5, async (item: string) => {
+            await this.equip(item, this.item(item)?.equipment_slot as keyof Player['equipment']);
+            this.time = -10;
+        });
         this.addAction('ready', 10, async (weapon: string) => await this.equip(weapon, 'bow'));
         this.addAction('remove', 10, async (item: string) => await this.unequip(item));
         this.addAction('pets', 0, this.checkPets);
@@ -209,11 +218,22 @@ class Player extends A2dCharacter {
         this.addAction('equipment', 0, this.checkEquipment);
         this.addAction('heal', 10, this.heal);
         this.addAction(['talk', 'talk to'], 10, this.talkTo);
-        this.addAction(['attack', 'repel'], 10, async (name: string) => await this.target(name));
-        this.addAction(['\\', 'left attack'], 0, async (name: string) => { await this.left_attack(name); this.time -= 10; });
-        this.addAction(['/', 'right attack'], 0, async (name: string) => { await this.right_attack(name); })
+        this.addAction(['attack'], 0, async (name: string) => { await this.right_attack(name || this.attackTarget?.unique_id || 'nobody') });
+        // this.addAction(['attack'], 10, this.target);
+        // this.addAction(['repel'], 5, async (name: string) => {
+        //     await this.target(name);
+        //     if (this.attackTarget) await this.right_attack(this.attackTarget.unique_id);
+        // });
+        this.addAction(['\\', 'left attack'], 10, async (name: string) => { await this.left_attack(name) });
+        // this.addAction(['/', 'right attack'], 0, async (name: string) => { await this.right_attack(name); })
         this.addAction('shoot', 0, async (name: string) => { await this.fight(this.location?.character(name) || null); await this.bow_attack(name) });
-        this.addAction('cast', 0, async (spell: string) => {
+        this.addAction('cast', 0, async (subject: string) => {
+            let [spell, target] = splitFirst(subject);
+            if (target) {
+                if (target.startsWith('at ')) target = target.slice(3);
+                console.log(`targeting ${target} with ${spell}`)
+                this.fight(this.location?.character(target) || this.attackTarget)
+            }
             if (!this.abilities[spell]) {
                 this.print("You don't know that spell.")
             } else {
@@ -221,17 +241,20 @@ class Player extends A2dCharacter {
             }
         })
         this.addAction('newbie', 10, async () => { await this.spell('newbie') });
-        this.addAction('bolt', 0, async () => { await this.spell('bolt'); this.action({ command: 'wait', time: 10 }) });
-        this.addAction('fire', 10, async () => { await this.spell('fire') });
+        this.addAction('bolt', 10, async () => { await this.spell('bolt') });
+        this.addAction('fire', 10, async () => { this.action({ command: 'incendio porticallus' }) });
+        this.addAction('incendio porticallus', 5, async () => { await this.spell('fire') });
         this.addAction('blades', 15, async () => { await this.spell('blades') });
-        this.addAction('powermaxout', 10, async () => {
+        this.addAction('powermaxout', 10, async () => { this.action({ command: 'alacio brixid' }) });
+        this.addAction('alacio brixid', 10, async () => {
             this.print("<red>You gather your energy, feeling the magic strobe in your fingertips...");
             await this.pause(1);
-            this.action({ command: 'charge up', time: 10 })
+            this.action({ command: 'wait', time: 10 })
+            this.queue_action({ command: 'caxaphonius maximo' })
         });
-        this.addAction('charge up', 10, async () => { await this.pause(0.5); await this.spell('powermaxout') });
+        this.addAction('caxaphonius maximo', 10, async () => { await this.pause(0.5); await this.spell('powermaxout') });
         this.addAction('cast bloodlust', 10, async () => { await this.spell('bloodlust') });
-        this.addAction('cast shield', 5, async () => { await this.spell('shield') });
+        this.addAction('cast shield', 10, async () => { await this.spell('shield') });
         this.addAction('cheatmode xfish9', 0, async () => { this.cheatMode = true; this.color(magenta); this.print('Cheat mode activated.') });
         this.addAction('cheat', 0, this.cheat);
         this.addAction('buffs', 0, this.checkBuffs);
@@ -248,14 +271,17 @@ class Player extends A2dCharacter {
         this.off('attack');
         this.on('attack', async (attacker) => {
             console.log(`player attacked by ${attacker.name}`)
-
-            if (!this.hasEnemy(attacker)) {
+            if (!this.enemies.includes(attacker.unique_id)) {
                 this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
-                this.addEnemy(attacker);
-                if (!this.attackTarget) {
-                    this.action({ command: `attack ${attacker.unique_id}`, time: 5 });
-                    this.queue_action({ command: 'wait', time: 10 })
+                if (!this.fighting) {
+                    this.time = -5;
+                    this.fight(attacker);
+                    this.pets.forEach(pet => {
+                        pet.action({ command: `attack ${attacker.unique_id}`, time: 10 });
+                        pet.time = -4;
+                    });
                 }
+                this.addEnemy(attacker);
             } else {
                 console.log(`player is already fighting ${attacker.name}`)
             }
@@ -288,43 +314,58 @@ class Player extends A2dCharacter {
     }
 
     async idle() {
-        // this.fighting = this.location?.characters.some(character => character.enemies.includes(this.name) || this.enemies.includes(character.name)) || false;
-        // if (!this.attackTarget || this.attackTarget.location !== this.location) {
-        //     await this.fight(this.findEnemy())
-        // }
-        if (this.fighting && this.attackTarget) {
-            // await this.right_attack(this.attackTarget.unique_id)
-        } else {
-            // ready bow when not fighting
-            this.clearEnemies();
-            this.useWeapon('bow');
-            this.offTimer('right attack');
-        }
-        for (let buff of Object.values(this.buffs)) {
-            const displayBuff = buff.display();
-            if (displayBuff) this.print(displayBuff);
-        }
+        console.log('player idle')
         await this.getinput();
+    }
+
+    async turn() {
+        console.log(`player turn ${this.time}, ${this.actionQueue[0]?.command}`)
+        while (this.actionQueue.length > 0 && this.time >= 0) {
+            const next_action = this.actionQueue.shift();
+            if (next_action) await this.execute(next_action);
+        }
+        while (this.time >= 0) {
+            await this.getinput();
+            while (this.actionQueue.length > 0 && this.time >= 0) {
+                const next_action = this.actionQueue.shift();
+                console.log(`player input: ${next_action?.command}`)
+                if (next_action) await this.execute(next_action);
+            }
+            if (this.flags.assistant)
+                assistant(this);
+            if (!this.fighting) {
+                // ready bow when not fighting
+                this.clearEnemies();
+                this.fight(null); ///       bn,m,m,m,,..// (Aurora Lilith Allen, 3/4/2025)
+                this.useWeapon('bow');
+                this.offTimer('right attack');
+            }
+            for (let buff of Object.values(this.buffs)) {
+                const displayBuff = buff.display();
+                if (displayBuff) this.print(displayBuff);
+            }
+        }
     }
 
     async getinput() {
         let command = '';
         this.color(black, darkwhite)
+        console.log('getting player input')
         // this.fighting = this.location?.characters.some(character => character.hasEnemy(this) || this.hasEnemy(character)) || false;
         // console.log('player input')
         if (this.fighting) {
             console.log(`player is fighting ${this.attackTarget?.name}`)
             const dirs = ['north', 'south', 'east', 'west']
-            this.disableCommands(dirs.map(dir => `go ${dir}`), `${this.attackTarget?.name} blocks your way!`);
-            this.disableCommands(dirs.map(dir => dir.slice(0, 1)), `${this.attackTarget?.name} blocks your way!`);
+            // this.disableCommands(dirs.map(dir => `go ${dir}`), `${this.attackTarget?.name} blocks your way!`);
+            // this.disableCommands(dirs.map(dir => dir.slice(0, 1)), `${this.attackTarget?.name} blocks your way!`);
             this.checkHP();
             this.color(black)
             this.print(")===|[>>>>>>>>>>>>>>>>>>")
             command = await this.input()
         } else {
             const dirs = ['north', 'south', 'east', 'west']
-            this.enableCommands(dirs.map(dir => `go ${dir}`));
-            this.enableCommands(dirs.map(dir => dir.slice(0, 1)));
+            // this.enableCommands(dirs.map(dir => `go ${dir}`));
+            // this.enableCommands(dirs.map(dir => dir.slice(0, 1)));
             this.color(blue)
             this.print(this.name, 1)
             this.color(black)
@@ -344,19 +385,27 @@ class Player extends A2dCharacter {
 
     action({ command, time }: { command: string, time?: number }) {
         if (this.disabledCommands[command]) {
-            this.color(gray)
-            this.print(this.disabledCommands[command])
+            this.color(gray);
+            this.print(this.disabledCommands[command]);
             return;
         }
+        console.log('player action', command);
         const timingIndex = Object.keys(this.actionTiming).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command
         const timing = time ?? this.actionTiming[timingIndex] ?? 10;
         // console.log(`player action ${command} ${timingIndex}, ${timing}`)
         this.actionQueue = [{ command, time: timing }];
-        this.time = 0;
+        // this.time = 0;
     }
 
-    async execute(command: string) {
+    async execute({ command, time }: { command: string, time: number }) {
         // see if the location can process this action
+        // if (!command) {
+        //     const next_action = this.actionQueue.shift();
+        //     command = next_action?.command ?? '';
+        //     time = next_action?.time ?? 1;
+        // }
+        console.log(`player executes action ${command}`)
+        this.time -= time;
         let verb = Array.from(this.location?.actions.keys() || []).filter(
             key => command == key || command.startsWith(`${key} `)
         ).sort((a, b) => b.length - a.length)[0] ?? command;
@@ -364,43 +413,42 @@ class Player extends A2dCharacter {
         if (this.location?.actions.has(verb)) {
             let args = command.slice(verb.length).trim();
             await this.location?.actions.get(verb)?.(this, args);
-        } else {
-            // see if any characters in the room can handle the command
-            for (let character of this.location?.characters ?? []) {
-                verb = Array.from(character.interactions.keys() || []).filter(
-                    key => command == key || command.startsWith(`${key} `)
-                ).sort((a, b) => b.length - a.length)[0] ?? command;
-                if (character != this && character.interactions.has(verb)) {
-                    let args = command.slice(verb.length).trim();
-                    await character.interactions.get(verb)?.(this, args);
-                    return
-                }
-            }
-            // see if any items can handle the command
-            verb = Array.from(this.items.map(item => Array.from(item.actions.keys())).flat() || []).filter(
-                key => command == key || command.startsWith(`${key} `)
-            ).sort((a, b) => b.length - a.length)[0] ?? command;
-            for (let item of this.items) {
-                // verb = Array.from(item.actions.keys() || []).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command;
-                if (item.actions.has(verb)) {
-                    let args = command.slice(verb.length).trim();
-                    await item.getAction(verb)?.(this, args);
-                    return
-                }
-            }
-            // see if the player can handle the command
-            verb = Array.from(this.actions.keys() || []).filter(
-                key => command == key || command.startsWith(`${key} `)
-            ).sort((a, b) => b.length - a.length)[0] ?? command;
-            if (this.actions.has(verb)) {
-                let args = command.slice(verb.length).trim();
-                console.log(`player action ${verb} ${args}`)
-                await this.actions.get(verb)?.(args);
-                return;
-            }
-            this.color(gray);
-            this.print('What?');
+            return;
         }
+        // see if any characters in the room can handle the command
+        for (let character of this.location?.characters ?? []) {
+            verb = Array.from(character.interactions.keys() || []).filter(
+                key => command == key || command.startsWith(`${key} `)
+            ).sort((a, b) => b.length - a.length)[0] ?? command;
+            if (character != this && character.interactions.has(verb)) {
+                let args = command.slice(verb.length).trim();
+                await character.interactions.get(verb)?.(this, args);
+                return
+            }
+        }
+        // see if any items can handle the command
+        verb = Array.from(this.items.map(item => Array.from(item.actions.keys())).flat() || []).filter(
+            key => command == key || command.startsWith(`${key} `)
+        ).sort((a, b) => b.length - a.length)[0] ?? command;
+        for (let item of this.items) {
+            // verb = Array.from(item.actions.keys() || []).filter(key => command.startsWith(key)).sort((a, b) => b.length - a.length)[0] ?? command;
+            if (item.actions.has(verb)) {
+                let args = command.slice(verb.length).trim();
+                await item.getAction(verb)?.(this, args);
+                return
+            }
+        }
+        // see if the player can handle the command
+        verb = Array.from(this.actions.keys() || []).filter(
+            key => command == key || command.startsWith(`${key} `)
+        ).sort((a, b) => b.length - a.length)[0] ?? command;
+        if (this.actions.has(verb)) {
+            let args = command.slice(verb.length).trim();
+            await this.actions.get(verb)?.(args);
+            return;
+        }
+        this.color(gray);
+        this.print('What?');
     }
 
     disableCommands(commands: string[], message: string) {
@@ -443,7 +491,7 @@ class Player extends A2dCharacter {
         this.hunger = Math.max(this.hunger + diff / 10, -this.max_sp / 4)
         this.color(magenta)
         if (this.hungerPenalty >= 1) {
-            this.hurt(this.hunger - this.base_stats.max_sp, 'hunger')
+            this.hurt({ sickness: this.hunger - this.base_stats.max_sp }, 'hunger')
             this.print('You are starving!')
         } else if (this.hungerPenalty && this.flags.hungry) {
             this.print('You are hungry.')
@@ -465,34 +513,32 @@ class Player extends A2dCharacter {
         this.print(`${caps(character.name)} leaves ${direction}.`);
     }
 
-    async target(targetName?: string) {
-        let target: Character | null;
-        if (targetName) {
-            target = this.location?.character(targetName) || null;
-            if (!target) {
-                this.print('They are not here.')
-            }
-        } else {
-            target = this.findEnemy();
-        }
-        console.log(`player targets ${target?.name}`)
-        this.useWeapon('right hand');
-        await this.fight(target);
-    }
+    // async target(targetName?: string) {
+    //     let target: Character | null;
+    //     if (targetName) {
+    //         target = this.location?.character(targetName) || null;
+    //         if (!target) {
+    //             this.print('They are not here.')
+    //         }
+    //     } else {
+    //         target = this.findEnemy();
+    //     }
+    //     console.log(`player targets ${target?.name}`)
+    //     this.useWeapon('right hand');
+    //     await this.fight(target);
+    // }
 
     async fight(target: Character | null) {
-        for (let pet of this.pets) { await pet.fight(target); pet.push_action({ command: 'wait', time: 4 }) };
-        if (target) {
-            this.addEnemy(target);
-            if (!this.hasTimer('right attack')) {
-                this.onTimer({ command: 'right attack', time: 10, repeat: true })
-            }
-        }
-        if (this.attackTarget && this.attackTarget.location == this.location) { return }
-        console.log(`player fights: ${target?.name ?? 'no one.'}`)
-        const actions = this.actionQueue;
+        for (let pet of this.pets) { await pet.fight(target); };
         await super.fight(target);
-        this.actionQueue = actions;
+        // this.offTimer('attack');
+        // if (target) {
+        //     this.addEnemy(target);
+        //     if (!this.hasTimer('attack')) {
+        //         this.onTimer({ command: 'right attack', time: 10, repeat: true })
+        //     }
+        // }
+        console.log(`player fights: ${target?.name ?? 'no one.'}`)
     }
 
     useWeapon(weapon: 'left hand' | 'right hand' | 'bow' | 'none') {
@@ -538,7 +584,7 @@ class Player extends A2dCharacter {
             let target = this.location?.character(enemy);
             if (!target) {
                 // broaden the search to characters who have just left the room
-                target = this.game.find_all_characters(enemy).filter(character => character.lastLocation == this.location)[0];
+                target = this.game.find_all_characters(enemy).find(character => character.lastLocation == this.location);
                 if (!target) {
                     this.print("They're not here.");
                     return;
@@ -547,8 +593,6 @@ class Player extends A2dCharacter {
             enemy = target;
         }
         if (this.equipment['bow'] && this.has('arrow')) {
-            // await this.fight(enemy);
-            if (this.attackTarget != enemy) { return; }
             this.removeItem('arrow', 1);
             this.useWeapon('bow');
             let hitted = 0;
@@ -579,8 +623,10 @@ class Player extends A2dCharacter {
             await this.pause(0.5)
             const actual_coordination = this.base_stats.coordination
             this.base_stats.coordination = Infinity  // we already did the coordination check
+            console.log(`Player shoots ${enemy.unique_id}`)
             await this.attack(enemy, this.equipment['bow'], this.weaponDamage('bow', dam));
             this.base_stats.coordination = actual_coordination
+            this.useWeapon('right hand');
         } else if (this.equipment['bow'] && !this.has('arrow')) {
             this.print("You're out of arrows.")
         } else {
@@ -608,10 +654,12 @@ class Player extends A2dCharacter {
     }
 
     async encounter(character: Character) {
-        if (!this.justMoved && !this.pets.includes(character)) {
-            console.log(`player encountered "${character.name}", "${character.fight_description}"`)
-            this.color(green);
-            this.print(`${caps(character.name)} enters from ${character.backDirection ? `the ${character.backDirection}` : 'nowhere'}.`);
+        if (!this.pets.includes(character)) {
+            console.log(`player encountered ${character.unique_id}`)
+            if (!this.justMoved) {
+                this.color(green);
+                this.print(`${caps(character.name)} enters from ${character.backDirection ? `the ${character.backDirection}` : 'nowhere'}.`);
+            }
         }
     }
 
@@ -666,7 +714,8 @@ class Player extends A2dCharacter {
             else this.print("You are already at full health.");
             return;
         }
-        this.recoverStats({ hp: healed, sp: -healed });
+        const stamina_drain = this.class_name == 'cleric' ? 0.5 : 1;
+        this.recoverStats({ hp: healed, sp: -healed * stamina_drain });
         this.print("You pull yourself together and heal some!");
         if (!this.fighting) this.checkHP();
     }
@@ -747,15 +796,24 @@ class Player extends A2dCharacter {
         } else {
             this.pets.push(pet);
             pet.leader = this;
+            if (!pet.name) {
+                let yn = 'n';
+                while (yn != 'y') {
+                    this.color(black);
+                    pet.name = await this.input(`Type a name for your ${pet.key}: `);
+                    this.print('Are you sure? [y/n]');
+                    yn = await this.getKey(['y', 'n']);
+                }
+            }
             pet.onIdle(async function () {
                 this.leader = this.leader instanceof Character ? this.leader : this.location?.character(this.leader) || this;
                 if (this.leader.fighting) {
-                    await this.fight(this.leader.attackTarget);
-                    console.log(`${this.leader.name}'s pet ${this.name} joins the fight against ${this.leader.attackTarget?.name}.`)
+                    await this.fight(this.leader.findEnemy());
+                    console.log(`${this.leader.name}'s pet ${this.name} joins the fight against ${this.attackTarget?.name}.`)
                 } else {
                     await this.fight(null);
                     this.clearEnemies();
-                    console.log(`${this.leader.name}'s pet ${this.name} is idle.`)
+                    // console.log(`${this.leader.name}'s pet ${this.name} is idle.`)
                 }
             }).onDeath(async () => {
                 this.pets = this.pets.filter(p => p !== pet);
@@ -766,10 +824,9 @@ class Player extends A2dCharacter {
             }).onAttack(async (attacker) => {
                 if (attacker == this) {
                     pet.leader = '';
-                    pet.off('slay').off('attack').off('death').off('idle').off('fight');
+                    pet.off('slay').off('attack').off('idle').off('fight');
                     await pet.fight(this);
-                }
-                else if (!this.hasEnemy(attacker)) {
+                } else if (!this.hasEnemy(attacker) && !this.pets.includes(attacker)) {
                     this.print(`<red>${attacker.name}<black> takes the initiative to attack you!`);
                 }
             }).fightMove(async () => {
@@ -790,7 +847,7 @@ class Player extends A2dCharacter {
     async checkPets() {
         for (let pet of this.pets) {
             this.color(green)
-            this.print(`${caps(pet.name)}:`)
+            this.print(`${caps(pet.name)}, ${pet.key}:`)
             this.print(`  HP: ${Math.ceil(pet.hp)}/${Math.ceil(pet.max_hp)}`)
             this.print(`  agility: ${Math.ceil(pet.agility)}`)
             this.print(`  coordination: ${Math.ceil(pet.coordination)}`)
@@ -799,6 +856,10 @@ class Player extends A2dCharacter {
                     this.print(`  ${dam} damage: ${Math.ceil(pet.base_damage[dam])}`)
                 }
             }
+        }
+        if (this.pets.length == 0) {
+            this.color(gray);
+            this.print('You have no pets.')
         }
     }
 
@@ -928,7 +989,7 @@ class Player extends A2dCharacter {
                 this.color(orange)
                 this.print(`${item.name} was consumed.`)
             }
-            this.checkHP();
+            if (!this.fighting) this.checkHP();
             if (verb == 'eat') this.checkHunger();
         }
         else {
@@ -1153,6 +1214,7 @@ class Player extends A2dCharacter {
     async spell(spellName: string) {
         this.color(black)
         if (this.abilities[spellName]) {
+            console.log(`casting ${spellName}`)
             await spells[spellName].call(this, this.attackTarget || this);
         } else {
             console.log(`${spellName} failed.`)
@@ -1183,6 +1245,7 @@ class Player extends A2dCharacter {
             this.getItem(itemName);
             if (this.has(itemName)) {
                 this.print(`Got ${displayName}.`)
+                this.color(black)
             }
             if (item.equipment_slot && this.flags.assistant) {
                 this.color(magenta)
@@ -1195,7 +1258,6 @@ class Player extends A2dCharacter {
         for (let item of this.location?.items ?? []) {
             this.get(item.name);
         }
-        this.print("Got everything.")
     }
 
     has = (item_name: string, quantity: number = 1) => {
@@ -1415,7 +1477,9 @@ class Player extends A2dCharacter {
     }
 
     get fighting(): boolean {
-        return this.location?.characters.some(character => this.attackTarget == character || character.attackTarget == this || character.attackTarget && this.pets.includes(character.attackTarget)) || false;
+        return this.location?.characters.some(character =>
+            this.hasEnemy(character)
+        ) || false;
     }
 
     async slay(character: Character | Character[]) {
@@ -1445,6 +1509,8 @@ class Player extends A2dCharacter {
             for (let item of char.items) {
                 if (item.name !== 'gold') this.print(`${char.name} drops ${item.display}`)
             }
+            // remove any action that references this character in particular, because they're dead, right?
+            this.actionQueue = this.actionQueue.filter(action => !action.command.includes(char.unique_id))
         }
         // sum up gold and exp all together
         this.color(green)
@@ -1467,12 +1533,6 @@ class Player extends A2dCharacter {
         } else {
             await this.fight(null)
         }
-    }
-
-    async turn() {
-        await this.execute(this.actionQueue.shift()?.command || '');
-        if (this.flags.assistant)
-            assistant(this);
     }
 
     buff_additive(key: BaseStats): number {
@@ -1552,6 +1612,7 @@ class Player extends A2dCharacter {
             'electric': this.buff_damage_additive('electric') * multiplier,
             'sonic': this.buff_damage_additive('sonic') * multiplier,
             'acid': this.buff_damage_additive('acid') * multiplier,
+            'sickness': this.buff_damage_additive('sickness') * multiplier,
         }
         console.log(`weapon damage: ${JSON.stringify(dam)}`)
         return dam;
@@ -1667,6 +1728,15 @@ class Player extends A2dCharacter {
                     this.game.loadScenario(scenario)
                     this.relocate(this.game.find_location(this.location?.key || '') || null);
                     this.print('map regenerated.')
+                    break;
+                case ('peace'):
+                    this.game.characters.forEach(char => {
+                        char.clearEnemies();
+                        Object.keys(char.flags).forEach(flag => {
+                            if (flag.includes('enemy_of_')) char.flags[flag] = false;
+                        })
+                    })
+                    this.print('Everyone is cool now.');
                     break;
                 case ('enable'):
                     this.enableCommands();
@@ -1836,7 +1906,7 @@ class Player extends A2dCharacter {
         await this.relocate(character.location)
         if (character.pets) {
             for (let pet of character.pets) {
-                this.addPet(this.game.addCharacter({ location: this.location, name: pet.key, ...pet }))
+                await this.addPet(this.game.addCharacter({ location: this.location, name: pet.key, ...pet }))
                 console.log(`pet ${pet.key} loaded at ${this.location}.`)
             }
         }
