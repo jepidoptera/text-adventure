@@ -14,6 +14,8 @@ let keepAliveInterval;
 let inputBuffer = [];
 let keyCallbacks = [];
 let token = localStorage.getItem('gameToken') || null;
+let currentSessionID = null;
+let activeBlinkIntervals = [];
 
 // Set up the single global event listener
 function initializeInputHandler() {
@@ -90,7 +92,6 @@ function renderScreen() {
             }
         });
     });
-    // console.log('rendering');
 }
 
 // Function to set current colors
@@ -103,7 +104,6 @@ function color(fg, bg) {
 function locate(x, y) {
     cursor.x = parseInt(x);
     cursor.y = parseInt(y) || cursor.y;
-    // continueLine = true;
 }
 
 // Function to print text at the current cursor location with the current colors
@@ -144,7 +144,6 @@ function quote(text = '', extend = false) {
     }
 }
 
-
 // Synchronous input function with in-place updating
 function query(promptText = '', sessionID) {
     quote(promptText, true);
@@ -154,8 +153,20 @@ function query(promptText = '', sessionID) {
         let inputText = '';
         let initialX = cursor.x, initialY = cursor.y;
 
+        // Store this as the current session when query starts
+        const querySessionID = sessionID;
+
         // Set up blinking cursor
         const blink = setInterval(() => {
+            // If session has changed, clear this interval and reject
+            if (currentSessionID !== querySessionID) {
+                clearInterval(blink);
+                const index = activeBlinkIntervals.indexOf(blink);
+                if (index > -1) activeBlinkIntervals.splice(index, 1);
+                resolve(null);
+                return;
+            }
+
             const blinkLocation = [initialX + inputText.length, initialY];
             screenBuffer[blinkLocation[1]][blinkLocation[0]] = {
                 char: '_',
@@ -164,7 +175,10 @@ function query(promptText = '', sessionID) {
             };
             renderScreen();
             setTimeout(() => {
+                // Check again in the clear timeout
+                if (currentSessionID !== querySessionID) return;
                 if (blinkLocation[0] < cursor.x || blinkLocation[1] < cursor.y) return;
+
                 screenBuffer[blinkLocation[1]][blinkLocation[0]] = {
                     char: ' ',
                     fg: currentColor.fg,
@@ -174,13 +188,37 @@ function query(promptText = '', sessionID) {
             }, 400);
         }, 800);
 
-        while (currentSessionID == sessionID) {
-            const key = await getNextKey();
+        // Track this interval so we can clear it if needed
+        activeBlinkIntervals.push(blink);
+
+        while (true) {
+            // Check if session has changed
+            if (currentSessionID !== querySessionID) {
+                clearInterval(blink);
+                const index = activeBlinkIntervals.indexOf(blink);
+                if (index > -1) activeBlinkIntervals.splice(index, 1);
+                resolve(null);
+                break;
+            }
+
+            const key = await getNextKey(querySessionID);
+
+            // null key means the session was canceled
+            if (key === null) {
+                clearInterval(blink);
+                const index = activeBlinkIntervals.indexOf(blink);
+                if (index > -1) activeBlinkIntervals.splice(index, 1);
+                resolve(null);
+                break;
+            }
+
             if (key === 'Enter') {
                 clearInterval(blink);
+                const index = activeBlinkIntervals.indexOf(blink);
+                if (index > -1) activeBlinkIntervals.splice(index, 1);
                 quote('');
                 resolve(inputText);
-                return;
+                break;
             } else if (key === 'Backspace') {
                 inputText = inputText.slice(0, -1);
                 locate(initialX, initialY);
@@ -192,8 +230,6 @@ function query(promptText = '', sessionID) {
             }
             renderScreen();
         }
-        clearInterval(blink);
-        resolve(null);
     });
 }
 
@@ -207,6 +243,9 @@ async function optionBox(
     default_option = 0,
     sessionID
 ) {
+    // Store the session ID for this specific optionBox call
+    const optionBoxSessionID = sessionID;
+
     previousColors = [currentColor.fg, currentColor.bg];
     let key = '';
     let selected = default_option;
@@ -226,7 +265,9 @@ async function optionBox(
     quote('─'.repeat(boxWidth), true);
 
     while (key !== 'Enter') {
-        if (sessionID !== currentSessionID) return null;
+        // Check if the session has changed
+        if (currentSessionID !== optionBoxSessionID) return null;
+
         if (key === 'ArrowUp') {
             selected = (selected - 1 + options.length) % options.length;
         } else if (key === 'ArrowDown') {
@@ -242,7 +283,10 @@ async function optionBox(
             quote(` ${options[i]}${' '.repeat(boxWidth - options[i].length - 1)}`, true);
         }
         renderScreen();
-        key = await getNextKey(sessionID);
+        key = await getNextKey(optionBoxSessionID);
+
+        // If key is null, the session was canceled
+        if (key === null) return null;
     }
     color(...previousColors);
     quote('');
@@ -299,6 +343,23 @@ async function processResponse(batch) {
     renderScreen();
 }
 
+function handleReconnection() {
+    // Cancel any ongoing input operations
+    currentSessionID = null;
+
+    // Clear all active blink intervals
+    activeBlinkIntervals.forEach(interval => clearInterval(interval));
+    activeBlinkIntervals = [];
+
+    // Clear the input buffer and callbacks
+    inputBuffer = [];
+    keyCallbacks = [];
+
+    // Reset the display if needed
+    clear();
+    renderScreen();
+}
+
 function initializeWebSocket() {
     const socketUrl = window.location.hostname === 'localhost'
         ? 'ws://localhost:3000'
@@ -309,6 +370,9 @@ function initializeWebSocket() {
     socket.onopen = function () {
         console.log('Connected to WebSocket server');
         clearInterval(keepAliveInterval);
+
+        // Call the reconnection handler to clean up any previous state
+        handleReconnection();
 
         // Send the token to the server on connection
         const message = {
