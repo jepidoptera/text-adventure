@@ -222,6 +222,7 @@ class Character {
     private _fightMove: Action | undefined;
     private _onRespawn: Action | undefined;
     private _onDialog: Action | undefined = async () => { this.game.print("They don't want to talk") };
+    private _onDealDamage: Action | undefined;
     interactions: Map<string, (...args: any[]) => Promise<void>> = new Map()
     hostile: boolean = false;
     pacifist: boolean = false;
@@ -906,8 +907,13 @@ class Character {
         return this;
     }
 
+    onDealDamage(action: (this: Character, target: Character, damage: Partial<{ [key in DamageTypes]: number }>) => Promise<void>) {
+        this._onDealDamage = action.bind(this);
+        return this;
+    }
+
     on(
-        event: 'dialog' | 'encounter' | 'departure' | 'enter' | 'leave' | 'slay' | 'death' | 'idle' | 'respawn' | 'fight' | 'attack',
+        event: 'dialog' | 'encounter' | 'departure' | 'enter' | 'leave' | 'slay' | 'death' | 'idle' | 'respawn' | 'fight' | 'attack' | 'deal damage',
         action: (args?: any) => Promise<void>) {
         switch (event) {
             case 'dialog': this._onDialog = action.bind(this); break;
@@ -921,6 +927,7 @@ class Character {
             case 'respawn': this._onRespawn = action.bind(this); break;
             case 'fight': this._fightMove = action.bind(this); break;
             case 'attack': this._onAttack.push(action.bind(this)); break;
+            case 'deal damage': this._onDealDamage = action.bind(this); break;
         }
         return this;
     }
@@ -1068,7 +1075,7 @@ class Character {
         } else if (verb == 'recover') {
             // console.log('recover')
             this.autoheal();
-        } else if (verb == 'wait') {
+        } else if (verb == 'wait' || verb == 'wait') {
             return;
         }
     }
@@ -1100,13 +1107,14 @@ class Character {
         }
         console.log(`${this.name} hits ${target.name} (${accuracy} > ${evasion})!`);
 
-        let dam: { [key: string]: number } = {}
+        let dam: Partial<{ [key in DamageTypes]: number }> = {}
         for (let key of Object.keys(damage_potential)) {
             if (damage_potential[key as DamageTypes] === 0) continue;
-            dam[key] = highRandom(damage_potential[key as DamageTypes] || 0)
-            dam[key] = target.modify_damage(dam[key], key as DamageTypes)
-            dam[key] = dam[key] < 0 ? 0 : dam[key]
-            console.log(`${this.name} does ${dam[key]} ${key} damage to ${target.name}`)
+            const damKey = key as DamageTypes;
+            dam[damKey] = highRandom(damage_potential[key as DamageTypes] || 0)
+            dam[damKey] = target.modify_damage(dam[damKey], key as DamageTypes)
+            dam[damKey] = dam[damKey] < 0 ? 0 : dam[damKey]
+            console.log(`${this.name} does ${dam[damKey]} ${key} damage to ${target.name}`)
         }
 
         //Damage total
@@ -1115,20 +1123,23 @@ class Character {
         //Output screen
         if (this.location?.playerPresent)
             this.game.print(this.describeAttack(target, weaponName, weaponType, tdam))
-        await target.hurt(tdam, this)
+        await target.hurt(dam, this)
 
         if (target.dead) {
             await this.slay(target);
         }
     }
 
-    async hurt(damage: number, cause: any): Promise<number> {
-        this.hp -= damage;
-        console.log(`${this.name} takes ${damage} damage from ${cause}, ${this.hp} hp left.`)
+    async hurt(damage: Partial<{ [key in DamageTypes]: number }>, cause: any) {
+        if (cause instanceof Character) {
+            await cause._onDealDamage?.(this, damage);
+        }
+        let tdam = Object.values(damage).reduce((prev, curr) => prev + curr, 0)
+        this.hp -= tdam;
+        console.log(`${this.name} takes ${tdam} damage from ${cause.name || cause}, ${this.hp} hp left.`)
         if (this.hp <= 0) {
             await this.die(cause);
         }
-        return damage;
     }
 
     describeAttack(target: Character, weaponName: string, weaponType: string, damage: number, call_attack = false): string {
