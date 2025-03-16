@@ -112,7 +112,6 @@ class A2D extends GameState {
     }
 
     async main() {
-        let command = '';
         console.log('starting main loop');
         while (!this.player.dead) {
             // await this.player.turn();
@@ -121,22 +120,26 @@ class A2D extends GameState {
                 throw new Error('player is not in characters list');
             }
             for (let character of characters) {
-                if (!character.dead) {
+                if (this.player.dead) {
+                    break;
+                } else if (!character.dead) {
                     character.time += character.speed;
                     if (character.isPlayer) {
                         console.log(`player time: ${character.time}`);
-                        console.log(`player next action: ${character.next_action?.command}`);
+                        console.log(`player next action: ${character.actionQueue[0]?.command}`);
                         console.log(`player reaction queue: ${character.reactionQueue.map(r => `${r.command} in ${r.time}`).join(', ')}`);
                         (character as Player).pets.forEach(pet => {
-                            console.log(`pet ${pet.name} time: ${pet.time}`);
-                            console.log(`pet ${pet.name} next action: ${pet.next_action?.command}`);
+                            if (pet.actionQueue.length > 0) {
+                                console.log(`pet ${pet.name} time: ${pet.time}`);
+                                console.log(`pet ${pet.name} next action: ${pet.actionQueue[0]?.command}`);
+                            }
                         })
                     }
                     for (let reaction of character.reactionQueue) {
                         reaction.time -= character.speed;
                         if (reaction.time <= 0) {
                             // console.log(character.name, 'executing reaction', reaction.command)
-                            await character.execute(reaction.command);
+                            await character.execute({ command: reaction.command, time: 0 });
                             if (reaction.repeat) {
                                 reaction.time += reaction.repeat;
                             } else {
@@ -144,16 +147,8 @@ class A2D extends GameState {
                             }
                         }
                     }
-                    if (character.next_action) {
-                        if (character.time >= character.next_action.time) {
-                            character.time -= character.next_action.time;
-                            await character.turn();
-                        }
-                    } else if (character.time >= 0) {
-                        character.time = 0;
-                        await character.idle();
-                    } else {
-                        // frozen in negative time!
+                    if (character.time >= 0) {
+                        await character.turn();
                     }
                     for (let buff of Object.values(character.buffs)) {
                         await buff.turn();
@@ -164,15 +159,7 @@ class A2D extends GameState {
                 }
             }
             console.log('------------------------Character loop complete------------------------')
-            // while (activeCharacters.length > 0) {
-            //     for (let character of activeCharacters.sort((a, b) => b.isPlayer ? -1 : 1)) {
-            //         if (!character.dead) {
-            //             if (!character.dead) await character.turn();
-            //         }
-            //         character.time -= 1;
-            //     }
-            //     activeCharacters = this.characters.filter(char => !char.dead && char.time >= 1)
-            // }
+            await this.pause(0.01);
         }
         this.print('Press any key to continue.')
         await this.getKey();
