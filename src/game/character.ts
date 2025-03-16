@@ -23,7 +23,7 @@ type BaseStats =
     'agility' | 'magic_level' | 'healing' | 'archery' | 'hp_recharge' |
     'mp_recharge' | 'sp_recharge' | 'offhand';
 
-const damageTypesList = ['blunt', 'sharp', 'magic', 'fire', 'electric', 'cold', 'sonic', 'poison', 'acid'] as const;
+const damageTypesList = ['blunt', 'sharp', 'magic', 'fire', 'electric', 'cold', 'sonic', 'poison', 'acid', 'sickness'] as const;
 type DamageTypes = typeof damageTypesList[number];
 
 type DamageModifiers = Partial<Record<DamageTypes, number>>;
@@ -37,7 +37,7 @@ type BuffModifiers = {
 }
 
 class Buff {
-    private _onApply: ((this: Buff) => Promise<void>) | null = null;
+    private _onCreate: ((this: Buff) => Promise<void>) | null = null;
     private _onExpire: ((this: Buff) => Promise<void>) | null = null;
     private _onTurn: ((this: Buff) => Promise<void>) | null = null;
     private _display: ((this: Buff) => string) | null = null;
@@ -68,13 +68,13 @@ class Buff {
         this.times = times;
         this.plus = plus;
     }
-    onApply(action: (this: Buff) => Promise<void>) {
-        this._onApply = action.bind(this);
+    onCreate(action: (this: Buff) => Promise<void>) {
+        this._onCreate = action.bind(this);
         return this;
     }
     async apply(character: Character) {
         this.character = character;
-        await this._onApply?.();
+        await this._onCreate?.();
     }
     onExpire(action: (this: Buff) => Promise<void>) {
         this._onExpire = action.bind(this);
@@ -201,7 +201,7 @@ class Character {
     weaponName: string = "";
     attackVerb: WeaponTypes = 'club';
     armor: { [key: string]: Item } = {};
-    base_damage: { [key in DamageTypes]: number } = { blunt: 0, sharp: 0, magic: 0, fire: 0, electric: 0, cold: 0, sonic: 0, poison: 0, acid: 0 };
+    base_damage: Partial<{ [key in DamageTypes]: number }> = {};
     readonly buffs: { [key: string]: Buff } = {};
     location: Location | null = null;
     backDirection: string = '';
@@ -337,7 +337,7 @@ class Character {
         this.attackVerb = weaponType || 'club';
         if (damage) {
             for (let damageType of Object.keys(damage)) {
-                this.base_damage[damageType as DamageTypes] += damage[damageType as DamageTypes] || 0;
+                this.base_damage[damageType as DamageTypes] = damage[damageType as DamageTypes] || 0;
             }
         }
         this.hostile = hostile;
@@ -353,7 +353,7 @@ class Character {
                 this.addEnemy(enemy);
                 if (!this.attackTarget) {
                     console.log(`${this.unique_id} reacts to an attack from ${enemy.unique_id}.`)
-                    this.action({ command: `repel ${this.name}`, time: 5 });
+                    this.action({ command: `repel ${enemy.unique_id}`, time: 5 });
                 }
             }
         ];
@@ -485,13 +485,14 @@ class Character {
 
     get fighting(): boolean {
         if (!this.attackTarget) return false;
-        if (this.next_action?.command.startsWith('attack')) return true;
+        if (this.actionQueue[0]?.command.startsWith('attack')) return true;
         return this.location?.characters.some(character => this.attackTarget == character) || false;
     }
 
     findEnemy() {
         if (this.pacifist) return null;
-        this.enemies = this.enemies.filter(enemy => enemy);
+        // this.enemies = this.enemies.filter(enemy => enemy);
+        if (this.attackTarget) return this.attackTarget;
         let enemy = this.location?.characters.find(character => this.hasEnemy(character) || this.attackTarget == character) || null;
         if (!enemy && this.hostile) {
             enemy = this.location?.characters.find(character => character.alignment !== this.alignment) || null;
@@ -501,6 +502,7 @@ class Character {
 
     hasEnemy(character: Character): boolean {
         if (this.pacifist || character.pacifist) return false;
+        if (this.hostile && character.alignment !== this.alignment) return true;
         return this.enemies.includes(character.name) || this.enemies.includes(character.unique_id);
     }
 
@@ -512,9 +514,6 @@ class Character {
         if (this.pacifist || character.pacifist) return;
         if (character == this) return;
         if (!this.hasEnemy(character)) this.enemies.push(character.unique_id);
-        // if (!this.attackTarget && this.location == character.location) {
-        //     await this.fight(character);
-        // }
     }
 
     async fight(enemy: Character | null = null) {
@@ -543,9 +542,10 @@ class Character {
                 console.log(`${this.unique_id} fights ${enemy?.unique_id} at ${this.location?.key}.`)
                 this.attackTarget = enemy;
                 // this.fighting = true;
-                if (!this.next_action?.command.startsWith('attack')) {
-                    console.log(`${this.name} prepares to attack ${enemy.name}.`)
-                    this.action({ command: 'attack' });
+                if (!this.hasTimer('attack')) {
+                    console.log(`${this.name} intiates attack against ${enemy.name}.`)
+                    this.action({ command: 'attack', time: 0 });
+                    this.onTimer({ command: 'attack', time: 10, repeat: true });
                 }
                 for (let action of enemy?._onAttack || []) {
                     await action.call(enemy, this);
@@ -627,7 +627,8 @@ class Character {
 
     async slay(character: Character | Character[]) {
         // gloat or whatever
-        if (this.location?.playerPresent) {
+        if (this.location?.playerPresent && !(character instanceof Array ? character : [character]).some(char => char.isPlayer)) {
+            // don't say this if the playing is slain
             this.game.print(`${this.name} slays ${character instanceof Array ? character.map(char => char.name).join(', ') : character.name}!`)
         }
         await this._onSlay?.(character);
@@ -820,6 +821,8 @@ class Character {
 
     async respawn() {
         if (!this.respawns) return;
+        this.actionQueue = [];
+        this.reactionQueue = [];
         await this._onRespawn?.()
         this.time = 0;
         const location = randomChoice(this.game.find_all_locations(this.respawnLocation?.toString() ?? '0'))
@@ -944,7 +947,7 @@ class Character {
             case 'idle': this._onIdle = null; break;
             case 'respawn': this._onRespawn = undefined; break;
             case 'fight': this._fightMove = undefined; break;
-            case 'attack': this._onAttack = []; break;
+            case 'attack': this._onAttack.pop(); break;
         }
         return this;
     }
@@ -961,8 +964,7 @@ class Character {
     async encounter(character: Character) {
         if (this.dead) return;
         await this._onEncounter?.(character);
-
-        if (!this.fighting && this.findEnemy() == character) {
+        if (!this.fighting && this.hasEnemy(character)) {
             await this.fight(character);
         }
     }
@@ -1007,7 +1009,7 @@ class Character {
 
     action({ command, time = 10 }: { command: string, time?: number }) {
         this.actionQueue = [{ command, time }];
-        this.time = 0;
+        // this.time = 0;
         console.log(`${this.unique_id} actions ${command} in ${time} deci-seconds.`)
     }
 
@@ -1027,17 +1029,13 @@ class Character {
         this.actionQueue = [];
     }
 
-    get next_action(): { command: string, time: number } | null {
-        return this.actionQueue[0] || null;
-    }
-
     onTimer({ command, time, repeat = false }: { command: string, time: number, repeat?: boolean }) {
         this.reactionQueue.push({ command, time, repeat: repeat ? time : undefined });
     }
 
     offTimer(command?: string) {
         if (command) {
-            console.log(`${this.unique_id} offTimer ${command} removed ${this.reactionQueue.filter(reaction => reaction.command.startsWith(command))}.`)
+            // console.log(`${this.unique_id} offTimer ${command} removed ${this.reactionQueue.filter(reaction => reaction.command.startsWith(command))}.`)
             this.reactionQueue = this.reactionQueue.filter(reaction => !reaction.command.startsWith(command));
         } else {
             this.reactionQueue = [];
@@ -1048,8 +1046,8 @@ class Character {
         return this.reactionQueue.find(reaction => reaction.command.startsWith(command));
     }
 
-    async execute(command: string) {
-        // console.log(`${this.name} executes ${command}`)
+    async execute({ command, time }: { command: string, time: number }) {
+        this.time -= time;
         let [verb, args] = splitFirst(command);
         // console.log(`${this.name} action ${verb}: ${args}`)
         if (verb == 'go') verb = args;
@@ -1086,9 +1084,13 @@ class Character {
         damage_potential: Partial<{ [key in DamageTypes]: number }>
     ) {
         if (!target) target = this.attackTarget;
-        if (!target) return;
         // target.action({ command: `repel ${this.unique_id}`, time: 5 });
-        if (!target || target.dead || this.attackTarget !== target || this.dead) return;
+        if (!target || target.dead || this.dead) {
+            console.log(`${this.unique_id} can't attack ${target?.unique_id ?? 'nobody'}.`)
+            if (target?.dead) { console.log(`${target.name} is dead.`) }
+            if (this.dead) { console.log(`${this.name} is dead.`) }
+            return;
+        }
         if (!damage_potential) damage_potential = this.base_damage;
         console.log(`${this.name} attacks ${target.name} with ${JSON.stringify(damage_potential)}`)
 
@@ -1176,12 +1178,11 @@ class Character {
     }
 
     async turn() {
-        if (this.next_action) {
-            await this.execute(typeof this.next_action == 'string' ? this.next_action : this.next_action.command);
-            this.actionQueue.shift();
-        }
-        if (this.attackTarget && this.fighting) {
-            this.action({ command: 'attack', time: 10 })
+        if (this.actionQueue.length > 0) {
+            const next_action = this.actionQueue.shift();
+            if (next_action) await this.execute(next_action);
+        } else {
+            this.idle();
         }
     }
 
