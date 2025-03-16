@@ -79,18 +79,24 @@ const buffs: { [key: string]: BuffCreator } = {
         let poisonDam = 0;
         return new Buff({
             name: 'poison',
-            duration: Math.ceil(duration || power || 1) * 10,
-            power: Math.ceil(power || duration || 1)
+            duration: Math.ceil(power || 1) * 10,
+            power: Math.ceil(power || 1)
+        }).onCreate(async function () {
+            if (this.character.location?.playerPresent) {
+                await this.game.pause(1);
+                this.game.print(` <brightgreen, black>+${Math.ceil(this.power)} poison<,darkwhite> `);
+                await this.game.pause(0.5);
+            }
         }).onTurn(async function () {
             poisonDam += this.power / 10;
             displayTurns += 1;
             if (displayTurns % 10 === 0) {
                 if (this.character.isPlayer) {
-                    this.game.print(`<brightgreen, black>-${Math.ceil(poisonDam)} HP`, 1);
+                    this.game.print(`<green>-${Math.ceil(poisonDam)} HP`, 1);
                     this.game.color(black, darkwhite);
                     this.game.print();
                 }
-                this.character.hurt(poisonDam, "poison");
+                this.character.hurt({ 'poison': poisonDam }, "poison");
                 poisonDam = 0;
             }
             this.power *= this.duration / (this.duration + 1);
@@ -105,7 +111,7 @@ const buffs: { [key: string]: BuffCreator } = {
             name: 'antidote',
             duration: duration,
             power: power,
-        }).onApply(async function () {
+        }).onCreate(async function () {
             const poisonDebuff = this.character.getBuff('poison')
             if (poisonDebuff) poisonDebuff.power -= this.power;
         }).onTurn(async function () {
@@ -131,7 +137,7 @@ const buffs: { [key: string]: BuffCreator } = {
             name: 'sleep',
             duration: duration,
             power: power,
-        }).onApply(async function () {
+        }).onCreate(async function () {
             if (this.character.isPlayer) {
                 (this.character as Player).disableCommands(
                     Array.from((this.character as Player).actions.keys()),
@@ -157,7 +163,7 @@ const buffs: { [key: string]: BuffCreator } = {
             name: 'mana potion',
             duration: duration,
             power: power,
-        }).onApply(async function () {
+        }).onCreate(async function () {
             this.character.mp += this.power;
         }).onTurn(async function () {
             this.character.mp += this.power / this.duration;
