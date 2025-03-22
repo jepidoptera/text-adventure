@@ -272,6 +272,8 @@ class A2dCharacter extends Character {
                 if (call_attack) callAttack = `${caps(attackerPronouns.subject)} ${s('attack')} ${targetPronouns.object} with ${weaponName}!`
                 break;
             case ("sonic"):
+                does = `${caps(attackerPronouns.possessive)} ${weaponName} has no effect.`;
+                if (DT > 0) does = `${caps(attackerPronouns.possessive)} ${weaponName} irritates ${targetPronouns.object}, making ${targetPronouns.object} wince.`;
                 if (DT >= 5) { does = `${caps(attackerPronouns.possessive)} ${weaponName} stings ${targetPronouns.object}, making ${target.pronouns.object} grit ${target.pronouns.possessive} teeth.` };
                 if (DT >= 10) { does = `${caps(attackerPronouns.possessive)} ${weaponName} stabs at ${targetPronouns.possessive} ears, and ${target.pronouns.subject} ${t_s('feel')} momentarily faint.` };
                 if (DT >= 20) { does = `${caps(attackerPronouns.possessive)} ${weaponName} hits ${targetPronouns.object} full in the face, making ${target.pronouns.possessive} ears ring.` };
@@ -1390,7 +1392,7 @@ const characters = {
                         this.print("Sift recalls a dream where he was invulnerable.");
                         this.print("-- defenses raised --")
                     }
-                    this.addBuff(getBuff('shield')({ power: 50, duration: 2 }))
+                    this.addBuff(getBuff('shield')({ power: 50, duration: 25 }))
                 },
                 async function (this: A2dCharacter) {
                     if (this.location?.playerPresent) {
@@ -2498,8 +2500,8 @@ const characters = {
         }).fightMove(async function () {
             if (Math.random() < 2 / 5) {
                 let dam = highRandom(65)
-                dam = this.attackTarget?.modify_damage(dam, 'sharp') || 0
-                dam = this.attackTarget?.modify_damage(dam, 'poison') || 0
+                dam = this.attackTarget?.modify_incoming_damage(dam, 'sharp') || 0
+                dam = this.attackTarget?.modify_incoming_damage(dam, 'poison') || 0
                 console.log('poison damage =', dam)
                 let currentPoison = this.attackTarget?.getBuff('poison')?.power || 0;
                 currentPoison += Math.max(dam, 0);
@@ -2606,7 +2608,7 @@ const characters = {
                 } else if (this.location?.playerPresent) {
                     this.print("Termite soldier shoots acid at " + this.attackTarget?.name + "!")
                 }
-                let dam = { acid: this.attackTarget?.modify_damage(highRandom(20), 'acid') || 0 }
+                let dam = { acid: this.attackTarget?.modify_incoming_damage(highRandom(20), 'acid') || 0 }
                 await this.attackTarget?.hurt(dam, 'acid')
             } else if (Math.random() < 1 / 3) {
                 if (this.location?.playerPresent) { this.print("Termite soldier shrieks, summoning help!") }
@@ -4037,7 +4039,7 @@ const characters = {
             key: 'mutant bat',
             pronouns: { "subject": "he", "object": "him", "possessive": "his" },
             max_hp: 50,
-            damage: { sonic: 20 },
+            damage: { sonic: 13.3 },
             weaponName: 'high pitched screech',
             attackVerb: 'sonic',
             fight_description: 'mutant bat',
@@ -5114,7 +5116,7 @@ const characters = {
                 this.color(yellow)
                 if (this.location?.playerPresent) {
                     this.print(`A wave of fire erupts from ${this.name}, heading toward ${this.attackTarget?.name}!`)
-                    let dam = this.attackTarget!.modify_damage(highRandom(this.magic_level), 'fire')
+                    let dam = this.attackTarget!.modify_incoming_damage(highRandom(this.magic_level), 'fire')
                     this.describeAttack(this.attackTarget!, 'scorching breath', 'fire', dam)
                     await this.attackTarget!.hurt({ fire: dam }, this)
                 }
@@ -5175,8 +5177,8 @@ const characters = {
         }).fightMove(async function () {
             if (Math.random() < 1 / 3) {
                 let dam = highRandom(50)
-                dam = this.attackTarget?.modify_damage(dam, 'sharp') || 0
-                dam = this.attackTarget?.modify_damage(dam, 'poison') || 0
+                dam = this.attackTarget?.modify_incoming_damage(dam, 'sharp') || 0
+                dam = this.attackTarget?.modify_incoming_damage(dam, 'poison') || 0
                 console.log('poison damage =', dam)
                 this.attackTarget?.addBuff(getBuff('poison')({ power: dam, duration: dam }))
                 console.log(`duration: ${this.attackTarget?.getBuff('poison')?.duration}`)
@@ -5286,7 +5288,7 @@ const characters = {
                     await this.pause(0.5)
                 }
                 let dam = highRandom(50);
-                dam = this.attackTarget?.modify_damage(dam, 'fire') || 0;
+                dam = this.attackTarget?.modify_incoming_damage(dam, 'fire') || 0;
                 this.print(this.describeAttack(this.attackTarget!, 'blue fire', 'fire', dam));
                 this.attackTarget?.hurt({ fire: dam }, this);
                 console.log('fire damage =', dam);
