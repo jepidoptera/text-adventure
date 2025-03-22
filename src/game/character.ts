@@ -468,13 +468,13 @@ class Character {
         }, { plus: {}, times: {} });
     }
 
-    damage(baseAmount: number, damageType: DamageTypes): number {
+    modify_outgoing_damage(baseAmount: number, damageType: DamageTypes): number {
         const additive = this.buff_damage_additive(damageType);
         const multiplier = this.buff_damage_multiplier(damageType);
         return (baseAmount + additive) * multiplier;
     }
 
-    modify_damage(baseAmount: number, damageType: DamageTypes): number {
+    modify_incoming_damage(baseAmount: number, damageType: DamageTypes): number {
         const subtract = highRandom(this.buff_defense_additive(damageType));
         const multiplier = this.buff_defense_multiplier(damageType);
         if (subtract != 0 || multiplier != 1) {
@@ -1091,8 +1091,7 @@ class Character {
             if (this.dead) { console.log(`${this.name} is dead.`) }
             return;
         }
-        if (!damage_potential) damage_potential = this.base_damage;
-        console.log(`${this.name} attacks ${target.name} with ${JSON.stringify(damage_potential)}`)
+        // console.log(`${this.name} attacks ${target.name} with ${JSON.stringify(damage_potential)}`)
 
         const weaponName = weapon instanceof Item ? weapon?.name : weapon || this.weaponName;
         const weaponType = (weapon instanceof Item ? weapon.attackVerb : this.attackVerb) || 'club';
@@ -1109,23 +1108,25 @@ class Character {
         }
         console.log(`${this.name} hits ${target.name} (${accuracy} > ${evasion})!`);
 
-        let dam: Partial<{ [key in DamageTypes]: number }> = {}
+        let damage: Partial<{ [key in DamageTypes]: number }> = {}
         for (let key of Object.keys(damage_potential)) {
             if (damage_potential[key as DamageTypes] === 0) continue;
             const damKey = key as DamageTypes;
-            dam[damKey] = highRandom(damage_potential[key as DamageTypes] || 0)
-            dam[damKey] = target.modify_damage(dam[damKey], key as DamageTypes)
-            dam[damKey] = dam[damKey] < 0 ? 0 : dam[damKey]
-            console.log(`${this.name} does ${dam[damKey]} ${key} damage to ${target.name}`)
+            damage[damKey] = highRandom(this.modify_outgoing_damage(damage_potential[damKey] || 0, damKey));
+            damage[damKey] = target.modify_incoming_damage(damage[damKey], key as DamageTypes)
+            damage[damKey] = damage[damKey] < 0 ? 0 : damage[damKey]
+            console.log(`${this.name} does ${damage[damKey]} ${key} damage to ${target.name}`)
         }
 
+        console.log(`${this.name} attacks with {${Object.entries(damage).map(([key, value]) => `${key}: ${value}`).join(', ')}}`)
+
         //Damage total
-        let tdam = Object.values(dam).reduce((prev, curr) => prev + curr, 0)
+        let tdam = Object.values(damage).reduce((prev, curr) => prev + curr, 0)
 
         //Output screen
         if (this.location?.playerPresent)
             this.game.print(this.describeAttack(target, weaponName, weaponType, tdam))
-        await target.hurt(dam, this)
+        await target.hurt(damage, this)
 
         if (target.dead) {
             await this.slay(target);
