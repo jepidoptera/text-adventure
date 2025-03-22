@@ -170,7 +170,7 @@ function damageSpell({ spellName, damage, accuracy, damageType, attackVerb, dama
             }
         }
         if (hit) {
-            damage = Math.max(target.modify_damage(damage, damageType), 0);
+            damage = Math.max(target.modify_incoming_damage(damage, damageType), 0);
             console.log(`${target.name} is hit by ${spellName} for ${damage} ${damageType} damage!`)
         } else {
             this.print(`<black>${caps(spellName)} misses ${target.name}.`);
