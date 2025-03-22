@@ -242,7 +242,7 @@ class Player extends A2dCharacter {
         })
         this.addAction('newbie', 10, async () => { await this.spell('newbie') });
         this.addAction('bolt', 10, async () => { await this.spell('bolt') });
-        this.addAction('fire', 10, async () => { this.action({ command: 'incendio porticallus' }) });
+        this.addAction('fire', 5, async () => { this.action({ command: 'incendio porticallus' }) });
         this.addAction('incendio porticallus', 5, async () => { await this.spell('fire') });
         this.addAction('blades', 15, async () => { await this.spell('blades') });
         this.addAction('powermaxout', 10, async () => { this.action({ command: 'alacio brixid' }) });
