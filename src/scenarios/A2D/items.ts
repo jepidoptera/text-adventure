@@ -1279,7 +1279,7 @@ const items = {
         }).addAction('play lute', async function (player: Character) {
             this.game.color(blue)
             this.game.print("You lift the beautiful lute to your lips, and unleash a tune...")
-            if (player.attackTarget?.name.toLowerCase() == 'sift') {
+            if (player.attackTarget && player.location?.character('sift')) {
                 this.game.print(musicc$(10))
                 this.game.print()
                 this.game.color(magenta)
@@ -1290,14 +1290,16 @@ const items = {
                 player.attackTarget.addBuff(
                     new Buff({
                         name: 'power drain',
-                        duration: Math.floor(Math.random() * 5) + 2,
-                        plus: { damage: { blunt: -10, sharp: -50 }, agility: -10 }
+                        duration: Math.floor(Math.random() * 3) + 2,
+                        plus: { agility: -10 },
+                        times: { damage: { sharp: 0.4, blunt: 0.4, electric: 0.5 } }
                     }).onTurn(async function () {
                         this.duration += 1;
                     }).onCreate(async function () {
                         const buff = this;
-                        this.character.onAttack(async function () {
+                        this.character.onDealDamage(async function () {
                             buff.duration -= 1;
+                            console.log(`lute debuff duration remaining: ${buff.duration}`)
                             if (buff.duration === 0) {
                                 buff.expire();
                                 this.removeBuff(buff);
